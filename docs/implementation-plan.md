@@ -1,0 +1,256 @@
+# ARIA 智能报价辅助系统 — 项目实施计划
+
+**版本：** v1.0  
+**日期：** 2026-06-18  
+**状态：** 立项
+
+---
+
+## 目录
+
+1. [项目概述](#1-项目概述)
+2. [里程碑计划](#2-里程碑计划)
+3. [WBS 工作分解](#3-wbs-工作分解)
+4. [人员分工](#4-人员分工)
+5. [依赖与前置条件](#5-依赖与前置条件)
+6. [风险管理](#6-风险管理)
+7. [沟通机制](#7-沟通机制)
+8. [质量保证](#8-质量保证)
+
+---
+
+## 1. 项目概述
+
+### 1.1 项目信息
+
+| 项 | 内容 |
+|----|------|
+| 项目名称 | ARIA 智能报价辅助系统 |
+| 客户 | EDAG（爱达克） |
+| 开发方 | [开发团队名称] |
+| 计划周期 | Phase 1: 4–6 周；Phase 2: 10–12 周 |
+| 需求基线 | [prod.md](../prod.md) v1.0 |
+
+### 1.2 项目目标
+
+1. **Phase 1：** 交付可演示 Demo，验证 RFQ 解析 + 历史比对 + Excel 人力报价技术可行性
+2. **Phase 2：** 交付生产级系统，覆盖四大模块全量功能
+3. **Phase 3：** （远期）财务 AI 模块
+
+---
+
+## 2. 里程碑计划
+
+### 2.1 Phase 1 — Demo（4–6 周）
+
+```mermaid
+gantt
+    title Phase 1 Demo 里程碑
+    dateFormat YYYY-MM-DD
+    section 准备
+    立项文档完成           :m1, 2026-06-18, 5d
+    样本归档+模板确认      :m2, after m1, 3d
+    section 开发
+    工程脚手架             :d1, after m2, 5d
+    RFQ解析+RAG            :d2, after d1, 10d
+    Excel生成+前端           :d3, after d2, 10d
+    section 验收
+    测试+联调              :t1, after d3, 5d
+    客户Demo演示           :done1, after t1, 2d
+```
+
+| 里程碑 | 目标日期 | 交付物 | 验收标准 |
+|--------|---------|--------|---------|
+| M0 立项完成 | D+5 | prod.md + 配套文档 | 客户确认需求基线 |
+| M1 脚手架就绪 | D+13 | docker-compose 可启动 | 健康检查 200 |
+| M2 RFQ 链路通 | D+23 | 上传→解析→对比表 | 3 份 RFQ 测试通过 |
+| M3 Excel 链路通 | D+33 | 模板填充+下载 | xlsx 可打开，PM+Chassis 有数据 |
+| M4 Demo 验收 | D+40 | 完整 Demo | [prod.md §10.1](../prod.md) 清单全通过 |
+
+### 2.2 Phase 2 — 正式版（10–12 周）
+
+| 里程碑 | 周期 | 交付物 |
+|--------|------|--------|
+| M5 QA 模块 | W1–W3 | Q_A 模板导出 |
+| M6 PPT 模块 | W2–W6 | EDAG 结构 .pptx |
+| M7 Excel 全量 | W3–W5 | 9 Function Sheet |
+| M8 人机协同 | W4–W6 | 状态机 + audit trail |
+| M9 知识库飞轮 | W5–W7 | 反馈 + Re-index |
+| M10 生产部署 | W8–W9 | prod compose + 脚本 |
+| M11 UAT | W10 | 3–5 工程师试用 |
+| M12 正式上线 | W11–W12 | 培训 + 运维移交 |
+
+---
+
+## 3. WBS 工作分解
+
+### 3.1 Phase 1 WBS
+
+```
+1. 项目管理
+   1.1 需求分析与文档
+   1.2 进度跟踪与 Demo 彩排
+2. 基础设施
+   2.1 工程目录脚手架
+   2.2 docker-compose + Dockerfile
+   2.3 .env.example + README
+   2.4 run_tests.sh
+3. 后端 — RFQ 模块
+   3.1 docx 文本提取
+   3.2 LLM Function 解析 Prompt
+   3.3 JSON Schema 校验 + repair
+   3.4 RFQ API
+4. 后端 — RAG 模块
+   4.1 ingest_documents.py
+   4.2 incremental_update.py
+   4.3 向量检索 + 相似度排序
+   4.4 技术维度对比表生成
+   4.5 置信度计算
+5. 后端 — Excel 模块
+   5.1 模板复制引擎
+   5.2 Project information 填充
+   5.3 PM/Chassis Sheet 映射
+   5.4 Manpower 汇总
+   5.5 历史人天基线检索
+6. 后端 — 公共
+   6.1 GeneratorRegistry 插件架构
+   6.2 LLMService 封装
+   6.3 任务状态管理
+   6.4 结构化日志
+7. 前端
+   7.1 RFQ 上传页
+   7.2 分析结果页（对比表+置信度）
+   7.3 报价生成页
+   7.4 知识库管理页
+8. 测试
+   8.1 单元测试
+   8.2 API 测试
+   8.3 回归测试集（3 RFQ）
+9. 集成
+   9.1 端到端联调
+   9.2 Demo 彩排
+```
+
+### 3.2 Phase 2 增量 WBS
+
+```
+10. QA 模块（QAGenerator + Q_A 模板导出）
+11. PPT 模块（PPTGenerator + EDAG 章节骨架）
+12. Excel 全 9 Function Sheet
+13. PDF RFQ 解析
+14. 人机协同全闭环（状态机 + audit trail + 在线编辑）
+15. 知识库飞轮（feedback 表 + Dashboard + Re-index UI）
+16. 生产部署（prod compose + 运维脚本）
+17. 运维文档 + 用户手册 + 培训
+```
+
+---
+
+## 4. 人员分工
+
+### 4.1 RACI 矩阵（Phase 1）
+
+| 任务 | 后端 A | 后端 B | 前端 | PM |
+|------|--------|--------|------|-----|
+| RFQ 解析 | R | C | I | A |
+| RAG 检索 | C | R | I | A |
+| Excel 生成 | R | C | I | A |
+| 前端页面 | C | C | R | A |
+| Docker/测试 | R | R | C | A |
+| Demo 彩排 | C | C | C | R |
+
+> R=Responsible, A=Accountable, C=Consulted, I=Informed
+
+### 4.2 客户方配合
+
+| 角色 | 职责 |
+|------|------|
+| 业务负责人 | 需求确认、Demo 反馈、UAT 签字 |
+| 报价工程师（2–3 人） | 提供样本、参与 Demo/UAT |
+| IT 管理员 | 服务器、Ollama、网络、备份 |
+
+---
+
+## 5. 依赖与前置条件
+
+### 5.1 Demo 启动前（必须）
+
+| # | 依赖项 | 责任方 | 状态 |
+|---|--------|--------|------|
+| D1 | 脱敏 RFQ 2–3 份 | 客户 | 待提供 |
+| D2 | 历史 Excel 报价 1–2 份 | 客户 | 待提供 |
+| D3 | 模板文件归档确认 | 开发方 | 已收到 |
+| D4 | Phase 1 合同签订 | 双方 | 待签 |
+| D5 | 开发环境（Docker + GPU） | 开发方 | 自备 |
+
+### 5.2 Phase 2 启动前
+
+| # | 依赖项 | 责任方 |
+|---|--------|--------|
+| D6 | Demo 验收通过 | 客户 |
+| D7 | 生产服务器到位（推荐 4090） | 客户 IT |
+| D8 | 历史 Q_A + Proposal .pptx 样本 | 客户 |
+| D9 | 内网域名/DNS 配置 | 客户 IT |
+
+---
+
+## 6. 风险管理
+
+| ID | 风险 | 概率 | 影响 | 应对 | 责任人 |
+|----|------|------|------|------|--------|
+| R1 | 历史样本不足 | 中 | 高 | 提前索要；Demo 用脱敏 mock 补充 | PM |
+| R2 | Excel 模板映射超预期 | 高 | 中 | Demo 仅 PM+Chassis；template-mapping 文档化 | 后端 |
+| R3 | LLM JSON 不稳定 | 中 | 中 | repair + 重试 + 回归测试 | 后端 |
+| R4 | GPU 未到位影响体验 | 中 | 中 | Demo 用开发机 GPU；文档推荐配置 | PM |
+| R5 | 客户二次校验流程不清 | 低 | 中 | prod.md 明确状态机；Demo 演示确认流 | PM |
+| R6 | Phase 2 范围蔓延 | 中 | 高 | 变更须书面确认；Phase 3 独立合同 | PM |
+
+---
+
+## 7. 沟通机制
+
+| 活动 | 频率 | 参与人 | 产出 |
+|------|------|--------|------|
+| 站会 | 每日 15min | 开发团队 | 阻塞项 |
+| 周进度汇报 | 每周 | 开发 + 客户业务 | 周报 |
+| Demo 评审 | Phase 1 末 | 全员 | 验收签字 |
+| 变更评审 | 按需 | PM + 客户 | 变更记录 |
+
+**沟通渠道：** 企业微信群 / 邮件  
+**文档共享：** 项目 docs/ 目录 + 版本管理
+
+---
+
+## 8. 质量保证
+
+### 8.1 代码质量
+
+- 后端 api / services / repositories 三层分离
+- PR 审查（内部）
+- `./run_tests.sh` 每次合并前全绿
+
+### 8.2 测试策略
+
+| 类型 | Phase 1 | Phase 2 |
+|------|---------|---------|
+| 单元测试 | 核心 Service | 全 Service |
+| API 测试 | 主接口 + 异常 | 全接口 |
+| 回归测试 | 3 RFQ 固定集 | 5 RFQ + Prompt 版本 |
+| UAT | Demo 演示 | 3–5 工程师 1 周 |
+
+### 8.3 验收流程
+
+1. 开发自测 → `run_tests.sh` 全绿
+2. 内部集成测试 → 3 RFQ 端到端
+3. 客户 Demo/UAT → prod.md 验收清单
+4. 签字确认 → 进入下一阶段
+
+---
+
+**关联文档：**
+
+- [prod.md](../prod.md) — 产品需求基线
+- [dev-context.md](../dev-context.md) — 开发上下文（技术栈、API、编码规范）
+- [proposal.md](proposal.md)
+- [deployment-guide.md](deployment-guide.md)
+- [ops-guide.md](ops-guide.md)

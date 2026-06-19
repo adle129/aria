@@ -1,0 +1,234 @@
+
+开发流程规划
+基于 plan.md 的要求，整体开发流程分为以下几个阶段：
+
+总览
+scss
+Phase 0          Phase 1           Phase 2           Phase 3          Phase 4
+脚手架搭建   →   核心服务开发   →   功能模块开发   →   测试与验收   →   打包交付
+(1-2天)         (3-5天)           (2-3周)           (3-5天)         (1-2天)
+当前位置 ↑
+
+Phase 0：脚手架搭建（1-2天）
+目标： docker-compose up 能跑起来，但功能都是空的。先把骨架立起来，后续所有开发都在这个骨架上填充。
+bash
+Day 1
+├── 创建完整目录结构（严格按照 plan.md 第5节）
+├── 写 docker-compose.yml（postgres + backend + frontend + nginx）
+├── 写 backend/Dockerfile
+├── 写 frontend/Dockerfile
+├── 写 .env.example
+└── 验证：docker-compose up 能启动，无报错
+Day 2
+├── FastAPI 入口 main.py（只注册路由，无业务逻辑）
+├── 数据库连接配置 + Alembic 初始化
+├── 最小健康检查接口 GET /api/v1/health → {"status": "ok"}
+├── Next.js 初始化 + Ant Design 接入
+├── 统一日志模块 logger.py
+├── 统一错误处理中间件
+└── 验证：访问 http://localhost:3000 和 http://localhost:8000/docs 正常
+Phase 0 完成标志：
+bash
+docker-compose up       # ✅ 无报错启动
+curl localhost:8000/api/v1/health  # ✅ 返回 {"status": "ok"}
+curl localhost:3000     # ✅ 前端页面正常渲染
+
+Phase 1：核心服务开发（3-5天）
+目标： 把最底层的基础能力跑通，后续四个业务模块都依赖这里。
+优先级顺序
+markdown
+1. 数据库模型 + 迁移脚本      ← 其他所有功能的基础
+2. 文档上传 + 文本提取         ← 所有模块的输入来源
+3. Ollama 连接 + RAG 检索     ← 所有 AI 功能的基础
+4. 知识库导入脚本              ← 没有历史数据，模块一三四都没意义
+具体任务拆解
+bash
+Day 3：数据模型层
+├── models/project.py      （历史项目表）
+├── models/rfq_task.py     （RFQ任务表，含状态机：pending/processing/done/failed）
+├── alembic 生成第一个迁移脚本
+├── repositories/project_repo.py
+├── repositories/rfq_repo.py
+└── 验证：数据库表创建成功
+Day 4：文件上传 + 文本提取
+├── POST /api/v1/rfq/upload 接口（接收 .docx，校验格式，存储）
+├── utils/doc_loader.py（python-docx 提取文本）
+├── schemas/rfq.py（Pydantic 参数校验）
+├── 前端：RFQUploader 组件（拖拽上传，loading状态，错误提示）
+└── 验证：上传 docx 能返回文件 ID，错误格式返回 400
+Day 5：RAG 基础链路
+├── utils/vector_store.py（ChromaDB 封装：add/search/stats）
+├── services/rag_service.py（文档入库 + 相似度检索）
+├── scripts/ingest_documents.py（批量导入历史文档）
+├── POST /api/v1/knowledge/search 接口
+└── 验证：
+    python scripts/ingest_documents.py  # 导入几份测试文档
+    curl 搜索接口能返回相似结果
+Phase 1 完成标志：
+bash
+# 上传 RFQ 文件 → 返回文件ID
+# 搜索知识库 → 返回相似文档片段
+# 数据库有 projects 和 rfq_tasks 表
+
+Phase 2：四个业务模块开发（2-3周）
+原则： 每个模块独立开发，按以下顺序（依赖关系决定顺序）：
+markdown
+模块四（Excel）← 最核心刚需，优先验证可行性
+    ↓
+模块一（RFQ解析+比对）← 其他模块的输入
+    ↓
+模块二（QA清单）← 依赖模块一的检索结果
+    ↓
+模块三（PPT生成）← 相对独立，最后做
+每个模块的标准开发顺序
+vbnet
+每个模块遵循同一套流程：
+Step 1: 写 Service 层（纯业务逻辑，不含HTTP）
+Step 2: 写对应的 unit_tests/test_xxx.py（边写边测）
+Step 3: 写 API 路由层
+Step 4: 写对应的 API_tests/test_xxx_api.py
+Step 5: 写前端页面组件
+Step 6: 联调前后端
+模块四：Excel 报价生成（3-4天）
+bash
+后端：
+├── services/excel_generator.py
+│   ├── 读取 quote_template.xlsx 模板
+│   ├── 按模块填充人力明细（岗位/人数/周数）
+│   ├── 计算汇总表
+│   └── 输出 .xlsx 文件到 outputs/
+├── POST /api/v1/rfq/tasks/{task_id}/generate-excel
+├── GET  /api/v1/rfq/tasks/{task_id}/download/excel
+└── unit_tests/test_excel_generator.py
+前端：
+├── 人力排布填写表单（按模块，可增删行）
+├── 提交生成 → loading 状态
+└── 生成完成 → 下载按钮
+模块一：RFQ 解析 + 比对（3-4天）
+bash
+后端：
+├── services/rfq_parser.py
+│   ├── 调用 LLM 拆解工作模块（返回结构化 JSON）
+│   ├── 处理 LLM 输出非法 JSON 的降级逻辑
+│   └── 与 RAG 检索结合，输出差异比对
+├── POST /api/v1/rfq/analyze（触发分析，返回 task_id）
+├── GET  /api/v1/rfq/tasks/{task_id}（轮询任务状态）
+└── unit_tests/test_rfq_parser.py
+前端：
+├── 上传后触发分析，显示进度
+├── ModuleList 组件（展示拆解的工作模块）
+├── SimilarProjects 组件（展示相似历史项目卡片）
+└── ComparisonReport 组件（差异对比报告）
+注意：LLM 生成耗时较长（30s-2min），
+      前端必须用轮询或 WebSocket 反映进度，
+      不能让用户面对空白等待
+模块二：QA 清单生成（2-3天）
+bash
+后端：
+├── services/qa_generator.py
+│   ├── 基于 RFQ 内容检索历史技术问题
+│   └── LLM 汇总生成结构化 QA 清单
+├── POST /api/v1/rfq/generate-qa
+└── unit_tests/test_qa_generator.py（Mock LLM）
+前端：
+├── QAChecklist 组件（可勾选/过滤/导出）
+└── 导出为 Word 或直接复制到剪贴板
+模块三：PPT 生成（2-3天）
+bash
+后端：
+├── services/ppt_generator.py
+│   ├── 读取 proposal_template.pptx 模板
+│   ├── 按模块增减 slide
+│   └── 填充文字内容（python-pptx）
+├── POST /api/v1/rfq/tasks/{task_id}/generate-ppt
+├── GET  /api/v1/rfq/tasks/{task_id}/download/ppt
+└── unit_tests/test_ppt_generator.py
+前端：
+└── 生成 + 下载按钮（与 Excel 下载页面类似）
+
+Phase 3：测试与验收（3-5天）
+目标： 保证 ./run_tests.sh 能一键执行，全部通过。
+sql
+Day N：补全所有单元测试
+├── 确认 unit_tests/ 覆盖所有 service 层
+├── 重点测试边界情况：空文件/非法格式/LLM返回乱码
+└── 确认测试不依赖真实 Ollama（全部 Mock LLM）
+Day N+1：补全所有 API 测试
+├── 确认 API_tests/ 覆盖所有接口
+├── 正常路径 + 异常路径（400/404/422/500）
+└── 确认测试使用 SQLite 独立测试库，不污染开发数据
+Day N+2：端到端人工验收
+├── 准备 3-5 份真实历史项目文档导入知识库
+├── 准备 1 份真实 RFQ 文件
+└── 走完完整流程：
+    上传 RFQ
+    → 模块拆解结果是否合理？
+    → 相似项目是否匹配？
+    → QA 清单是否覆盖关键疑问？
+    → Excel 报价格式是否符合模板？
+    → PPT 初稿结构是否正确？
+Day N+3：性能与稳定性
+├── 连续上传 5 份 RFQ，确认无内存泄漏
+├── 确认 docker-compose restart 后数据不丢失
+└── 确认 Volume 挂载正常（容器删除后数据保留）
+
+Phase 4：打包交付（1-2天）
+bash
+Day Last-1：
+├── 构建生产镜像
+│   docker build -t rfq-backend:v1.0.0 ./backend
+│   docker build -t rfq-frontend:v1.0.0 ./frontend
+├── 测试生产镜像（用 docker-compose.prod.yml 启动验证）
+├── 整理 deploy/ 目录（客户部署包）
+└── 撰写 docs/deployment-guide.md（步骤必须真实有效）
+Day Last：
+├── docker save 导出 tar.gz 文件
+├── 整理客户操作手册 docs/user-manual.md
+└── 最终验收检查清单：
+    ✅ docker-compose up 一键启动无报错
+    ✅ ./run_tests.sh 全部通过
+    ✅ 完整目录结构（无缺失文件）
+    ✅ .env.example 包含所有必要变量
+    ✅ 无硬编码路径/密码
+    ✅ 前端所有操作有 loading/error 状态
+    ✅ API 错误返回标准 JSON 格式
+
+每日开发节奏建议
+yaml
+每天开发时遵循以下顺序，避免写完所有代码再测试：
+早上：
+  明确今天要完成的 1-2 个功能点
+开发时：
+  写 Service → 立刻写 unit test → 跑通
+  写 API 路由 → 立刻写 API test → 跑通
+  写前端组件 → 手动联调
+结束前：
+  docker-compose up 确认整体还能跑
+  git commit（每个功能点一个 commit，信息清晰）
+  
+Commit 信息规范：
+  feat: 完成 RFQ 文档上传接口（含参数校验和格式验证）
+  feat: 完成 Excel 报价生成 Service 层 + 单元测试
+  fix: 修复 LLM 返回非法 JSON 时的崩溃问题
+  test: 补全知识库搜索接口的异常路径测试
+
+关键风险点与应对
+风险
+可能发生在
+应对方案
+LLM 输出不稳定，JSON 解析失败
+Phase 2 模块一
+单元测试必须覆盖此场景，Service 层做降级处理
+python-pptx 模板兼容性问题
+Phase 2 模块三
+提前拿到客户真实 PPT 模板做测试，不用假模板
+Ollama 在 Docker 内访问问题
+Phase 0
+使用 host.docker.internal 而非 localhost，.env 配置清楚
+历史文档质量差导致 RAG 效果不好
+Phase 1
+入库时做文本清洗，这是业务问题不是技术问题，提前与客户沟通
+大文件上传超时
+Phase 2
+Nginx 和 FastAPI 都要设置超时时间，plan.md 中已有配置
+

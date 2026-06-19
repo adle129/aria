@@ -1,0 +1,603 @@
+pages=53
+
+--- Page 1 ---
+5/29/2026
+2
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+--- Page 2 ---
+5/29/2026
+3
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+--- Page 3 ---
+4
+EDAG WORLDWIDE
+Asia:
+•
+China
+•
+India
+•
+Japan
+•
+Malaysia
+•
+Russia
+North & South America:
+•
+Brazil
+•
+Mexico
+•
+USA
+Europe:
+•
+Germany
+•
+England
+•
+Italy
+•
+Netherlands
+•
+Poland
+•
+Sweden
+•
+Switzerland
+•
+Spain
+•
+Czech 
+Republic
+•
+Turkey
+•
+Hungary
+EDAG GERMANY
+1969
+FOUNDATION
+781 
+MILLION
+REVENUE
+~ 3-4%
+CAPITAL 
+EXPENDITURE ON 
+REVENUE
+~ 8,500
+EMPLOYEES
+~ 60
+LOCATIONS
+WORLDWIDE
+~ 6 %
+TRAINING 
+RATE
+19
+COUNTRIES
+33
+SHOW CARS
+2015
+IPO
+•
+Berlin
+•
+Bremen
+•
+Dortmund
+•
+Eisenach
+•
+Friedrichshafen
+•
+Fulda
+•
+Hamburg
+•
+Hannover
+•
+Ingolstadt
+•
+Karlsruhe
+•
+Köln
+•
+Leipzig
+•
+Lindau
+•
+München
+•
+Neckarsulm
+•
+Recklinghausen
+•
+Regensburg
+•
+Stuttgart
+•
+Ulm
+•
+Weinheim
+•
+Wiesbaden
+•
+Wolfsburg
+•
+Zwickau
+
+--- Page 4 ---
+5
+Electrics / Electronics
+•
+Vehicle electrics & electronics
+•
+eDrive & Battery
+•
+Comfort & body systems 
+•
+Autonomous Drive & Safety
+•
+Connectivity & user experience
+Production Solutions
+•
+Feasibility analysis
+•
+Production planning
+•
+Systems engineering
+•
+Fixture technology
+•
+Plant automation
+•
+Production optimisation
+•
+Safety engineering services
+360° PRODUCTION ENGINEERING
+360° VEHICLE ENGINEERING 
+An EDAG brand
+An EDAG brand
+Software & Digitalisation
+•
+Mobility services
+•
+Embedded systems
+•
+CAx tools
+•
+Testing & development tools
+•
+Production IT
+Vehicle Engineering
+•
+Complete vehicle: development & 
+management
+•
+Vehicle integration
+•
+Body in white
+•
+Chassis
+•
+Interior & Exterior
+•
+Drive train
+•
+Low-volume series & edition
+5/29/2026
+
+--- Page 5 ---
+5/29/2026
+6
+EDAG China
+German Engineering in China | Strong Worldwide Network | Access 
+to Expertise in Germany I Good Reputation in China | Broad
+Technical Portfolio
+Portfolio
+• Styling & Design
+• BIW & HOP
+• Interior & Exterior
+• Package & Feasibility
+• Vehicle Integration 
+• Electrics/Electronics
+• Production Solutions
+3
+LOCATIONS
+350
+EMPLOYEES
+24,5 
+MIO. EURO SALES
+“
+2004 
+FOUNDING
+Locations
+• Shanghai
+• Beijing
+• Guangzhou
+Customers
+• Audi
+• BMW
+• Daimler
+• XIAOPENG
+• GAC
+• Honda
+• NIO
+• SAIC VW
+• SMTC
+• ...
+
+--- Page 6 ---
+5/29/2026
+7
+OUR Customers
+我们的客户
+
+--- Page 7 ---
+WHY EDAG?
+为什么选择爱达克
+8
+USP one-stop shop
+USP 一站式
+product, process & production
+产品、工艺及生产
+Engineering partner 
+工程合作伙伴
+independent and worldwide
+独立性与全球性
+International player
+国际化参与者
+in a global network
+全球服务网络
+Inspired team
+创新型团队
+proud of its sound reputation
+应以为傲的良好声誉
+Quality & competence 
+质量与能力
+that's how our customers see us
+客户印象
+
+--- Page 8 ---
+5/29/2026
+9
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+--- Page 9 ---
+▪
+Contracting Entity 合同甲方
+New Energy Automobile CO., LTD xxxx新能源汽车有限公司
+Referred as “
+▪
+Contractor 合同乙方
+EDAG Engineering and Design (Shanghai) Co., Ltd. 爱达克车辆设计（上海）有限公司
+5/F Building 3, No 2377, Shen Kun Road, Shanghai, P.R. China 200010 上海市申昆路2377号3号楼5楼，邮编：200010
+Referred as “EDAG”简称为“爱达克”
+▪
+Contact at EDAG 爱达克联系信息
+Should you require any information, please do not hesitate to contact the following persons at EDAG: 有任何疑问，请和下面负责人联系
+5/29/2026
+10
+Basis of quotation
+报价基础
+Technical 
+Commercial 
+Tel.:
+Tel.:
+Mobile:
+Mobile:
+E-Mail:
+E-Mail:
+
+--- Page 10 ---
+5/29/2026
+11
+•
+EDAG prepared the following proposal on request of xxx project on basis of:
+•
+爱达克根据xxx项目开发的要求并基于以下内容编写了以下提案：
+• Received from Mr. Xu (PM) on Dec. 10th for XXX development SOW
+   2021年12月10号收到xxx发来的第一版XXX项目工程设计外委技术任务书
+• Q&A clarification between EDAG and xxx team between Dec 16th and  Dec 24th 基于12月16日和12月24日
+期间爱达克和xxx双方团队问题澄清清单
+   
+• Received from Mr. Xu (PM) on Dec. 17th for xxxx updated development SOW
+   2021年12月17号收到xxx项目经理xxx发来的更新版xxxx项目工程设计外委技术任务书
+• Received from Mr.) on Dec. 24th for EP35 updated development SOW 
+2021年12月24号收到xxx采购经理xxx发来的更新版xxxx项目工程设计外委技术任务书
+Basis of quotation
+报价基础
+
+--- Page 11 ---
+5/29/2026
+12
+Product Definition 产品定义
+■xxx is a new A-segment SUV based on existing 
+platform w/ both EV and REEV propulsion systems 
+xxx是基于现有平台开发的一款全新A级SUV新能源车型，
+包括纯电动和增程式
+■Market销售地: China LHD only 中国
+■Production 生产地: China 中国
+■Tire size轮胎尺寸: R19/R20
+■Core Competitors: Leepmotor C11 for EV, BYD Song 
+Plus DMi and XingYue L for REEV. 纯电核心竞品：零跑
+C11；增程核心竞品：宋Plus DMi，CS75Plus，星越L。
+PRODUCT DEFINITION
+配置项
+增程标准版-1000
+增程科技版-1000
+科技版-600
+工况续航 (km，CLTC/WLTC)
+200纯电+800燃油
+200纯电+800燃油
+600
+基本参数 Overall Parameters
+车身结构 Body Structure
+5门5座SUV
+5门5座SUV
+5门5座SUV
+长度(mm)Length
+4800±20
+4800±20
+4800±20
+宽度(mm)Width
+1900±20
+1900±20
+1900±20
+高度(mm)Height
+1650±20
+1650±20
+1650±20
+轴距(mm)Wheelbase
+2900±20
+2900±20
+2900±20
+满载最小离地间隙(mm)GVW Ground 
+Clearance 
+≥135
+≥135
+≥135
+整备质量(kg) Curb Weight
+TBD
+TBD
+TBD
+整车质保 Vehicle Warranty
+4年12万
+4年12万
+4年12万
+三电系统质保 Electrification Warranty
+8年15万
+8年15万
+8年15万
+动力系统 Propulsion Systems
+电池品牌 HV Battery Brand
+TBD
+TBD
+TBD
+电池类型 Battery Type
+TBD
+TBD
+三元锂
+电池容量(kWh) Battery Capacity
+TBD
+TBD
+TBD
+车载充电器-6.6kw Charger
+●
+●
+●
+电池慢充电时间 Normal Charging
+TBD
+TBD
+TBD
+快充时间（30%-80%）Fast Charge
+30
+30
+30
+对外放电功能
+●
+●
+●
+高压快充功能（10min，30%~80%）
+Fast charge function
+-
+-
+●
+电池智能温控管理系统 Battery 
+Intelligent Management System
+●
+●
+●
+电机类型 Motor
+TBD
+TBD
+TBD
+后电动机功率(kW) Rear Motor Power
+≥170
+≥170
+≥170
+后电动机扭矩(N · m) Rear Motor 
+Torque
+≥310
+≥310
+≥310
+加速时间(s) （0-100km/h ）
+Acceleration Time
+≤7.9(TBD)
+≤7.9(TBD)
+≤7.9(TBD)
+最高车速(km/h) Top Speed
+≥170
+≥170
+≥170
+百公里能耗（kwh ）Energy 
+Consumption
+TBD
+TBD
+TBD
+变速箱 Transmission
+单级 Single speed
+单级 Single speed
+单级 Single speed
+
+--- Page 12 ---
+13
+EDAG Tasks & Deliverables: Include All or partial of below contents. More details please refer to project 
+scenario section 爱达克任务和交付: 包含全部或者部分以下系统的内容。具体细节详见项目方案章节
+•
+Vehicle Packaging 整车总布置
+•
+Dimension Engineering尺寸工程
+•
+BIW 车身系统
+•
+Interior 内饰系统
+•
+Exterior 外饰系统
+•
+Chassis 底盘系统
+•
+EE 电子电器系统
+•
+CAE 仿真分析
+EDAG Tasks & Deliverables 爱达克任务和
+交付
+
+--- Page 13 ---
+5/29/2026
+14
+General assumption
+一般假设
+General Assumption 一般假设：
+•
+Project language is Chinese, all project documentation will be in Chinese
+项目语言为中文，所有项目文件使用中文
+•
+The activity will be done by EDAG in Shanghai office or other EDAG subsidiaries
+项目开发的相关工作将在EDAG上海办公室或其他EDAG分公司办公室完成
+•
+Except for ~ 1.5 dimension engineers (EP1 – EP2), EP1/EP2 phase structure durability and NVH CAE optimization support, minor PM coordination support from P3 to P5, this offer 
+does not include any further design work of all the other engineering team after P3 per the alignment with xxx during the meeting on 2021-12-16 in xxx site (Tongxiang)  根据与xxxx
+团队在2021-12-16xx的现场会议内容，除平均1.5个尺寸工程师(EP1 – EP2)，EP1/EP2阶段结构耐久NVH仿真分析优化支持，和少许的项目协调支持工作支持P3-P5阶段外，此报
+价方案其他工程领域不包括P3之后的任何设计优化工作
+•
+Hardware and Software will be provided by EDAG (Workstations, Catia / Auto CAD/Ansa/ Autoform/ADAMS)
+爱达克提供软硬件（工作站， Catia / Auto CAD/Ansa / Autoform / ADAMS) 
+•
+CAD software Catia V5 will be used in this project
+此项目的CAD软件为Catia V5
+•
+No CAD-exchange (EDAG design and/or supplier design) from CATIA to other software will be performed by EDAG/ EDAG不进行CATIA到其他三维软件之间的CAD转换（EDAG设
+计和/或供应商设计）。
+•
+All necessary document and data will be provided by xxx when project starts
+项目开始时，xxx将提供所有必要的文件和数据
+•
+Regular working time is 8 hours a day, 5 days a week (Monday – Friday)/ 常规工作时间为每天8小时，一周5天(周一至周五)
+•
+Quotation only based on current RFQ/RASI of xxx,  and Assumption of EDAG which has clarified with xxx , if work content and master timing changed by xxx, which will lead to 
+extra quotation/ 报价仅针对目前来源于xxx的RFQ/RASI以及与xxx确认好的EDAG假设，如果工作内容和主要节点发生变化将导致额外的报价。
+•
+This offer is subject to the availability of the personnel capacity required for the execution of the project at EDAG at the time the order is placed
+此报价取决于下订单时EDAG 执行项目所需人力资源的可利用情况
+
+--- Page 14 ---
+5/29/2026
+15
+Technical Assumption 技术假设：
+• When project starts, the project status and quality of development meet following requirements
+•
+Final ext. & int. styling theme has been chosen, EDAG starts to work with CAS 2.2 version
+       最终的内外饰造型主题已选定冻结, 爱达克从造型2.2版本开始工作
+•
+Vehicle feature list is defined and freeze
+整车配置已定义并冻结
+•
+Only one front and rear fascia version to cover all the variants including both EV and EREV powertrain
+•
+所有配置内外饰设计通用（包括电动和增程式），爱达克只需负责一套设计工作
+•
+All the parts are common except engine systems related to the uniqueness between EV and REEV (air intake, fuel 
+systems, exhaust, etc.)
+•
+电动和增程式二套动力所有零件通用，除了增程式相关的发动机附件系统（包括进气、燃油、排气等）
+•
+Platform is under  responsibility, platform has been checked to be capable to fulfill China market regulation and product target 
+requirements
+平台由xxx负责，平台已验证能够满足中国市场法规和产品目标要求
+• Mule car & prototype build and testing activities are under responsibility of xxx
+骡子车，样车制作和测试由xxx负责
+• Vehicle attribute management and target setup / breakdown / achievement are under responsibility 
+of xxx
+整车属性管理和目标设定分解达成由xxx负责
+• When project starts  provides base vehicle and platform data in compliance with the requirements 
+of intellectual property laws and regulations, and  owns its intellectual property rights
+项目启动提供的基础车型和平台数据符合知识产权法规要求，拥有其知识产权
+•
+技术假设
+
+--- Page 15 ---
+Project timing (shown is activity end date):
+•
+P1 Project Initiation 项目立项                           2022-1-20
+•
+P2 Engineering Kick Off 项目工程启动
+2022-6-30
+•
+P3 Project Approval 项目批准
+2022-10-15
+•
+P4 Engineering Release 工程发布
+2023-2-28
+•
+P5 Engineering Frozen 工程冻结
+2023-5-30
+•
+P6 Engineering Pre-Manufacturing试生产
+2023-6-30
+•
+P7 Engineering Sign Off 工程验收
+2023-7-30
+•
+SOP                                                                   2023-8-30
+5/29/2026
+Project milestone（EDAG Work period）
+项目节点(爱达克范围)
+• EDAG working period: 01/20/2022 (P1) – 05/30/2023 (P5), total ~ 
+17 months 爱达克工作阶段： 01/20/2022 (P1) – 05/30/2023 (P5), 
+总计大概17个月
+• Main working period: Concept and Development, 01/20/2022 (P1) – 
+10/15/2022 (P3), Total 9 months 爱达克主要工作阶段：概念和开发， 
+01/20/2022 (P1) – 10/15/2022 (P3), 总计9个月
+• Tooling and validation: P3 – P5, Total ~ 8 months, Support role. 
+Workload: ~1.5 dimension (EP1 – EP2) on-site engineers to support 
+build, EP1/EP2 phase structure durability and NVH CAE optimization 
+support and Minor PM coordination work from P3 to P5 模具开发和产品
+验证： P3 – P5, 总计大概8个月，支持角色。工作内容：~1.5个尺寸工程
+师在工厂（EP1-EP2）制造阶段提供支持， EP1/EP2阶段结构耐久NVH仿真
+分析优化支持及少许的项目协调工作
+~17 Months
+9 Months
+Concept and Development
+Main Working Period
+~ 8 Months
+Tooling and Validation: Support Role
+

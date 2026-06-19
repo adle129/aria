@@ -1,0 +1,2129 @@
+
+=== Page 1 ===
+5/29/2026
+2
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+
+=== Page 2 ===
+5/29/2026
+3
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+
+=== Page 8 ===
+5/29/2026
+9
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+
+=== Page 12 ===
+13
+EDAG Tasks & Deliverables: Include All or partial of below contents. More details please refer to project 
+scenario section 爱达克任务和交付: 包含全部或者部分以下系统的内容。具体细节详见项目方案章节
+•
+Vehicle Packaging 整车总布置
+•
+Dimension Engineering尺寸工程
+•
+BIW 车身系统
+•
+Interior 内饰系统
+•
+Exterior 外饰系统
+•
+Chassis 底盘系统
+•
+EE 电子电器系统
+•
+CAE 仿真分析
+EDAG Tasks & Deliverables 爱达克任务和
+交付
+
+
+=== Page 13 ===
+5/29/2026
+14
+General assumption
+一般假设
+General Assumption 一般假设：
+•
+Project language is Chinese, all project documentation will be in Chinese
+项目语言为中文，所有项目文件使用中文
+•
+The activity will be done by EDAG in Shanghai office or other EDAG subsidiaries
+项目开发的相关工作将在EDAG上海办公室或其他EDAG分公司办公室完成
+•
+Except for ~ 1.5 dimension engineers (EP1 – EP2), EP1/EP2 phase structure durability and NVH CAE optimization support, minor PM coordination support from P3 to P5, this offer 
+does not include any further design work of all the other engineering team after P3 per the alignment with xxx during the meeting on 2021-12-16 in xxx site (Tongxiang)  根据与xxxx
+团队在2021-12-16xx的现场会议内容，除平均1.5个尺寸工程师(EP1 – EP2)，EP1/EP2阶段结构耐久NVH仿真分析优化支持，和少许的项目协调支持工作支持P3-P5阶段外，此报
+价方案其他工程领域不包括P3之后的任何设计优化工作
+•
+Hardware and Software will be provided by EDAG (Workstations, Catia / Auto CAD/Ansa/ Autoform/ADAMS)
+爱达克提供软硬件（工作站， Catia / Auto CAD/Ansa / Autoform / ADAMS) 
+•
+CAD software Catia V5 will be used in this project
+此项目的CAD软件为Catia V5
+•
+No CAD-exchange (EDAG design and/or supplier design) from CATIA to other software will be performed by EDAG/ EDAG不进行CATIA到其他三维软件之间的CAD转换（EDAG设
+计和/或供应商设计）。
+•
+All necessary document and data will be provided by xxx when project starts
+项目开始时，xxx将提供所有必要的文件和数据
+•
+Regular working time is 8 hours a day, 5 days a week (Monday – Friday)/ 常规工作时间为每天8小时，一周5天(周一至周五)
+•
+Quotation only based on current RFQ/RASI of xxx,  and Assumption of EDAG which has clarified with xxx , if work content and master timing changed by xxx, which will lead to 
+extra quotation/ 报价仅针对目前来源于xxx的RFQ/RASI以及与xxx确认好的EDAG假设，如果工作内容和主要节点发生变化将导致额外的报价。
+•
+This offer is subject to the availability of the personnel capacity required for the execution of the project at EDAG at the time the order is placed
+此报价取决于下订单时EDAG 执行项目所需人力资源的可利用情况
+
+
+=== Page 14 ===
+5/29/2026
+15
+Technical Assumption 技术假设：
+• When project starts, the project status and quality of development meet following requirements
+•
+Final ext. & int. styling theme has been chosen, EDAG starts to work with CAS 2.2 version
+       最终的内外饰造型主题已选定冻结, 爱达克从造型2.2版本开始工作
+•
+Vehicle feature list is defined and freeze
+整车配置已定义并冻结
+•
+Only one front and rear fascia version to cover all the variants including both EV and EREV powertrain
+•
+所有配置内外饰设计通用（包括电动和增程式），爱达克只需负责一套设计工作
+•
+All the parts are common except engine systems related to the uniqueness between EV and REEV (air intake, fuel 
+systems, exhaust, etc.)
+•
+电动和增程式二套动力所有零件通用，除了增程式相关的发动机附件系统（包括进气、燃油、排气等）
+•
+Platform is under  responsibility, platform has been checked to be capable to fulfill China market regulation and product target 
+requirements
+平台由xxx负责，平台已验证能够满足中国市场法规和产品目标要求
+• Mule car & prototype build and testing activities are under responsibility of xxx
+骡子车，样车制作和测试由xxx负责
+• Vehicle attribute management and target setup / breakdown / achievement are under responsibility 
+of xxx
+整车属性管理和目标设定分解达成由xxx负责
+• When project starts  provides base vehicle and platform data in compliance with the requirements 
+of intellectual property laws and regulations, and  owns its intellectual property rights
+项目启动提供的基础车型和平台数据符合知识产权法规要求，拥有其知识产权
+•
+技术假设
+
+
+=== Page 15 ===
+Project timing (shown is activity end date):
+•
+P1 Project Initiation 项目立项                           2022-1-20
+•
+P2 Engineering Kick Off 项目工程启动
+2022-6-30
+•
+P3 Project Approval 项目批准
+2022-10-15
+•
+P4 Engineering Release 工程发布
+2023-2-28
+•
+P5 Engineering Frozen 工程冻结
+2023-5-30
+•
+P6 Engineering Pre-Manufacturing试生产
+2023-6-30
+•
+P7 Engineering Sign Off 工程验收
+2023-7-30
+•
+SOP                                                                   2023-8-30
+5/29/2026
+Project milestone（EDAG Work period）
+项目节点(爱达克范围)
+• EDAG working period: 01/20/2022 (P1) – 05/30/2023 (P5), total ~ 
+17 months 爱达克工作阶段： 01/20/2022 (P1) – 05/30/2023 (P5), 
+总计大概17个月
+• Main working period: Concept and Development, 01/20/2022 (P1) – 
+10/15/2022 (P3), Total 9 months 爱达克主要工作阶段：概念和开发， 
+01/20/2022 (P1) – 10/15/2022 (P3), 总计9个月
+• Tooling and validation: P3 – P5, Total ~ 8 months, Support role. 
+Workload: ~1.5 dimension (EP1 – EP2) on-site engineers to support 
+build, EP1/EP2 phase structure durability and NVH CAE optimization 
+support and Minor PM coordination work from P3 to P5 模具开发和产品
+验证： P3 – P5, 总计大概8个月，支持角色。工作内容：~1.5个尺寸工程
+师在工厂（EP1-EP2）制造阶段提供支持， EP1/EP2阶段结构耐久NVH仿真
+分析优化支持及少许的项目协调工作
+~17 Months
+9 Months
+Concept and Development
+Main Working Period
+~ 8 Months
+Tooling and Validation: Support Role
+
+
+=== Page 16 ===
+5/29/2026
+17
+Roles and Responsibilities –RASI
+角色和职责– RASI 总表
+High Level RASI-CHART
+R =
+A =
+S =
+I =
+No.
+Item
+Customer
+EDAG
+Serial 
+Supplier
+Comment
+01
+Overall Program Management 整体项目管理
+R
+S
+S
+ 
+02
+Project Management 项目管理
+A
+R
+S
+Assigned workscope 爱达克工作范畴
+03
+Product Strategy and initial targets / concepts / layout 产品策略和目标定义/概念/布局
+R
+S
+I
+04
+Package and Concepts 总布置和概念
+A
+R
+I
+Assigned workscope 爱达克工作范畴
+05
+Styling & Surface Development 造型和表面开发
+R
+S
+S
+Support with techn. Input (feasibility feedback, etc.) 
+技术支持（可行性分析等）
+06
+Dimensional Management 尺寸管理
+A
+R
+I
+07
+Data Management 数据管理
+A/S
+R
+S
+Assigned workscope (M0 - M3)  Assigned workscope 
+爱达克工作范畴 （M0-M3）
+08
+Platform development 平台开发
+R
+S
+S
+Existing platform 现有平台
+09
+BIW / Inteior/ Exterior / Accessories Engineering Design车身内外饰工程设计
+A/S
+R
+S
+Assigned workscope 爱达克工作范畴
+Chassis Engineering Design底盘工程设计
+A/S
+R
+S
+Assigned workscope 爱达克工作范畴
+EE Engineering Design 电子电器哦工程设计
+A/S
+R
+S
+Assigned workscope 爱达克工作范畴
+10
+CAE simulation Strength / Stiffness / Durability / NVH 仿真分析 强度/刚度/耐久/NVH
+A/S
+R
+S
+Assigned workscope 爱达克工作范畴
+11
+Manufacturing feasibility制造可行性
+R
+S
+S
+12
+Attribute Management 性能管理
+R
+S
+I
+Target setup & break down will be done by customer 
+客户负责目标定义和分解
+13
+Commercial Supplier Management 供应商商务管理
+R
+I
+I
+14
+Technical Supplier Management 供应商技术管理
+R
+I
+I
+15
+Prototype Builds样车试制
+R
+S
+I
+Mule Car Design Technical Proposals骡子车设计技术方案
+A/S
+R
+I
+16
+Industralization Engineering工业化工程
+R
+I
+I
+17
+Manufacturing 制造
+R
+I
+I
+18
+Test & Validation测试和验证
+R
+I
+S
+19
+Change Management M1 - M2 设计变更流程 M1-M2
+A/S
+R
+S
+M0 - M1: No need to do change management M0-
+M1阶段不需要做设计变更
+Change Management M2 - SOP 设计变更流程 M2-SOP
+R
+S
+S
+20
+Homologation法规认证
+R
+I
+S
+Responsible
+Approval
+Support
+Information
+
+
+=== Page 17 ===
+5/29/2026
+Activities Overview
+Lower
+structure
+FR & RR Doors
+Bumpers, 
+Fascia & Grilles
+IP & Console
+Power Supply
+Lift Gate
+Sunroof
+Wiper and Wash
+Upper Exterior
+Trim
+Outer Mirror
+Lower Exterior
+Trim
+Windshield
+Headlamps
+& Tailamps
+FR & RR
+Door Trim
+Liftgate Trim
+& Luggage Trim
+Gear Knob, Gear
+Top Cover, DAB 
+Cover & Emblem
+Body Electronics
+Infotainment
+ADAS
+Electrical
+Architecture
+HV Battery
+E-Drive
+VCU
+Testing 
+Thermal / HVAC
+Passive Safety,
+Crash, PedPro
+Aerodynamics
+Active Safety,
+Vehicle Dynamics
+NVH / Acoustic
+Homologation
+Simulation 
+(Durability and NVH）
+Prototype
+Management
+Durability
+Powertrain
+Integration
+E/E
+Performance
+Vehicle Integration
+Data Management, 
+Data Quality
+Package 
+Dimensional 
+Management
+DMU
+Parts List 
+(BOM)
+Weight
+Tracking
+Project Management
+Change 
+Management
+Controlling
+Supplier
+Management
+Timing
+Reporting
+Development
+Quality
+Product Cost 
+Tracking
+Modules
+Steering Wheel,
+Inner Handle 
+& Switches
+Cross Car Beam
+Hood
+Styling
+Modeling
+Surfacing
+Systems
+Customer
+EDAG
+Geometrical Integration
+Supplier
+Closure
+Hardware 6 Seals
+Factory Layout
+ & Processes*
+Inner Mirror
+Stamping
+BiW Assembly
+Paint Shop
+General
+Assembly
+Manufacturing SE
+Brake System
+Suspension 
+Systems
+Steering
+System
+Wheels / Tires /
+Rim
+Drive Line
+Body
+Closures
+Exterior
+Interior
+Electric / 
+Electronic
+Chassis
+Powertrain
+Outer Door Handle
+Headliner
+ & Pillar Trims
+FR Fender
+Body Side Outer
+Body Side Inner
+-Front of B-Pillar
+Roof
+Mounts
+Air Intake
+& Exhaust
+Fuel System
+HVAC & Cooling
+Range Extended
+HV Harness
+Engine
+Transmission
+LV Harness
+Seat
+Detail workshare refers to RASIC
+
+
+=== Page 23 ===
+5/29/2026
+24
+index
+• EDAG Introduction 爱达克介绍
+General Introduction, References, Why EDAG 一般介绍，项目案例，优势
+• Project Definition 项目定义
+Product Description, Timing, RASI, Organization… 产品定义，时间计划，组织架构…
+• Project Scenario 项目方案
+Scope of Work, Manpower 工作内容
+
+
+=== Page 24 ===
+5/29/2026
+25
+•
+布置/概念/DMU
+Assumptions 假设
+•
+The whole vehicle meet Chinese regulation requirement, and the ergonomic analysis of all vehicle 
+dimensions is in accordingly with SAE J1100
+整车符合中国法规要求，人机工程分析所有尺寸按照SAE J1100
+•
+Feature list/Line up, VTS, performance target setting and break down will be done by 
+车型型谱、整车配置表，性能目标设定分解由完成
+•
+ will provide structure data of underbody and chassis/powertrain system
+会提供对标车的车身下部结构和底盘/动力系统的结构数据
+•
+ will provide the vehicle regulation list
+会提供整车的法规清单
+•
+SeatingBUCK model creation and vilification will be done by 
+SeatingBUCK模型制作和验证由完成
+•
+Competitor vehicle benchmarking will done by (Study/research, static measurement, dynamic testing, 
+power economy and whether prototype scanning )
+竞品车对标分析由负责（对标车调研，静态测量、动态测试动力性经济性以及样车扫描）
+•
+Vehicle packaging base on exiting  platform, initial vehicle dimension(Including Angle of Approach, 
+Angle of Departure, FR Horizon, A pillar direct obstacle angle，Entrance and Exit Convenience ) ，
+initial top hat and Engine Bay/underbody packaging data will be provided to EDAG
+      整车布置基于现有平台, 初步的整车尺寸（包括接近角,离去角,前后视野,A柱障碍角,
+     上下车方便性）,上车体和机舱/下车身的初版布置数据会提供给爱达克
+•
+The internal packaging layout and design of the battery are completed by  or the parts supplier
+电池内部的布置和设计由或零件供应商完成
+•
+The H-point and posture of the driver, the second-row occupants are defined according to the SAE-
+95% male human body model, and cheeked according to the SAE-50% human body model 驾驶员、
+第二排乘员的H 点和姿态按SAE-95%男性人体模型定义、按SAE-50%人体模型进行校核；
+•
+Vehicle maintenance book and homologation will be done by 
+      车辆维修手册和认证由完成
+•
+Only consider Chinese market, RH packing, vehicle architecture development, platform commonality 
+strategy activities are not included
+      只考虑中国市场，不包含右驾布置,整车架构开发，平台沿用策略工作
+Inputs 输入
+•
+Feature list/line up, VTS, performance target setting report
+车型型谱、整车配置表，性能目标设定报告
+•
+Platform data, vehicle dimension, hard point and underbody structure and 
+chassis/powertrain system, initial top hat, Engine Bay/underbody packaging data
+平台数据，整车尺寸，硬点和车身下部结构和
+
+=== Page 25 ===
+5/29/2026
+26
+•
+布置/概念/DMU
+Work Content 工作内容
+•
+Styling feasibility analysis
+     造型可行性分析
+•
+Typical section design and checking
+     典型断面设计和检查
+•
+Vehicle, top hat, Engine bay and underbody packaging
+整车，舱室，机舱和下部车身布置
+•
+Mulecar modification proposal analysis
+     骡车改制方案分析
+•
+Ergonomics
+人机布置
+•
+Regulation check
+法规检查
+•
+Vehicle DMU analysis and issue tracking
+整车DMU检查分析和问题跟踪
+•
+Vehicle packaging drawing
+     整车总布置图
+•
+Packaging summary 
+     总布置总结
+Deliveries 交付物
+•
+Styling feasibility analysis report
+造型可行性分析报告
+•
+Vehicle packaging layout data and proposal/solution report
+整车布置数据和方案报告
+•
+Vehicle typical section data and report
+整车典型断面数据和报告
+•
+Mulecar modification proposal analysis report
+    骡子车改制方案分析报告
+•
+Packaging drawing
+总布置图
+•
+Packaging issue control list and report
+总布置问题管控清单及报告
+•
+Ergonomics and Regulation checking report
+机和法规校验报告
+•
+Packaging summary report
+     总布置总结报告
+•
+Vehicle DMU analysis report
+     整车DMU分析报告
+
+
+=== Page 26 ===
+5/29/2026
+27
+•
+数据管理/BOM
+Assumptions 假设
+• Master data base at EDAG Hongqiao office during the project
+项目期间主数据库位于爱达克虹桥办公室
+• No specific data transfer system is request by 
+没有特殊的数据传输系统需求
+• Data release is done by 
+    数据发布有完成
+• CATIC vision is V5
+    CATIC版本为V5
+Inputs 输入
+• Initial 3D data
+初步的三维数据
+• Vehicle parts naming standard
+整车零件命名规则
+• Initial vehicle BOM sheet
+初版整车BOM表
+• 3D data quality checking/Deliverable standard
+三维数据质量检查和交付标准
+
+
+=== Page 27 ===
+5/29/2026
+28
+•
+数据管理/BOM
+Work Content 工作内容
+• Specific view at product structure to virtually build a complete 
+vehicle development strategy
+明确产品结构，建立整车模型
+• Data base for dynamic configurable product structure, managing 
+state of maturity, product revisions, changes and variants
+数据基础为动态结构，零部件可以做修正，修改和变换，最后趋于
+完善
+• Reduce product development and tooling costs by minimizing the 
+number of changes
+尽可能减少变更次数，以降低产品开发和工具成本
+• Review of completeness of the database with Engineering Modules
+使用工程建模检验数据库完整性
+• Vehicle BOM creation, updating and management
+整车BOM表建立，更新和管理
+• Follow up Engineering issues until they are solved
+跟进工程建模中的所有问题，直到问题解决
+Deliveries 交付物
+• Vehicle 3D data
+整车三维数据
+• Vehicle BOM sheet
+整车BOM表
+• Data deliverable report
+数据交付报告
+
+
+=== Page 28 ===
+5/29/2026
+29
+•
+尺寸
+Assumptions 假设
+•
+ will provide the DTS report of benchmark vehicle
+     会提供对标车的DTS报告
+•
+Bothe extended-range and BEV car are follow same INT/EXT DTS definition, only 
+consider the difference in underbody parts.
+     增程和纯电两款车沿用相同DTS定义，仅考虑在下车身零件有变化
+•
+GD&T drawing will be provided base on EDAG responsible parts, and only support review 
+for other parts
+爱达克责开发的零件将提供GD&T图纸，其他零件EDAG负责审核GD&T图纸
+•
+All the tolerance activity will be done in EDAG Shanghai office before M2 milestone, 
+tolerance activity during prototype phase will be done at  manufacturing plant, and  need 
+provided the detail prototype build planning.
+M2节点之前的尺寸工作将在EDAG上海办公室开展，试制阶段的尺寸工作会在车间完成，
+需要提供详细的试制计划
+•
+EDAG will create complete VSA model from underbody, Chassis only simulate the 
+tolerance for FR/RR suspension, four wheel alignment data and via holes
+•
+爱达克会从下车体单件开始建立完整的VSA模型，底盘只模拟前后悬架，四轮定位和过孔
+的公差
+•
+Interior parts(parts to parts) consider 2D tolerance analysis, only the DTS between door 
+trim assembly, console assembly, and IP assembly will do the 3D tolerance calculation
+     内饰零件（零件到零件）考虑做二维尺寸链分析，仅门饰板，副仪表和仪表台总成之间的
+     DTS才做三维的尺寸链分析
+•
+ will provide the tolerance and GD&T drawing for carry-over parts
+      将会提供沿用件的公差和GD&T图纸
+•
+Tolerance analysis software is VSA
+三维公差分析软件为VSA
+•
+Physical benchmark, MCP/MCS, MB matching activities are not included
+•
+物理对标，MCP/MCS, MB匹配工作不包括在内
+Inputs 输入
+•
+Complete vehicle CAS surface and master section
+整车CAS面及主断面
+•
+Complete vehicle exterior and interior styling
+整车外观和内饰造型
+•
+General tolerance
+基础公差
+•
+The information of competitive and benchmark car
+竞品车，标杆车信息
+•
+Complete vehicle 3D data and BOM
+整车3D数据及BOM表
+•
+Welding process flow chart
+焊接工艺流程图
+•
+Dimensional engineering assembly flow chart
+•
+尺寸工程装配流程图
+•
+Complete vehicle quality target
+整车质量目标
+•
+Description of hole and surface
+功能孔、面描述说明
+•
+List of part‘s key features 
+     关键零部件特性
+•
+Trial production plan
+试制计划
+•
+The list of supplier part/assembly
+外协单件及总成清单
+•
+Report template
+报告模板（如RPS/GD&T drawing/Function   dimension/ECR/Me
+
+=== Page 29 ===
+Deliveries 交付物
+•
+INT/EXT DTS
+整车内外饰DTS
+•
+Data check report （CAS and DTS，3D Data and DTS consistency check report）
+数据检查报告（包含CAS与DTS，3D数据与DTS一致性检查报告）
+•
+2D/3D tolerance analysis report
+二维及三维公差分析报告
+•
+Part general tolerance and special tolerance sheet
+零部件基础公差及特殊公差表
+•
+Location strategy document（RPS）
+定位策略文件
+•
+GD&T Drawing and review report
+GD&T图纸及检查报告
+•
+Mounting concept
+尺寸控制方案
+•
+Engineering change request form(ECR)(INT/EXT CAS,Master section dimension SE analysis
+工程变更申请单ECR （内外CAS面、主断面尺寸SE分析）
+•
+ECR Management Tracking Form(INT/EXT CAS,Main section dimension SE analysis)
+ECR管理跟踪表ECR（内外CAS面、主断面尺寸SE分析）
+•
+Complete vehicle clay model review
+整车内外油泥模型评审
+•
+BIW/Hop function and measuring point sheet
+白车身门盖功能尺寸和测点表
+•
+Dimension issues analysis for prototype car
+试制车尺寸问题
+•
+Dimensional management summary report
+     尺寸管理总结报告
+5/29/2026
+30
+•
+尺寸
+Work Content 工作内容
+•
+Define and update INT/EXT DTS
+定义及更新内外饰DTS
+•
+Consistency check between DTS，CAS and 3D Data
+DTS,CAS和三维数据一致性检查
+•
+2D tolerance calculation and 3D tolerance analysis model create and optimize（Include 
+EXT model and chassis model）
+二维尺寸链计算及三维公差分析模型创建及优化，并提供分析报告（包含白车身及底盘模
+型）
+•
+Define and update general tolerance and special tolerance part/Sub-assembly/assembly
+定义和更新单件分总成及总成零件的通用公差及特殊公差
+•
+Define and update RPS strategy of part/Sub-assembly/assembly（Including 
+Body/Interior/Exterior/Chassis part）
+定义及更新单件分总成及总成零件RPS策略（包含车身/内外饰/底盘）
+•
+Define, update and check GD&T drawing（ Including Body/Interior/Exterior）
+定义及更新GD&T图纸并检查（包含车身/内外饰）
+•
+Define the mounting concept for Closures /Suspension/battery
+定义开闭件及底盘电池尺寸控制方案
+•
+Do dimension SE analysis based on the INT and EXT CAS surface and master section，
+provide engineering change request 
+根据内外饰CAS面做相关的尺寸同步工程分析，并提供ECR
+•
+Track the implementation of ECR
+跟踪ECR的实施情况
+•
+Complete vehicle clay model review（from dimension point of view）
+整车内外油泥模型评审(从尺寸角度)
+•
+Define and update BIW function dimension/DTS/Key assembly measuring point
+定义和更新白车身功能尺寸测点/DTS测点及关键总成测点
+•
+Analyze and track the dimension issues of prototype car
+分
+
+=== Page 30 ===
+5/29/2026
+31
+•
+白车身和开闭件
+Assumptions 假设
+• Concepts development using  platform benchmark information 概念
+开发阶段使用合众平台对标的信息
+• Body structure utilizing high strength steel with additional light 
+weight material applications for e.g. FR & RR Bumper Beam etc.    
+使用高强度钢的车体结构，以及导入轻量化材料，前后防撞梁等
+• 下车体主要的工作内容：避震塔修改、前后防撞梁修改、适配座椅
+的支架、前后地板连接件、后悬挂支架修改、后围板局部修改
+The main work content of Under Body: Shock Tower modification, 
+FR & RR Bumper Beam modification, Brackets for Seats, 
+Connectors with FR and RR Floor, Rear Suspension Brackets 
+modification, partial modification of Rear Panel
+• 上车体基本全新Basically Upper Body is new
+• Closure accessories (Latch, hinge, check arm, window regulator, 
+handle, cable) is developed by supplier, ESP is responsible for the 
+layout
+开闭件附件（锁，铰链，限位器，升降器，把手等）开发由供应商
+负责，EDAG负责附件布置
+•  is responsible for the Supplier management 
+合众负责供应商管理
+Inputs 输入
+• Styling 造型效果图
+• CAS \ A Surface 整车CAS、A面
+• Vehicle Clay model 整车外观油泥造型
+• Competitive car, Benchmark car data and technical documents 
+竞品车、标杆车数据及技术文档
+• Performance target 性能目标
+• Vehicle weight target 整车质量目标
+• Vehicle Feature List 整车配置表
+• Project master time plan 项目主计划
+•  regulation 法规
+• Package 布置
+• VTS/SSTS
+• DTS
+•  Gateway Delivery list and templates                              阀点交付
+清单和模板
+
+
+=== Page 31 ===
+5/29/2026
+32
+•
+白车身和开闭件
+Work Content 工作内容
+•
+Adaptive modification of Underbody based on the existing platform, which 
+is suitable for the indented vehicles on the REEB and BEV platform
+基于现有平台对下车体进行适应性修改，可适用于增程和纯电平台车型加
+长缩短
+•
+Achieve design activities of Top Hat & Closure in line with the project 
+descriptions and design targets (light weight, target performance, styling 
+targets)  按照项目要求和设计目标（轻量化，性能目标，造型目标），完
+成对上车体和开闭件的设计工作
+•
+Definition of materials and joining technologies 
+车体材料和连接技术的定义
+•
+BIW & Closure styling feasibility analysis and design typical section
+白车身和开闭件造型可行性分析和典型断面设计
+•
+Definition of load path strategy to ensure passenger and battery safety 
+requirements 确保乘客和电池安全要求的负载传递路径策略的定义
+•
+BIW & Closure structure construction 白车身和开闭件结构构建
+•
+DMU checking DMU检查
+•
+BOM management in the system/ component level
+系统/零部件级别BOM
+•
+Data optimization based on feedback of manufacturing and tooling 
+suppliers 基于制造和模具供应商的反馈优化完善数据
+•
+Weight management and control 重量管控
+•
+Identification of problems, support for problem resolution
+问题设别及支持车身问题解决
+•
+3D/2D data and prepare documentation for the data release
+3D/2D数据和准备数据发布的文档
+
+
+=== Page 33 ===
+5/29/2026
+34
+BIW & Closure Deliverables
+白车身和开闭件交付物
+序号
+No.
+交付物清单
+Deliverables
+交付物格式
+Format
+节点
+Milestone
+EDAG
+Supplier
+备注
+Remark
+1
+标准件清单/ Standard parts list
+EXCEL
+P2
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+2
+专利排查报告/ Patent investigation report
+PPT
+P2
+R
+A
+-
+3
+造型CAS工程可行性分析(ECR反馈)/ Styling CAS 
+engineering feasibility analysis
+EXCEL
+P2
+R
+A
+S
+4
+初版ICD文件/ Initial ICD
+PPT /EXCEL
+P2
+R
+A
+S
+5
+第一版典型截面设计/
+Initial typical sections design
+CATIA 3D
+P2
+R
+A
+-
+6
+M0数模/ M0 3D data
+CATIA 3D
+P2
+R
+A
+S
+7
+M0数据校核报告/ M0 3D data check report
+PPT
+P2
+R
+A
+S
+8
+M0系统及零部件check list(针对M0数据)/
+M0 system & component check list
+EXCEL
+P2
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+9
+EM1数模/ EM1 3D data
+CATIA 3D
+P2
+R
+A
+S
+10
+EM1数据校核报告/ EM1 3D data check report
+PPT
+P2
+R
+A
+S
+11
+M1数模/ M1 3D data
+CATIA 3D
+P2
+R
+A
+S
+12
+M1数据校核报告/ M1 3D data check report
+PPT
+P2
+R
+A
+S
+13
+M1系统及零部件check list(针对M1数据)/
+M1 system & component check list
+EXCEL
+P2
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+14
+整车水管理、气密性checklist及校核报告/ Vehicle 
+water management, air tightness checklist and 
+verification report 
+EXCEL
+P2
+R
+A
+-
+15
+M1数据重量统计及减重方案/ M1 data weight 
+summarty and weight reduction proposal
+PPT
+P2
+R
+A
+-
+16
+第一版BOM清单/ Initial BOM list
+EXCEL
+P2
+R
+A
+-
+基于xxxx的输入进行检查和更新
+Check and update based on input 
+of 
+17
+第一版可维修性排查分析/
+Initial maintainability check analysis
+PPT
+P2
+R
+A
+-
+
+
+=== Page 34 ===
+序号
+No.
+交付物清单
+Deliverables
+交付物格式
+Format
+节点
+Milestone
+EDAG
+Supplier
+备注
+Remark
+1
+第二版典型截面设计/ Final typical sections design
+CATIA 3D
+P3
+R
+A
+-
+2
+力矩清单/ Torque list 
+EXCEL
+P3
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on 
+input of 
+3
+装调技术说明书/ Technical instructions for assembly and adjustment 
+WORD
+P3
+R
+A
+S
+4
+造型A面工程可行性分析(ECR反馈)/ Styling A surface engineering feasibility 
+analysis
+EXCEL
+P3
+R
+A
+-
+5
+EM2数模/ EM2 3D data
+CATIA 3D
+P3
+R
+A
+S
+6
+EM2数据校核报告/ EM2 3D data check report
+PPT
+P3
+R
+A
+S
+7
+M2数模/ M2 3D data
+CATIA 3D
+P3
+R
+A
+-
+8
+M2数据校核报告/ M2 3D data check report
+PPT
+P3
+R
+A
+-
+9
+M2系统及零部件check list(针对M2数据)/ M2 system & component check list
+EXCEL
+P3
+R
+A
+-
+基于xxxx的输入进行检查和更新
+Check and update based on 
+input of 
+10
+整车水管理、气密性checklist及校核报告/ Vehicle water management, air 
+tightness checklist and verification report 
+EXCEL
+P3
+R
+A
+-
+11
+终版ICD文件/ Final ICD
+PPT
+P3
+R
+A
+-
+12
+M2数据重量统计及减重方案/ M2 data weight summarty and weight reduction 
+proposal
+PPT
+P3
+R
+A
+-
+13
+白车身内外间隙测量表/ BIW internal and external clearance measurement list 
+EXCEL
+P3
+R
+A
+-
+14
+KPC(零件检测表)/ KPC(Component gauging list)
+EXCEL
+P3
+R
+A
+-
+基于xxxx的输入进行检查和更新
+Check and update based on 
+input of 
+15
+零部件关键/重要特性清单
+Component key / important characteristics list 
+EXCEL
+P3
+R
+A
+-
+16
+第二版BOM清单/ Final BOM list
+EXCEL
+P3
+R
+A
+-
+17
+DFMEA
+EXCEL
+P3
+R
+A
+-
+18
+PDM图/ PDM drawing
+EXCEL
+P3
+R
+A
+S
+19
+关键焊点图/ Key welding spot drawing
+EXCEL
+P3
+R
+A
+-
+20
+外露焊点图及清单/ Exposed welding spot drawing and list 
+EXCEL
+P3
+R
+A
+-
+21
+A面冻结评审报告/ A surface frozen review report
+PPT
+P3
+R
+A
+-
+22
+二维图纸/ 2D drawing
+CATIA 3D
+P3
+R
+A
+-
+23
+历史问题排查/ Historical issues investigation 
+EXCEL
+P3
+R
+A
+-
+基于xxxx的输入进行检查和更新
+Check and update based on 
+input of 
+24
+第二版可维修性排查分析/ Final maintainability check analysis
+PPT
+P3
+R
+A
+-
+25
+项目总结/ Project summary
+WORD
+P3
+R
+A
+-
+5/29/2026
+35
+BIW & Closure Deliverables
+白车身和开闭件交付物
+
+
+=== Page 35 ===
+5/29/2026
+36
+•
+内外饰
+Assumptions 假设
+• All necessary sample parts during development NOT included in 
+this offer
+开发过程中所需的样件费用没有包含在本报价内
+• Only one configuration for Interior & Exterior main systems
+内外饰主要系统只有1个配置
+•  is responsible for the Supplier management 
+XXX负责供应商管理
+• Manufacturing Simultaneous Engineering will be done by the 
+supplier for their work scope 
+供应商完成其工作范围内的制造同步工程
+Inputs 输入
+• CAS \ A Surface 整车CAS、A面
+• Competitive car, Benchmark car data and technical documents 
+竞品车、标杆车数据及技术文档
+• Performance target 性能目标
+• Vehicle weight target 整车质量目标
+• Vehicle Feature List 整车配置表
+• Project master time plan 项目主计划
+• Level 5 target 5级目标
+•  regulation 法规
+• Package 布置
+• VTS/SSTS
+• DTS
+• Color & Texture definition report 纹理色彩定义书
+•  Gateway Delivery list and templates                              阀点交付
+清单和模板
+
+
+=== Page 36 ===
+5/29/2026
+37
+•
+内外饰
+Work Content 工作内容
+• Styling feasibility study 造型可行性分析
+• INT & EXT master section design 内外饰主断面设计
+• Structure feasibility analysis  结构可行性分析
+• Attend development & review meeting to push the achievement of key 
+targets like weight
+参加开会会议及评审会议推动项目开发关键目标如重量
+• Communication with other module & finalize technical proposal 
+与其它模块沟通及技术方案制定
+• DMU check DMU检查
+• 3D data creation and maintenance 3D数模制作与维护
+• 2D drawing creation and maintenance 2D图纸制作与维护
+• Data check & review  数据审查
+• Technical document ( such as BOM, ICD etc.) creation & update 
+相关技术文件（BOM, ICD 等）的编制和更新
+• Prototype vehicle issues track and solution support
+工程样车技术支持，问题跟踪及解决支持
+
+
+=== Page 38 ===
+5/29/2026
+39
+Interior & Exterior Deliverables
+内外饰交付物
+序号
+No.
+交付物清单
+Deliverables
+交付物格式
+Format
+节点
+Milestone
+EDAG
+Supplier
+备注
+Remark
+1
+标准件清单/ Standard parts list
+EXCEL
+P2
+I
+A
+R
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+2
+专利排查报告/ Patent investigation report
+PPT
+P2
+R
+A
+-
+3
+造型CAS工程可行性分析(ECR反馈)/ Styling CAS 
+engineering feasibility analysis
+EXCEL
+P2
+R
+A
+S
+4
+初版ICD文件/ Initial ICD
+PPT /EXCEL
+P2
+R
+A
+S
+5
+第一版典型截面设计/
+Initial typical sections design
+CATIA 3D
+P2
+R
+A
+S
+6
+M0数模/ M0 3D data
+CATIA 3D
+P2
+R
+A
+S
+7
+M0数据校核报告/ M0 3D data check report
+PPT
+P2
+R
+A
+S
+8
+M0系统及零部件check list(针对M0数据)/
+M0 system & component check list
+EXCEL
+P2
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+9
+EM1数模/ EM1 3D data
+CATIA 3D
+P2
+R
+A
+S
+10
+EM1数据校核报告/ EM1 3D data check report
+PPT
+P2
+R
+A
+S
+11
+M1数模/ M1 3D data
+CATIA 3D
+P2
+R
+A
+S
+12
+M1数据校核报告/ M1 3D data check report
+PPT
+P2
+R
+A
+S
+13
+M1系统及零部件check list(针对M1数据)/
+M1 system & component check list
+EXCEL
+P2
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+14
+M1数据重量统计及减重方案/ M1 data weight 
+summarty and weight reduction proposal
+PPT
+P2
+R
+A
+S
+15
+M1数据系统装配流程图/
+M1 data system assembly sequence
+PPT
+P2
+R
+A
+S
+16
+第一版BOM清单/ Initial BOM list
+EXCEL
+P2
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+17
+第一版可维修性排查分析/
+Initial maintainability check analysis
+PPT
+P2
+R
+A
+S
+
+
+=== Page 39 ===
+序号
+No.
+交付物清单
+Deliverables
+交付物格式
+Format
+节点
+Milestone
+EDAG
+Supplier
+备注
+Remark
+1
+第二版典型截面设计/ Final typical sections design
+CATIA 3D
+P3
+R
+A
+S
+2
+力矩清单/ Torque list 
+EXCEL
+P3
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+3
+装调技术说明书/ Technical instructions for assembly and adjustment 
+WORD
+P3
+R
+A
+S
+4
+零部件关键/重要特性清单
+Component key / important characteristics list 
+EXCEL
+P3
+R
+A
+S
+5
+第二版BOM清单/ Final BOM list
+EXCEL
+P3
+R
+A
+S
+6
+DFMEA
+EXCEL
+P3
+R
+A
+S
+7
+造型A面工程可行性分析(ECR反馈)/ 
+Styling A surface engineering feasibility analysis
+EXCEL
+P3
+R
+A
+-
+8
+终版ICD文件/ Final ICD
+PPT
+P3
+R
+A
+S
+9
+A面冻结评审报告/ A surface frozen review report
+PPT
+P3
+R
+A
+S
+10
+EM2数模/ EM2 3D data
+CATIA 3D
+P3
+R
+A
+S
+11
+EM2数据校核报告/ EM2 3D data check report
+PPT
+P3
+R
+A
+S
+12
+M2数模/ M2 3D data
+CATIA 3D
+P3
+R
+A
+S
+13
+M2数据校核报告/ M2 3D data check report
+PPT
+P3
+R
+A
+S
+14
+M2系统及零部件check list(针对M2数据)/
+M2 system & component check list
+EXCEL
+P3
+R
+A
+S
+基于xxx的输入进行检查和更新
+Check and update based on input 
+of 
+15
+M2数据重量目标达成报告/ M1 data weight targrt achievement report
+PPT
+P3
+R
+A
+S
+16
+M2数据装配流程图/ M2 data system assembly sequence
+PPT
+P3
+R
+A
+S
+17
+M2内外饰DMU分析检查报告/
+M1 INT&EXT DMU analysis check report
+PPT
+P3
+R
+A
+S
+18
+二维图纸(含GD&T标注)/ 2D drawing (with GD&T)
+CATIA 2D
+P3
+R
+A
+S
+19
+KPC(零件检测表)/ KPC(Component gauging list)
+EXCEL
+P3
+R
+A
+S
+基于xxxx的输入进行检查和更新
+Check and update based on input 
+of 
+20
+第二版可维修性排查分析/ Final maintainability check analysis
+PPT
+P3
+R
+A
+S
+21
+项目总结/ Project summary
+PPT
+P3
+R
+A
+S
+5/29/2026
+40
+Interior & Exterior Deliverables
+内外饰交付物
+
+
+=== Page 40 ===
+5/29/2026
+41
+Chassis
+底盘
+• Assumptions 假设
+•
+The working place is EDAG office, and the software and hardware are provided by EDAG
+工作地点在EDAG办公室，软硬件由EDAG提供
+•
+The EV and REEV is based on the powertrain and three electric system of existing 
+models for layout, modification and verification
+     纯电与增程式基于现有车型的动力总成和三电系统进行布置改制和校核
+•
+The new development of front suspension system, steering system, tire and wheel system, 
+hard point, concept definition and performance target setting shall be independently 
+completed by Party A, and Party B shall be responsible for structural design and 
+development and DMU verification
+  前悬架系统、转向系统、轮胎车轮系统全新开发，硬点以及概念定义、性能目标设定由甲
+方自主完成，乙方负责结构设计开发和DMU校核
+•
+The braking system is copy, and EDAG is responsible for system verification, data 
+restructuring and improvement
+     制动系统借用，EDAG负责系统校核以及数据改制和完善
+•
+The rear suspension system, intake & exhaust system, fuel system, thermal management 
+and HVAC system only check the layout and modify and maintain the data before M2
+后悬架系统、进排气系统、供油系统、热管理及空调硬件系统仅对布置进行校核以及M2之
+前的数据修改维护
+•
+ inputs the road spectrum data, and EDAG is responsible for the load data decomposition 
+required by CAE
+    输入路谱数据，EDAG负责CAE所需的载荷数据分解工作
+•
+EDAG will complete the data delivery from M0 to m2, and the performance test related to  
+parts and systems will be independently completed by 
+EDAG将完成M0到M2阶段的数据交付，后续零部件及系统涉及到的性能测试由自主完成
+Inputs 输入
+•
+Base 3D data reversed by 
+•
+原始3D数据以及竞品信息
+•
+Chassis feature list VTS、SSTS、CTS
+底盘功能和性能目标定义清单
+•
+Interface information and requirements of each 
+system
+各系统接口信息和要求
+•
+Chassis performance target                                 
+底盘各系统开发计划
+•
+Chassis cost & mass target 
+底盘成本及重量目标
+•
+RLDA data result  input                                          
+路谱数采结果输入
+•
+Output template
+    输出物模板
+
+
+=== Page 44 ===
+5/29/2026
+45
+Chassis
+底盘
+Work Content 工作内容
+•
+Chassis engineering design includes – 底盘工程化设计包括:
+- Suspension system 悬架系统
+     - Tire & Wheel system 车轮系统
+     - PT mount system 传动悬置系统
+     - Fuel system 燃油系统
+     - Intake & Exhaust system 进排气系统
+     - HVAC & Thermal system 空调热管理系统
+     - Brake system 制动系统
+     - Steering system 转向系统
+•
+DMU dynamic and static verification of chassis system
+   -底盘上述系统的DMU动态和静态校核；
+•
+3D data and 2D drawing design of the above system and its components
+   -上述系统以及包括的零部件的3D数据以及2D图纸设计；
+•
+Weight and cost analysis of parts and systems
+   -零部件及系统重量、成本分析；
+•
+Assembly and maintainability analysis of the above systems
+   -上述系统的装配、维修性分析；
+•
+Mule car modify scheme
+   -Mule car 样车改制方案制定；
+•
+Load break down
+   -根据路谱以及工况输入进行载荷分解；
+•
+DEFEMA release
+   -收集并发放DFEMA；
+Deliveries 交付物
+• Chassis 3D data and 2D drawings for M1/M2 milestone                                             
+-底盘M1/M2阶段3D数据及2D图纸
+•
+Design scheme specification of DCS systems
+   -DCS各系统设计方案说明书
+•
+EBOM
+•
+M1 \ M2 brake, steering, suspension, transmission system, intake system, 
+exhaust system, fuel system layout and DMU check report
+   -M1\M2版制动、转向、悬架、传动系统、进气系统、排气系统、燃油系统
+布置及运动校核报告
+•
+Torque calculation and check report for standard parts connection points
+各连接点标准件力矩计算与校核报告
+•
+Installation drawing of chassis system 
+     底盘各系统装置图
+•
+Boundary connection list of components 
+     各部件边界配接单
+•
+Regulation checklist 
+     法规排查清单
+•
+Tire Envelope
+     轮胎包络
+•
+M1/M2阶段系统及零部件数据check list
+•
+Data weight statistics and weight reduction scheme
+     数据重量统计及减重方案
+•
+List of key / important characteristics of parts
+     第一版零部件关键/重要特性清单
+•
+Technical specification for assembly adjustment装配调整技术说明书
+•
+Product maintainability analysis report产品可维修性分析报告
+•
+Data review process issue list
+•
+数据评审过程问题清单
+•
+Mule car modify technical scheme
+     Mule car改制方案
+
+
+=== Page 45 ===
+5/29/2026
+46
+•
+电子电器
+Assumptions 假设
+• EE components benchmark analysis only consider EE system，Intelligent responsible 
+system excluded,Benchmark analysis work will be done at customer side
+电器件的竞品分析只针对电器开发系统，智能院负责的系统不包括在内,分析工作在客户
+现场完成。
+• EE carry over parts selection be done by Customer. The C/O parts data provided by 
+customer.
+客户负责所有电器沿用件的选型，电器沿用件的数据由客户提供
+• Supplier nomination document and supplier management done by customer.
+所有电器件供应商招标文件以及供应商管理由客户负责
+• Body EE parts will be carry over mature parts of supplier. No new parts，EDAG only 
+consider the structure match with surroundings.
+车身电子全部采用供应商现有零件，不新开发，爱达克只负责重新布置及与周边件的结
+构匹配。
+• Front lamp ,Rear lamp, CHMSL and interior ambient lamp will be new parts. Others lamp 
+is carry over parts.All the configuration is same.
+前大灯，后尾灯，高位制动灯及内饰氛围灯为新开发件，其他灯具全部沿用，不同车型
+灯具配置相同
+• Four doors Switch structure change patly, Tail gate switch new parts, Others switches will 
+carry over.
+四门开关结构微调，尾门开关新件，其他开关沿用
+• Alarm device (Horm) is carry over parts 警报装置指喇叭，沿用件
+• Relay box change the Pin position and the fixing point position,others carry over.
+继电器盒pin脚改动，安装点位置调整；其他沿用
+• Fuse box carry over，Position and fixing structure change.
+保险丝盒沿用，位置和安装结构可能调整
+Inputs 输入
+• Provide all the benchmark vehicle.
+客户提供竞品车
+• Vehicle weight target.
+整车质量目标
+• Provide the complete EE 3D data and relevant documents before 
+project kick off.
+在项目启动前输入所有电器件的3D数据及相关资料
+• Provide the carry over BOM list after project kick off.
+在项目启动后输入电器沿用件完整的BOM清单
+• Provide the harness and system schematic diagram. 
+客户输入线束原理图使用
+• Vehicle configuration.
+整车配置表
+• Exterior and interior rendering and CAS data.
+内外饰造型效果图及CAS面
+• All the deliverable template.
+所有的交付物模板
+
+
+=== Page 46 ===
+5/29/2026
+47
+•
+电子电器
+Assumptions 假设
+• Low voltage battery need repackage.
+低压蓄电池布置
+• Antenna of Blue tooth system need package.
+蓝牙系统天线需要重新布置
+• Rain volume, Foot blow, Temperature sensor package.
+雨量，脚踢，温度传感器重新布置
+• Others EE components which not mentioned will be done by customer.
+电器其他未提到的系所有开发工作由客户负责
+• Harness and system schematic diagram done and provided to EDAG by customer. 
+线束及系统原理图由客户完成并提供给爱达克
+• All the EE parts P2,P3 stage data will be done by production supplier.(Exclude harness)
+所有电器件P2,P3阶段数据的详细结构设计由生产供应商完成.(线束除外)
+• Low voltage harness connector and Pin data base will be provided by customer.
+低压线束的连接器及接插件的数据库由客户提供
+• All the carry over EE parts relevant characters will be provided by customer.
+所有沿用电器件的电性能相关参数由客户提供
+• EE components include the Intelligent driving parts design specification done by customer.
+所有电器件的设计构想由客户负责完成
+• EE components package proposal.
+电器总体布置方案由客户输入
+• Power distribution done by customer.
+电源分配由客户完成
+• Regulation check and patent only consider lighting.
+法规校核及专利排查只针对灯具
+Inputs 输入
+• Provide all the benchmark vehicle.
+客户提供竞品车
+• Vehicle weight target.
+整车质量目标
+• Provide the complete EE 3D data and relevant documents before. project 
+kick off.
+在项目启动前输入所有电器参考车的3D数据及相关资料
+• Provide the carry over BOM list after project kick off.
+在项目启动后输入电器沿用件完整的BOM清单
+• Provide the harness and system schematic diagram .
+客户输入线束原理图使用
+• Vehicle configuration.
+整车配置表
+• Exterior and interior rendering and CAS data.
+内外饰造型效果图及CAS面
+• All the deliverable template.
+所有的交付物模板
+
+
+=== Page 48 ===
+5/29/2026
+49
+•
+电子电器
+P2 stage Work Content 工作内容
+• EE new system benchmark analysis, type selection report, calculation report 
+and ICD of various electronic and electrical systems.
+电子电器新开发系统竞品对比、选型报告，计算报告及ICD文件。
+• EE systems layout feasibility analysis, prepare the layout feasibility analysis 
+report, which shall include static gap analysis, dynamic gap analysis, 
+assemblability analysis, maintainability analysis, functional analysis, man-
+machine regulation inspection, etc., and submit it to the checklist.
+电子电器各系统布置可行性分析，编写布置可行性分析报告，报告应包含静
+态间隙分析、动态间隙分析、可装配性分析、可维修性分析、功能性分析、
+人机法规检查等内容，提交checklist。
+• DMU check of the whole vehicle based on M0 / EM1 data and prepare the DMU 
+check problem list. It shall include static clearance check, dynamic clearance 
+check, etc.
+M0/EM1数据做整车DMU校核、编制DMU校核问题清单。应包含静态间隙校
+核、动态间隙校核等内容。
+• Regulation checking report and update it at any time, including process data.
+法规校核报告，并随时跟踪更新，包含过程数据
+• EE technical issue list and promote the solution.
+电子电器技术问题清单，推动问题解决；
+• Milestone summary report.
+节点总结报告;
+P2 stage Deliveries P2阶段交付物
+• Lighting Patent investigation report 灯具专利排查报告
+• List of standard parts 标准件清单
+• Feasibility analysis of CAS 造型CAS工程可行性分析（ECR反馈）
+• 1st version DTS section 第一版DTS 断面
+• 1st version ICD 初版ICD（物理&电器）
+• 1st version Typical section 第一版典型截面设计
+• M0 Data M0数模
+• M0 data checking report M0数据校核报告
+• M0 system and part cherck list M0 系统及零部件check list(针对M0数据）
+• EM1 Data EM1数模
+• EM1 data checking report EM1数据校核报告
+• M1 Data M1数模
+• M1 data checking report M1数据校核报告
+• M1 system and part cherck list  M1系统及零部件check list(针对M1数据）
+• M1 data weight collstion and lose weight proposal M1数据重量统计及减重方案
+• 1st version BOM list 第一版BOM清单
+• 1st version regulation checking report 第一版法规校核报告
+• 1st version maintainability checking 第一版可维修性排查分析
+
+
+=== Page 49 ===
+5/29/2026
+50
+•
+电子电器
+P3 stage Work Content 工作内容
+• Update EE new system benchmark analysis, type selection report, calculation report 
+and ICD of various electronic and electrical systems.
+更新电子电器新开发系统竞品对比、选型报告，计算报告及ICD。
+• EE systems layout feasibility analysis, prepare the layout feasibility analysis report, 
+which shall include static gap analysis, dynamic gap analysis, assemblability analysis, 
+maintainability analysis, functional analysis, man-machine regulation inspection, etc., 
+and submit it to the checklist.
+电子电器各系统可行性分析，编写布置校核报告，报告应包含静态间隙检查、动态间
+隙检查、可装配性检查、可维修性检查、功能性确认、人机法规检查等内容；
+• DMU check of the whole vehicle based on M0 / EM1 data and prepare the DMU check 
+problem list. It shall include static clearance check, dynamic clearance check, etc.
+EM2/M2数据做整车DMU校核、编制DMU校核问题清单。应包含静态间隙校核、动
+态间隙校核等内容。
+• Regulation checking report and update it at any time, including process data.
+更新法规校核报告；
+• EE technical issue list and promote the solution.
+编写电子电器技术问题清单，推动问题解决；
+• Assembly level 2D Drawing with GDT info.
+总成级别二维图纸的编制；
+• Project summary report.
+节点总结报告。
+P3 stage Deliveries P3 阶段交付物
+• 2nd version Typical section 第二版典型截面设计
+• Feasibility analysis of CAS 造型CAS工程可行性分析（ECR反馈）
+• Torque list of standard parts紧固件力矩清单
+• Technical instructions for assembly and adjustment装调技术说明书
+• List of key / important characteristics of parts零部件关键/重要特性清单
+• 2nd version BOM list第二版BOM清单
+• 2nd version regulation checking report第二版法规校核报告
+• DFMEA
+• Final ICD list 终版ICD（物理&电器）
+• A surface freeze review report A面冻结评审报告
+• Freeze version DTS section 冻结版DTS 断面
+• EM2 Data & EM2 data checking report EM2数模及EM2数据校核报告
+• M2 Data & M2 data checking report M2数模及M2数据校核报告
+• M2 system and part cherck list M2系统及零部件check list(针对M2数据）
+• M2 data weight report M2数据重量目标达成报告
+• 2nd version maintainability checking第二版可维修性排查分析
+• KPC
+• 2D Drawing 二维图纸（含GD&T标注）
+• Project summary report 项目总结报告
+
+
+=== Page 50 ===
+5/29/2026
+51
+•
+Cae 仿真
+Assumptions 假设
+• Project and documentation language will be in Chinese
+项目实施与文档的语言为中文
+• EDAG will only be responsible for the parts meshing of EDAG modified, the other parts 
+will be provided by customer. 爱达克仅负责自己设计的零部件的建模工作，其他的模型
+由客户负责免费提供。
+• The CAE simulation is only related to RFQ mentioned load cases, include stiffness and 
+strength( BIW, D&C, Interior, chassis, other parts),  NVH simulation, Load spectrum 
+simulation, fatigue simulation (body, chassis…) , Battery pack simulation
+CAE分析工作仅限于RFQ中设计的工况，包含刚度强度（白车身，门盖，内饰，底盘和
+其他零部件），NVH的仿真，载荷分解，疲劳分析（车身，底盘），电池包分析
+• Customer will provide the detailed load case definition and target
+客户提供CAE仿真的工况描述和目标值
+• All the CAE activities will be performed at EDAG facilities 所有的CAE仿真工作将在爱
+达克办公室进行
+• Customer will provide the complete digital model CAD (incl. Connection) and BOM 
+(free of penetration/intersection) 
+客户应该提供完整的3d 数据与物料清单
+• Customer will provide the nonlinear material information of abaqus format and  S-N 
+curve for fatigue simulation free, if not will use EDAG database, but will not be 
+delivered to customer 客户应该免费提供abaqus格式的非线性曲线数据和用于疲劳分析
+的所有材料的应力循环曲线,如何客户没有，将使用爱达克的材料库，但是将不提供给客
+户
+• Working Place is in EDAG shanghai office, no onsite work is planed
+工作地点为爱达克上海办公室，没有到客户现场工作的安排
+Inputs 输入
+• CAE simulation load case specifications and target
+ CAE分析工况和目标值
+• VTS & STS 整车目标值和子系统目标值
+• Material database 材料参数
+• RLDA 路谱载荷数据
+• Modeling standard 建模标准
+
+
+=== Page 51 ===
+5/29/2026
+52
+•
+Cae 仿真
+Work Content 工作内容
+• CAE simulation integration: responsible for the CAE complete vehicle 
+CAE status integration work of structure&durability and NVH
+仿真集成：主要负责结构耐久和NVH的CAE仿真工作的集成
+• Meshing task: meshing and assembly CAE simulation model
+建模：负责网格和组装仿真模型
+• Stiffness and strength: BIW, D&C, Interior, chassis, other parts
+结构耐久仿真：车身，门盖，内饰, 底盘以及其他零件的CAE结构耐久仿
+真
+• NVH: CAE NVH simulation
+NVH仿真：整车的NVH仿真
+• Load spectrum simulation：Based on the load spectrum provided by the 
+customer, the multi-body dynamic model is established and the load 
+spectrum is decomposed
+    载荷分解：基于客户提供的载荷谱，建立多体动力学模型，进行载荷谱分
+解
+• Battery pack simulation
+    电池包CAE仿真
+Deliveries 交付物
+• CAE Work Plan
+CAE 仿真的工作计划
+• CAE structure and durability simulation status and assessment 
+CAE结构耐久仿真的状态以及优化报告
+• CAE NVH simulation status and assessment 
+CAE NVH仿真的状态以及优化报告
+• Section forces 
+硬点载荷谱文件
+• Battery pack simulation status and assessment 
+电池包仿真的状态以及优化报告
+
+
+=== Page 52 ===
+5/29/2026
+53
+Project Management
+Assumptions
+• A dedicated Project Manager for the overall EDAG responsibility 
+一名专门负责EDAG整体职责的项目经理
+• Timely feedback and sign-off of program gateways and EDAG 
+deliverables (not later than 2 weeks after delivery)
+    项目节点和EDAG交付物的及时反馈和签收（不迟于交付后两周）
+Inputs
+• Project development timing
+    项目开发计划
+• Project contact list for alignment and reporting
+    用于协商及汇报的项目联系人列表
+• Information and confirmation of changes of requirements, targets 
+and timing
+    项目需求，项目目标，项目计划变更的传达与确认
+

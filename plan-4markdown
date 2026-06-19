@@ -1,0 +1,1285 @@
+markdown
+# ARIA — Automated RFQ Intelligence Assistant
+# 智能报价辅助系统 项目规划文档
+
+**版本：** v0.2  
+**日期：** 2026-06-18  
+**状态：** Demo 开发阶段
+
+---
+
+## 目录
+
+1. [项目背景与目标](#1-项目背景与目标)
+2. [核心业务功能模块](#2-核心业务功能模块)
+3. [整体技术架构](#3-整体技术架构)
+4. [技术选型说明](#4-技术选型说明)
+5. [完整工程目录结构](#5-完整工程目录结构)
+6. [开发侧与客户侧边界划分](#6-开发侧与客户侧边界划分)
+7. [代码仓库管理](#7-代码仓库管理)
+8. [打包与交付方案](#8-打包与交付方案)
+9. [客户服务器配置要求](#9-客户服务器配置要求)
+10. [大模型安装与维护](#10-大模型安装与维护)
+11. [本地 Demo 一键启动](#11-本地-demo-一键启动)
+12. [测试方案](#12-测试方案)
+13. [工程规范](#13-工程规范)
+14. [企业正式部署流程](#14-企业正式部署流程)
+15. [运维与持续维护](#15-运维与持续维护)
+16. [分阶段实施路线图](#16-分阶段实施路线图)
+
+---
+
+## 1. 项目背景与目标
+
+### 1.1 项目名称
+
+| 项目 | 内容 |
+|------|------|
+| **英文名** | ARIA |
+| **全称** | Automated RFQ Intelligence Assistant |
+| **中文名** | 智能报价辅助系统 |
+| **发音** | / ˈɑː.ri.ə /（啊-瑞-啊） |
+| **内网访问地址** | http://aria.company.internal |
+
+### 1.2 背景
+
+企业研发工程师在响应客户 RFQ（询价需求）时，需要耗费大量人力进行历史项目比对、
+技术澄清梳理、方案编写和人力报价核算。通过引入 ARIA 本地私有化 AI 系统，
+辅助工程师完成上述工作，提升报价效率和一致性。
+
+### 1.3 核心约束
+
+| 约束项 | 要求 |
+|--------|------|
+| 数据安全 | 全部本地私有化部署，禁止使用公有云 API，数据不出内网 |
+| 使用人员 | 内部研发工程师 20-30 人，无分级权限需求 |
+| 访问方式 | 网页端，办公室内网直连，远程通过现有 VPN 访问 |
+| OA 集成 | 不接入企业 OA 系统 |
+| 上线节奏 | 分阶段，先 Demo 验证效果，再正式部署 |
+| AI 定位 | 输出仅供参考，最终内容由工程师人工审核确认 |
+
+---
+
+## 2. 核心业务功能模块
+
+本期仅实现以下四个模块，财务相关功能暂不开发。
+
+### 模块一：RFQ 需求解析 + 历史案例批量比对
+- 支持上传 Word (.docx) 格式客户 RFQ 文件
+- 自动拆解底盘、可行性分析、悬架等细分工作模块
+- 自动检索并批量对比历史项目文档（RAG 检索）
+- 输出新旧项目工作量、内容差异对比报告
+- 匹配相似历史项目，输出项目规模与报价参考概览
+
+### 模块二：自动生成技术澄清 QA 清单
+- 根据当前 RFQ 匹配同类历史项目的技术问题记录
+- 汇总过往全部技术疑问，输出结构化核查清单
+- 工程师可在界面上筛选、导出清单
+
+### 模块三：自动生成技术方案 PPT 初稿
+- 结合 RFQ 需求与企业 PPT 模板，自动增减业务模块
+- 自动填充项目假设、输入条件、工作架构等内容
+- 产出 .pptx 文件供工程师下载后修改
+
+### 模块四：人力报价 Excel 初稿自动生成（核心刚需）
+- 仅核算人力成本，实验费用暂不纳入
+- 调取历史项目不同岗位（专家 / 中级 / 软件工程师等）配置数据
+- 按企业统一 Excel 模板输出人力排布明细 + 汇总表
+- 生成 .xlsx 文件供工程师下载，明细仅内部使用
+
+---
+
+## 3. 整体技术架构
+
+┌─────────────────────────────────────────────────────────────┐
+│ 用户层 (Web Browser) │
+│ 员工通过内网 / VPN 访问 aria.company.internal │
+└─────────────────────┬───────────────────────────────────────┘
+│ HTTP / WebSocket
+┌─────────────────────▼───────────────────────────────────────┐
+│ Nginx 反向代理 │
+│ 统一入口 :80，处理超时与文件大小限制 │
+└──────┬──────────────────────────────┬───────────────────────┘
+│ /api/* │ /*
+┌──────▼──────────────┐ ┌───────────▼──────────┐
+│ aria-backend │ │ aria-frontend │
+│ FastAPI :8000 │ │ Next.js :3000 │
+│ │ │ │
+│ ┌───────────────┐ │ │ ┌─────────────────┐ │
+│ │ RFQ 解析 │ │ │ │ RFQ 上传页面 │ │
+│ │ RAG 检索 │ │ │ │ QA 清单页面 │ │
+│ │ QA 生成 │ │ │ │ 报价页面 │ │
+│ │ PPT 生成 │ │ │ │ 知识库管理 │ │
+│ │ Excel 生成 │ │ │ └─────────────────┘ │
+│ └───────────────┘ │ └───────────────────────┘
+└──────┬──────────────┘
+│
+┌──────┴────────────────────────────────────────────────────┐
+│ 数据层 │
+│ ┌──────────────┐ ┌─────────────────┐ ┌──────────────┐ │
+│ │ PostgreSQL │ │ ChromaDB │ │ 本地文件系统 │ │
+│ │ :5432 │ │ (向量数据库) │ │ uploads/ │ │
+│ │ 项目/任务/ │ │ 历史文档 │ │ outputs/ │ │
+│ │ 操作日志 │ │ embeddings │ │ templates/ │ │
+│ └──────────────┘ └─────────────────┘ └──────────────┘ │
+└───────────────────────────────────────────────────────────┘
+│
+┌──────▼─────────────────────────┐
+│ Ollama（独立运行，非容器） │
+│ :11434 │
+│ qwen2.5:14b / 32b │
+│ nomic-embed-text │
+└─────────────────────────────────┘
+
+yaml
+
+---
+
+## 4. 技术选型说明
+
+| 层级 | 技术选型 | 版本 | 选择理由 |
+|------|---------|------|---------|
+| 本地大模型 | Ollama + Qwen2.5 | 14B(Demo) / 32B(生产) | 中文理解强，完全离线 |
+| Embedding | nomic-embed-text | latest | 本地向量化，支持中文 |
+| 向量数据库 | ChromaDB | 0.5.x | 零配置，文件存储，Demo 适用 |
+| 后端框架 | Python FastAPI | 0.111.x | AI 生态完整，异步性能好 |
+| RAG 框架 | LangChain | 0.2.x | 文档解析 + 检索链路成熟 |
+| 前端框架 | Next.js + Ant Design | 14.x / 5.x | 企业级组件，开箱即用 |
+| 关系数据库 | PostgreSQL | 16 | 稳定，存储结构化业务数据 |
+| ORM | SQLAlchemy + Alembic | 2.x | 数据库迁移管理 |
+| 文件存储 | 本地文件系统 | — | Demo 阶段无需额外中间件 |
+| PPT 生成 | python-pptx | 0.6.x | 读写现有模板 |
+| Excel 生成 | openpyxl | 3.x | 兼容现有 Excel 模板格式 |
+| Word 解析 | python-docx | 1.x | 解析客户 RFQ 文件 |
+| 容器化 | Docker + Docker Compose | 26.x / v2 | 一键启动，环境隔离 |
+| 单元测试 | pytest + pytest-asyncio | 8.x | Python 标准测试框架 |
+| API 测试 | pytest + httpx | — | 异步 HTTP 测试客户端 |
+| 数据校验 | Pydantic v2 | 2.x | 请求参数强类型校验 |
+| 日志 | Python logging（结构化） | — | 统一日志格式，含上下文 |
+
+---
+
+## 5. 完整工程目录结构
+
+以下为交付时必须包含的完整目录，不接受单文件或代码片段形式。
+
+aria/
+│
+├── docker-compose.yml # 一键启动（开发/Demo环境）
+├── docker-compose.prod.yml # 生产环境配置
+├── .env.example # 环境变量模板（真实.env不入库）
+├── .gitignore
+├── run_tests.sh # 统一测试执行入口（必须可一键运行）
+├── README.md # 启动说明（步骤真实有效）
+│
+├── backend/
+│ ├── Dockerfile
+│ ├── requirements.txt # 所有依赖含版本锁定
+│ ├── requirements-test.txt # 测试专用依赖
+│ ├── alembic.ini
+│ ├── alembic/
+│ │ └── versions/ # 数据库迁移脚本
+│ │
+│ ├── app/
+│ │ ├── init.py
+│ │ ├── main.py # FastAPI 入口，仅注册路由和中间件
+│ │ ├── config.py # 统一配置（从环境变量读取，无硬编码）
+│ │ │
+│ │ ├── api/ # 路由层（仅处理HTTP，不含业务逻辑）
+│ │ │ ├── init.py
+│ │ │ ├── deps.py # 依赖注入（DB session等）
+│ │ │ └── v1/
+│ │ │ ├── init.py
+│ │ │ ├── rfq.py # RFQ 相关接口
+│ │ │ ├── knowledge.py # 知识库管理接口
+│ │ │ ├── projects.py # 历史项目接口
+│ │ │ └── health.py # 健康检查接口
+│ │ │
+│ │ ├── services/ # 业务逻辑层
+│ │ │ ├── init.py
+│ │ │ ├── rfq_parser.py # RFQ 文档解析
+│ │ │ ├── rag_service.py # 向量检索 + LLM 调用
+│ │ │ ├── qa_generator.py # QA 清单生成
+│ │ │ ├── excel_generator.py # Excel 报价生成
+│ │ │ └── ppt_generator.py # PPT 初稿生成
+│ │ │
+│ │ ├── repositories/ # 数据访问层
+│ │ │ ├── init.py
+│ │ │ ├── project_repo.py
+│ │ │ └── rfq_repo.py
+│ │ │
+│ │ ├── models/ # SQLAlchemy ORM 模型
+│ │ │ ├── init.py
+│ │ │ ├── project.py
+│ │ │ └── rfq_task.py
+│ │ │
+│ │ ├── schemas/ # Pydantic 请求/响应模型
+│ │ │ ├── init.py
+│ │ │ ├── rfq.py
+│ │ │ └── project.py
+│ │ │
+│ │ └── utils/
+│ │ ├── init.py
+│ │ ├── doc_loader.py # Word 文档加载工具
+│ │ ├── vector_store.py # ChromaDB 操作封装
+│ │ └── logger.py # 统一日志配置
+│ │
+│ └── data/ # 运行时数据目录（Volume 挂载）
+│ ├── uploads/ # 客户上传的 RFQ 文件
+│ ├── outputs/ # 生成的 Excel / PPT 文件
+│ ├── knowledge_base/ # 历史项目原始文档
+│ ├── chroma_db/ # 向量数据库文件
+│ └── templates/
+│ ├── quote_template.xlsx
+│ └── proposal_template.pptx
+│
+├── frontend/
+│ ├── Dockerfile
+│ ├── package.json
+│ ├── next.config.js
+│ ├── tailwind.config.js
+│ ├── tsconfig.json
+│ └── src/
+│ ├── app/
+│ │ ├── layout.tsx
+│ │ ├── page.tsx # 首页/仪表盘
+│ │ ├── rfq/
+│ │ │ └── page.tsx # RFQ 上传与分析页
+│ │ ├── knowledge/
+│ │ │ └── page.tsx # 知识库管理页
+│ │ └── projects/
+│ │ └── page.tsx # 历史项目页
+│ │
+│ ├── components/
+│ │ ├── layout/
+│ │ │ ├── Sidebar.tsx
+│ │ │ └── Header.tsx
+│ │ ├── rfq/
+│ │ │ ├── RFQUploader.tsx
+│ │ │ ├── ModuleList.tsx
+│ │ │ ├── SimilarProjects.tsx
+│ │ │ └── ComparisonReport.tsx
+│ │ ├── qa/
+│ │ │ └── QAChecklist.tsx
+│ │ └── common/
+│ │ ├── LoadingSpinner.tsx
+│ │ ├── ErrorToast.tsx
+│ │ └── DownloadButton.tsx
+│ │
+│ ├── api/
+│ │ ├── client.ts # axios 实例（统一错误拦截）
+│ │ ├── rfq.ts
+│ │ └── projects.ts
+│ │
+│ └── types/
+│ └── index.ts
+│
+├── nginx/
+│ └── aria.conf # 反向代理配置
+│
+├── scripts/
+│ ├── ingest_documents.py # 批量导入历史文档到知识库
+│ └── incremental_update.py # 增量更新知识库
+│
+├── unit_tests/ # 单元测试
+│ ├── init.py
+│ ├── conftest.py
+│ ├── test_rfq_parser.py
+│ ├── test_excel_generator.py
+│ ├── test_ppt_generator.py
+│ ├── test_rag_service.py
+│ └── test_schemas.py
+│
+├── API_tests/ # API 接口功能测试
+│ ├── init.py
+│ ├── conftest.py
+│ ├── test_health.py
+│ ├── test_rfq_api.py
+│ ├── test_knowledge_api.py
+│ └── test_projects_api.py
+│
+├── deploy/ # 交付客户的部署包
+│ ├── docker-compose.yml
+│ ├── .env.template
+│ ├── nginx/aria.conf
+│ └── scripts/
+│ ├── start.sh
+│ ├── stop.sh
+│ ├── update.sh
+│ └── backup.sh
+│
+└── docs/
+├── plan.md # 本文件
+├── deployment-guide.md
+└── user-manual.md
+
+yaml
+
+---
+
+## 6. 开发侧与客户侧边界划分
+
+开发方 客户
+─────────────────────────────────────────────────────────
+aria Git Repo（私有仓库） 客户内部服务器
+├── 全部源代码 ├── aria-backend 镜像（黑盒）
+├── Dockerfile ├── aria-frontend 镜像（黑盒）
+├── 测试代码 ├── 历史项目文档
+└── 部署脚本模板 ├── 向量数据库文件
+├── PostgreSQL 业务数据
+├── Ollama + 模型文件
+└── 用户上传的 RFQ 文件
+
+✅ 代码由开发方掌控，客户不可见
+✅ 镜像打包为黑盒交付，保护知识产权
+✅ 所有数据永远存留在客户内网
+✅ Ollama 模型由客户 IT 独立安装和管理
+❌ 不将源码交付客户
+❌ 不将客户数据目录打包进镜像
+❌ 不依赖任何外网服务
+
+yaml
+
+---
+
+## 7. 代码仓库管理
+
+### Gitea 私有托管（推荐）
+
+```yaml  
+services:  
+  gitea:  
+    image: gitea/gitea:latest  
+    ports:  
+      - "3001:3000"  
+      - "2222:22"  
+    volumes:  
+      - gitea_data:/data  
+    environment:  
+      - GITEA__database__DB_TYPE=sqlite3  
+    restart: unless-stopped  
+仓库地址示例：http://gitea.company.internal/aria
+
+.gitignore 关键配置
+gitignore
+# 环境变量
+.env
+*.env.local
+
+# 客户数据（绝对不入库）
+backend/data/uploads/
+backend/data/chroma_db/
+backend/data/knowledge_base/
+backend/data/outputs/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+
+# Node
+node_modules/
+.next/
+
+# 模型文件
+*.gguf
+*.bin
+8. 打包与交付方案
+打包命令
+bash
+# 构建镜像
+docker build -t aria-backend:v1.0.0 ./backend
+docker build -t aria-frontend:v1.0.0 ./frontend
+
+# 导出离线文件
+docker save aria-backend:v1.0.0 aria-frontend:v1.0.0 \
+  | gzip > aria-v1.0.0.tar.gz
+
+# 客户侧导入启动
+docker load < aria-v1.0.0.tar.gz
+cd deploy && ./start.sh
+版本更新流程
+bash
+开发方                                   客户
+─────────────────────────────────────────────────────
+1. 新功能开发完成，./run_tests.sh 全通过
+2. 构建新版镜像 aria-*:vX.X.X
+3. 打包 aria-vX.X.X.tar.gz 传输给客户  →  4. 收到文件
+                                           5. ./update.sh vX.X.X
+                                              停服 → 换镜像 → 启动
+                                           6. 数据 Volume 完全不受影响
+9. 客户服务器配置要求
+说明： ARIA 的 AI 推理本质是串行处理，并发能力受显存限制。
+实际高峰为 1-3 人同时生成，集中在投标截止前 1-2 天。
+
+三档配置对比
+指标	基础版	推荐版 ★	旗舰版
+CPU	16 核	32 核	64 核
+内存	64GB	128GB ECC	256GB
+GPU	无	RTX 4090 24G	A100 40G
+系统盘	500GB SSD	1TB NVMe SSD	2TB NVMe
+数据盘	4TB HDD	8TB HDD RAID1 + 2TB SSD	16TB RAID5
+推理速度	5-10 tok/s	30-50 tok/s	80-120 tok/s
+并发用户	3-5 人	10-15 人	20-30 人
+适用模型	7B/14B	32B Q4	72B
+预算参考	2-4 万	6-10 万	20 万+
+推荐版详细配置
+yaml
+处理器：  Intel Xeon Silver 4314 × 2（32核64线程）
+内存：    128GB DDR4 ECC
+显卡：    NVIDIA RTX 4090 24GB × 1
+系统盘：  1TB NVMe SSD
+数据盘：  8TB HDD × 2（RAID1）+ 2TB SSD（模型文件）
+电源：    1200W 80+ 金牌冗余
+操作系统：Ubuntu Server 22.04 LTS
+网络：    双千兆网口
+UPS：     在线式 2KVA
+10. 大模型安装与维护
+大模型不属于 ARIA 代码交付范围
+Ollama 及模型文件是客户服务器基础设施，独立安装。
+ARIA 通过以下配置项与之通信：
+
+bash
+# .env
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:32b
+EMBEDDING_MODEL=nomic-embed-text
+安装步骤
+bash
+# 1. 安装 Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl enable ollama
+
+# 2. 安全加固：仅监听本机
+sudo mkdir -p /etc/systemd/system/ollama.service.d/
+sudo tee /etc/systemd/system/ollama.service.d/override.conf << EOF
+[Service]
+Environment="OLLAMA_HOST=127.0.0.1:11434"
+Environment="OLLAMA_MODELS=/data/ollama/models"
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart ollama
+
+# 3. 拉取模型
+ollama pull qwen2.5:32b
+ollama pull nomic-embed-text
+
+# 4. 验证
+ollama run qwen2.5:32b "你好"
+无外网环境： 提前下载模型文件，通过 U 盘传输后用
+ollama import 导入。部署前需与客户确认网络条件。
+
+11. 本地 Demo 一键启动
+环境： Windows 开发机（WSL2 + Docker Desktop）
+
+前置安装
+工具	下载地址
+Docker Desktop	https://docker.com/products/docker-desktop
+Ollama	https://ollama.com/download/windows
+Python 3.11+	https://python.org/downloads
+Node.js 20 LTS	https://nodejs.org
+启动步骤
+bash
+# 1. 克隆仓库
+git clone http://gitea.company.internal/aria.git
+cd aria
+
+# 2. 配置环境变量
+cp .env.example .env
+# 最小配置：
+# POSTGRES_PASSWORD=localdev123
+# OLLAMA_BASE_URL=http://host.docker.internal:11434
+# OLLAMA_MODEL=qwen2.5:14b
+# EMBEDDING_MODEL=nomic-embed-text
+
+# 3. 拉取模型（Ollama 在 Windows 后台运行）
+ollama pull qwen2.5:14b
+ollama pull nomic-embed-text
+
+# 4. 一键启动
+docker-compose up --build
+
+# 访问地址：
+# ARIA 前端：  http://localhost:3000
+# API 文档：   http://localhost:8000/docs
+# 健康检查：   http://localhost:8000/api/v1/health
+
+# 5. 导入历史文档（另开终端）
+# 将 Word 文档放入 backend/data/knowledge_base/<项目名>/ 目录
+docker exec aria-backend python scripts/ingest_documents.py
+docker-compose.yml
+yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aria_db
+      POSTGRES_USER: aria_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aria_admin -d aria_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: aria-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/app:/app/app
+    environment:
+      - DATABASE_URL=postgresql://aria_admin:${POSTGRES_PASSWORD}@postgres:5432/aria_db
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - CHROMA_PATH=/app/data/chroma_db
+      - UPLOAD_PATH=/app/data/uploads
+      - OUTPUT_PATH=/app/data/outputs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    container_name: aria-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/aria.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  postgres_data:
+12. 测试方案
+所有测试通过 ./run_tests.sh 一键执行，输出清晰汇总。
+
+run_tests.sh
+bash
+#!/bin/bash
+set -e
+
+echo "================================================"
+echo "  ARIA - Automated RFQ Intelligence Assistant"
+echo "  测试执行脚本"
+echo "================================================"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+PASS=0
+FAIL=0
+
+if [ ! -d "venv" ]; then
+    python -m venv venv
+fi
+source venv/bin/activate || source venv/Scripts/activate
+pip install -r backend/requirements.txt \
+            -r backend/requirements-test.txt -q
+
+echo ""
+echo "【1/2】运行单元测试 (unit_tests/)..."
+echo "----------------------------------------"
+if python -m pytest unit_tests/ -v --tb=short -p no:warnings; then
+    echo -e "${GREEN}✅ 单元测试：全部通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ 单元测试：存在失败项${NC}"
+    ((FAIL++))
+fi
+
+echo ""
+echo "【2/2】运行 API 接口测试 (API_tests/)..."
+echo "----------------------------------------"
+export TEST_MODE=true
+export DATABASE_URL="sqlite:///./aria_test.db"
+
+if python -m pytest API_tests/ -v --tb=short -p no:warnings; then
+    echo -e "${GREEN}✅ API 测试：全部通过${NC}"
+    ((PASS++))
+else
+    echo -e "${RED}❌ API 测试：存在失败项${NC}"
+    ((FAIL++))
+fi
+
+rm -f aria_test.db
+
+echo ""
+echo "================================================"
+echo -e "测试汇总：${GREEN}${PASS} 组通过${NC} / ${RED}${FAIL} 组失败${NC}"
+echo "================================================"
+
+[ $FAIL -gt 0 ] && exit 1 || exit 0
+12.1 单元测试
+unit_tests/conftest.py
+python
+import pytest
+import os
+from unittest.mock import MagicMock
+
+os.environ["TEST_MODE"] = "true"
+os.environ["DATABASE_URL"] = "sqlite:///./aria_test.db"
+os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+os.environ["OLLAMA_MODEL"] = "qwen2.5:14b"
+os.environ["CHROMA_PATH"] = "/tmp/aria_test_chroma"
+os.environ["UPLOAD_PATH"] = "/tmp/aria_test_uploads"
+os.environ["OUTPUT_PATH"] = "/tmp/aria_test_outputs"
+
+@pytest.fixture(autouse=True)
+def setup_test_dirs():
+    for d in ["/tmp/aria_test_uploads",
+              "/tmp/aria_test_outputs",
+              "/tmp/aria_test_chroma"]:
+        os.makedirs(d, exist_ok=True)
+
+@pytest.fixture
+def mock_llm():
+    mock = MagicMock()
+    mock.invoke.return_value = """
+    {
+      "project_name": "测试车型底盘项目",
+      "customer": "测试客户",
+      "modules": [
+        {
+          "module_name": "底盘集成",
+          "description": "底盘系统集成验证",
+          "estimated_complexity": "高",
+          "key_deliverables": ["集成报告", "验证记录"]
+        }
+      ],
+      "special_requirements": ["需要实车验证"],
+      "timeline_hints": "12个月"
+    }
+    """
+    return mock
+
+@pytest.fixture
+def sample_rfq_text():
+    return """
+    项目名称：某新能源车型底盘开发项目
+    客户：某汽车集团
+    工作范围：
+    1. 底盘系统集成验证，包括悬架调校、制动系统验证
+    2. 可行性分析报告编写
+    3. 整车动力学仿真分析
+    交付要求：技术报告 × 3份、仿真模型文件、验证测试报告
+    项目周期：预计12个月
+    """
+unit_tests/test_rfq_parser.py
+python
+import pytest
+import os
+import tempfile
+from docx import Document
+from unittest.mock import MagicMock
+
+
+class TestRFQTextExtraction:
+
+    def _create_test_docx(self, content: str) -> str:
+        doc = Document()
+        for line in content.split('\n'):
+            if line.strip():
+                doc.add_paragraph(line)
+        tmp = tempfile.NamedTemporaryFile(suffix='.docx', delete=False)
+        doc.save(tmp.name)
+        return tmp.name
+
+    def test_extract_normal_document(self):
+        """正常文档应提取到文本内容"""
+        from app.services.rfq_parser import RFQParser
+        parser = RFQParser.__new__(RFQParser)
+        file_path = self._create_test_docx("底盘集成验证\n悬架调校工作")
+        try:
+            result = parser.extract_text_from_docx(file_path)
+            assert "底盘集成验证" in result
+        finally:
+            os.unlink(file_path)
+
+    def test_extract_empty_document(self):
+        """空文档应返回空字符串，不崩溃"""
+        from app.services.rfq_parser import RFQParser
+        parser = RFQParser.__new__(RFQParser)
+        file_path = self._create_test_docx("")
+        try:
+            result = parser.extract_text_from_docx(file_path)
+            assert isinstance(result, str)
+        finally:
+            os.unlink(file_path)
+
+    def test_extract_nonexistent_file_raises_error(self):
+        """不存在的文件应抛出 FileNotFoundError"""
+        from app.services.rfq_parser import RFQParser
+        parser = RFQParser.__new__(RFQParser)
+        with pytest.raises(FileNotFoundError):
+            parser.extract_text_from_docx("/nonexistent/file.docx")
+
+
+class TestRFQModuleParsing:
+
+    def test_parse_valid_json_output(self, mock_llm, sample_rfq_text):
+        """LLM 返回合法 JSON 时应正确解析"""
+        from app.services.rfq_parser import RFQParser
+        parser = RFQParser.__new__(RFQParser)
+        parser.llm = mock_llm
+        result = parser.parse_rfq_modules(sample_rfq_text)
+        assert "project_name" in result
+        assert "modules" in result
+        assert isinstance(result["modules"], list)
+
+    def test_parse_invalid_json_returns_raw(self, sample_rfq_text):
+        """LLM 返回非法 JSON 时应降级处理，不崩溃"""
+        from app.services.rfq_parser import RFQParser
+        parser = RFQParser.__new__(RFQParser)
+        mock = MagicMock()
+        mock.invoke.return_value = "这不是JSON格式"
+        parser.llm = mock
+        result = parser.parse_rfq_modules(sample_rfq_text)
+        assert "raw_output" in result
+        assert result.get("parse_error") is True
+
+    def test_parse_markdown_wrapped_json(self, sample_rfq_text):
+        """LLM 返回 ```json``` 包裹的内容时应能正确解析"""
+        from app.services.rfq_parser import RFQParser
+        parser = RFQParser.__new__(RFQParser)
+        mock = MagicMock()
+        mock.invoke.return_value = (
+            '```json\n'  
+            '{"project_name":"测试","modules":[],'  
+            '"special_requirements":[],"timeline_hints":""}\n'  
+            '```'
+        )
+        parser.llm = mock
+        result = parser.parse_rfq_modules(sample_rfq_text)
+        assert result.get("project_name") == "测试"
+        assert "parse_error" not in result
+
+
+class TestExcelGenerator:
+
+    def test_generate_quote_creates_file(self, tmp_path):
+        """正常参数应生成 xlsx 文件"""
+        import openpyxl
+        from app.services.excel_generator import ExcelQuoteGenerator
+
+        template_path = str(tmp_path / "template.xlsx")
+        wb = openpyxl.Workbook()
+        wb.create_sheet("人力明细")
+        ws = wb.create_sheet("汇总")
+        ws["B2"] = ""
+        ws["B3"] = ""
+        wb.save(template_path)
+
+        gen = ExcelQuoteGenerator(template_path=template_path)
+        output_path = str(tmp_path / "output.xlsx")
+        manpower_plan = [{
+            "module": "底盘集成",
+            "roles": [
+                {"role": "专家工程师", "level": "senior", "weeks": 4, "count": 1},
+                {"role": "中级工程师", "level": "mid", "weeks": 8, "count": 2},
+            ]
+        }]
+        result_path = gen.generate_quote(
+            {"project_name": "测试项目", "customer": "测试客户"},
+            manpower_plan,
+            output_path
+        )
+        assert os.path.exists(result_path)
+
+    def test_generate_quote_empty_modules(self, tmp_path):
+        """空模块列表应生成空明细表，不崩溃"""
+        import openpyxl
+        from app.services.excel_generator import ExcelQuoteGenerator
+
+        template_path = str(tmp_path / "template.xlsx")
+        wb = openpyxl.Workbook()
+        wb.create_sheet("人力明细")
+        ws = wb.create_sheet("汇总")
+        ws["B2"] = ""
+        ws["B3"] = ""
+        wb.save(template_path)
+
+        gen = ExcelQuoteGenerator(template_path=template_path)
+        result_path = gen.generate_quote(
+            {"project_name": "空项目", "customer": "客户"},
+            [],
+            str(tmp_path / "empty_output.xlsx")
+        )
+        assert os.path.exists(result_path)
+
+
+class TestPydanticSchemas:
+
+    def test_rfq_valid_input(self):
+        from app.schemas.rfq import RFQAnalysisRequest
+        req = RFQAnalysisRequest(file_id="abc123", top_k=5)
+        assert req.top_k == 5
+
+    def test_rfq_invalid_top_k(self):
+        from pydantic import ValidationError
+        from app.schemas.rfq import RFQAnalysisRequest
+        with pytest.raises(ValidationError):
+            RFQAnalysisRequest(file_id="abc123", top_k=100)
+
+    def test_rfq_empty_file_id(self):
+        from pydantic import ValidationError
+        from app.schemas.rfq import RFQAnalysisRequest
+        with pytest.raises(ValidationError):
+            RFQAnalysisRequest(file_id="", top_k=5)
+12.2 API 接口测试
+API_tests/conftest.py
+python
+import pytest
+import asyncio
+import os
+from httpx import AsyncClient, ASGITransport
+
+os.environ["TEST_MODE"] = "true"
+os.environ["DATABASE_URL"] = "sqlite:///./aria_test.db"
+os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+os.environ["CHROMA_PATH"] = "/tmp/aria_api_chroma"
+os.environ["UPLOAD_PATH"] = "/tmp/aria_api_uploads"
+os.environ["OUTPUT_PATH"] = "/tmp/aria_api_outputs"
+
+for d in ["/tmp/aria_api_uploads",
+          "/tmp/aria_api_outputs",
+          "/tmp/aria_api_chroma"]:
+    os.makedirs(d, exist_ok=True)
+
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+@pytest.fixture(scope="session")
+async def client():
+    from app.main import app
+    from app.models import Base
+    from sqlalchemy import create_engine
+
+    engine = create_engine(
+        os.environ["DATABASE_URL"],
+        connect_args={"check_same_thread": False}
+    )
+    Base.metadata.create_all(bind=engine)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as ac:
+        yield ac
+
+    Base.metadata.drop_all(bind=engine)
+    if os.path.exists("aria_test.db"):
+        os.remove("aria_test.db")
+API_tests/test_health.py
+python
+import pytest
+
+@pytest.mark.asyncio
+async def test_health_check(client):
+    """健康检查应返回 200 和系统状态"""
+    response = await client.get("/api/v1/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "version" in data
+    assert "model" in data
+API_tests/test_rfq_api.py
+python
+import pytest
+import io
+from docx import Document
+from unittest.mock import patch
+
+
+def make_docx_bytes() -> bytes:
+    doc = Document()
+    doc.add_paragraph("项目名称：测试车型底盘项目")
+    doc.add_paragraph("工作范围：底盘集成验证、悬架调校")
+    doc.add_paragraph("周期：12个月")
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_upload_rfq_success(client):
+    """上传合法 docx 文件应返回 file_id 和分析结构"""
+    mock_result = {
+        "project_name": "测试项目",
+        "modules": [{"module_name": "底盘集成", "description": "验证"}],
+        "special_requirements": [],
+        "timeline_hints": "12个月"
+    }
+    with patch("app.services.rfq_parser.RFQParser.parse_rfq_modules",
+               return_value=mock_result), \
+         patch("app.services.rag_service.RAGService.search_similar_projects",
+               return_value=[]), \
+         patch("app.services.rag_service.RAGService.compare_rfq_with_history",
+               return_value="无相似项目"):
+        response = await client.post(
+            "/api/v1/rfq/upload",
+            files={"file": (
+                "test.docx",
+                make_docx_bytes(),
+                "application/vnd.openxmlformats-officedocument"
+                ".wordprocessingml.document"
+            )}
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert "file_id" in data
+    assert "rfq_modules" in data
+    assert "similar_projects" in data
+
+
+@pytest.mark.asyncio
+async def test_upload_rfq_wrong_format(client):
+    """非 docx 文件应返回 400"""
+    response = await client.post(
+        "/api/v1/rfq/upload",
+        files={"file": ("test.txt", b"hello", "text/plain")}
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_upload_rfq_no_file(client):
+    """不提供文件应返回 422"""
+    response = await client.post("/api/v1/rfq/upload")
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_get_task_not_found(client):
+    """查询不存在的任务应返回 404"""
+    response = await client.get("/api/v1/rfq/tasks/nonexistent-id")
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_generate_excel_task_not_found(client):
+    """用不存在的 task_id 生成 Excel 应返回 404"""
+    response = await client.post(
+        "/api/v1/rfq/tasks/nonexistent/generate-excel",
+        json={"manpower_plan": []}
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_generate_qa_success(client):
+    """QA 清单接口正常调用应返回列表"""
+    with patch("app.services.qa_generator.QAGenerator.generate",
+               return_value=["澄清问题1：交付物格式？", "澄清问题2：测试标准版本？"]):
+        response = await client.post(
+            "/api/v1/rfq/generate-qa",
+            json={"rfq_content": "底盘集成验证项目，需要提供测试报告", "top_k": 3}
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert "qa_list" in data
+    assert isinstance(data["qa_list"], list)
+
+
+@pytest.mark.asyncio
+async def test_generate_qa_empty_content(client):
+    """空内容调用 QA 接口应返回 422"""
+    response = await client.post(
+        "/api/v1/rfq/generate-qa",
+        json={"rfq_content": "", "top_k": 3}
+    )
+    assert response.status_code == 422
+API_tests/test_knowledge_api.py
+python
+import pytest
+from unittest.mock import patch
+
+
+@pytest.mark.asyncio
+async def test_get_knowledge_stats(client):
+    """知识库统计接口应返回文档数量"""
+    with patch("app.utils.vector_store.VectorStore.get_stats",
+               return_value={"total_chunks": 150, "total_projects": 8}):
+        response = await client.get("/api/v1/knowledge/stats")
+    assert response.status_code == 200
+    data = response.json()
+    assert "total_chunks" in data
+
+
+@pytest.mark.asyncio
+async def test_search_knowledge_success(client):
+    """知识库搜索应返回结果列表"""
+    with patch("app.services.rag_service.RAGService.search_similar_projects",
+               return_value=[{
+                   "content": "底盘集成验证内容",
+                   "metadata": {"project_name": "2023_底盘项目"},
+                   "similarity_score": 0.85
+               }]):
+        response = await client.post(
+            "/api/v1/knowledge/search",
+            json={"query": "底盘悬架验证", "top_k": 5}
+        )
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert isinstance(data["results"], list)
+
+
+@pytest.mark.asyncio
+async def test_search_knowledge_empty_query(client):
+    """空查询应返回 422"""
+    response = await client.post(
+        "/api/v1/knowledge/search",
+        json={"query": "", "top_k": 5}
+    )
+    assert response.status_code == 422
+13. 工程规范
+13.1 错误处理规范
+python
+# app/utils/error_handler.py
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+import logging
+
+logger = logging.getLogger("aria")
+
+async def generic_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        f"未捕获异常 | path={request.url.path} | error={str(exc)}",
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"code": 500, "msg": "服务器内部错误，请联系管理员"}
+    )
+
+# 标准错误响应格式：
+# 400: {"code": 400, "msg": "仅支持 .docx 格式文件"}
+# 404: {"code": 404, "msg": "任务 ID 不存在"}
+# 422: {"code": 422, "msg": "参数校验失败", "detail": [...]}
+# 500: {"code": 500, "msg": "服务器内部错误，请联系管理员"}
+前端错误处理原则：
+
+所有 API 调用必须有 try/catch，失败时通过 message.error() 提示
+上传/生成操作必须有 loading 状态，不允许空白或无响应
+13.2 日志规范
+python
+# app/utils/logger.py
+
+import logging
+import json
+from datetime import datetime
+
+class AriaLogger:
+    def __init__(self, name: str):
+        self.logger = logging.getLogger(f"aria.{name}")
+
+    def info(self, event: str, **kwargs):
+        self.logger.info(json.dumps({
+            "timestamp": datetime.utcnow().isoformat(),
+            "system": "ARIA",
+            "event": event,
+            **kwargs
+        }, ensure_ascii=False))
+
+    def error(self, event: str, **kwargs):
+        self.logger.error(json.dumps({
+            "timestamp": datetime.utcnow().isoformat(),
+            "system": "ARIA",
+            "event": event,
+            **kwargs
+        }, ensure_ascii=False))
+
+# 关键业务节点必须记录：
+# logger.info("rfq_upload_start",  file_name=..., file_size=...)
+# logger.info("rfq_parse_complete", file_id=..., modules_count=...)
+# logger.info("excel_generated",    task_id=..., output_path=...)
+# logger.error("ollama_call_failed", error=str(e), model=...)
+13.3 参数校验规范
+python
+# app/schemas/rfq.py
+
+from pydantic import BaseModel, Field, field_validator
+
+class RFQAnalysisRequest(BaseModel):
+    file_id: str = Field(..., min_length=1, max_length=100)
+    top_k:   int = Field(default=5, ge=1, le=20)
+
+class KnowledgeSearchRequest(BaseModel):
+    query: str = Field(..., min_length=2, max_length=500)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+    @field_validator("query")
+    @classmethod
+    def query_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("搜索关键词不能为空白字符")
+        return v.strip()
+13.4 架构分层规范
+less
+❌ 禁止：路由层混入业务逻辑
+@app.post("/rfq/upload")
+async def upload(file: UploadFile, db = Depends(get_db)):
+    text = extract_text(file)           # 文档处理
+    result = llm.invoke(prompt + text)  # LLM调用
+    db.add(RFQTask(result=result))      # 数据库写入
+    return result
+
+✅ 正确：严格分层
+# api/v1/rfq.py（路由层，仅委托）
+@router.post("/upload")
+async def upload_rfq(file: UploadFile,
+                     service: RFQService = Depends()):
+    return await service.process_upload(file)
+
+# services/rfq_service.py（业务层，含核心逻辑）
+class RFQService:
+    async def process_upload(self, file: UploadFile): ...
+
+# repositories/rfq_repo.py（数据层，只做数据库操作）
+class RFQRepository:
+    def save_task(self, task: RFQTask): ...
+14. 企业正式部署流程
+Phase 1：服务器环境搭建
+bash
+# Ubuntu 22.04
+
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl wget git htop ufw
+
+# 防火墙（80/443 对内网开放，其余端口不暴露）
+sudo ufw allow ssh
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw enable
+
+# Docker
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+sudo systemctl enable docker
+
+# Ollama（参考第10节）
+Phase 2：ARIA 应用部署
+bash
+# 传输并导入镜像
+scp aria-v1.0.0.tar.gz user@server:/opt/aria/
+docker load < aria-v1.0.0.tar.gz
+
+# 配置环境变量
+cp .env.template .env && nano .env
+
+# 启动
+./start.sh
+
+# 导入历史文档知识库
+rsync -avz /path/to/knowledge_base/ /opt/aria/data/knowledge_base/
+./scripts/ingest_documents.sh
+Phase 3：内网访问配置
+csharp
+办公室员工 ─── 内网直连 ──► aria.company.internal
+远程员工   ─── VPN接入  ──► 内网 ──► aria.company.internal
+nginx
+# nginx/aria.conf
+server {
+    listen 80;
+    server_name aria.company.internal;
+
+    location / {
+        proxy_pass http://localhost:3000;
+    }
+
+    location /api/ {
+        proxy_pass         http://localhost:8000;
+        client_max_body_size 50M;
+        proxy_read_timeout   300s;
+    }
+}
+Phase 4：员工培训与灰度上线
+周次	范围	内容
+Week 1	3-5 名资深工程师	一对一培训，收集反馈，调整 Prompt
+Week 2	扩大至 10 人	发布操作手册，建立内部反馈群
+Week 3	全员 20-30 人	全员培训会，明确 AI 使用规范
+AI 使用规范： ARIA 输出内容仅供参考，
+所有对外文件必须经工程师人工审核确认，不得直接发送客户。
+
+15. 运维与持续维护
+自动备份脚本
+bash
+#!/bin/bash
+# deploy/scripts/backup.sh
+# 定时任务：crontab -e → 0 2 * * * /opt/aria/scripts/backup.sh
+
+DATE=$(date +%Y%m%d)
+BACKUP_DIR="/data/aria_backups/$DATE"
+mkdir -p $BACKUP_DIR
+
+cp -r /opt/aria/data/chroma_db  $BACKUP_DIR/
+docker exec postgres pg_dump -U aria_admin aria_db > $BACKUP_DIR/aria_db.sql
+rsync -a /opt/aria/data/uploads/ $BACKUP_DIR/uploads/
+
+# 保留最近30天
+find /data/aria_backups/ -maxdepth 1 -type d -mtime +30 -exec rm -rf {} \;
+
+echo "[$(date)] ARIA 备份完成" >> /var/log/aria_backup.log
+知识库增量更新
+bash
+# 新项目完成后，将文档放入对应目录再执行：
+docker exec aria-backend python scripts/incremental_update.py
+# 自动识别新增文档，跳过已入库文件，追加写入
+日常监控要点
+bash
+docker-compose ps                          # 确认所有容器 running
+docker-compose logs --tail=100 aria-backend  # 查看最新日志
+df -h                                      # 磁盘空间（模型+向量库+备份）
+16. 分阶段实施路线图
+markdown
+现在          +1月            +2月           +3月          +4月
+ │             │               │              │             │
+ ●─────────────●───────────────●──────────────●─────────────●
+ │             │               │              │             │
+本地Demo      Demo验收         服务器到位      ARIA上线      稳定运营
+开发调试      需求确认          环境搭建        员工培训      持续迭代
+              效果评估          数据迁移        全员推广      知识库沉淀
+              服务器采购        安全加固
+
+关键决策点：
+ ├── Demo 阶段：AI 输出质量是否达到预期？→ 决定是否继续投入
+ ├── 服务器采购：有无 GPU 预算？→ 决定模型规模和使用体验
+ └── 上线后 3 个月：使用率和满意度 → 决定是否扩展功能模块
