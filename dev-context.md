@@ -17,6 +17,7 @@
 |------|------|
 | [prod.md](prod.md) | 产品需求与验收基线 |
 | **dev-context.md**（本文） | 技术栈、目录、API、模型、编码规范 |
+| [.cursor/rules/](.cursor/rules/) | **Cursor Agent 规则**（开发前读文档、测试门禁、提交规范） |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | 里程碑与日级开发任务 |
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 详细契约 |
 | [docs/supplementary/template-mapping.md](docs/supplementary/template-mapping.md) | EDAG Excel/QA/PPT 模板映射 |

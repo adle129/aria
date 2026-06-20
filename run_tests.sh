@@ -6,11 +6,30 @@ cd "$ROOT"
 
 export PYTHONPATH="${ROOT}/backend${PYTHONPATH:+:${PYTHONPATH}}"
 
+RUN_REGRESSION=false
+PYTEST_ARGS=()
+for arg in "$@"; do
+  if [[ "$arg" == "--regression" ]]; then
+    RUN_REGRESSION=true
+  else
+    PYTEST_ARGS+=("$arg")
+  fi
+done
+
 echo "==> Running unit tests..."
-python -m pytest unit_tests/ -v "$@"
+python -m pytest unit_tests/ -v "${PYTEST_ARGS[@]}"
 
 echo "==> Running API tests..."
-python -m pytest API_tests/ -v "$@"
+python -m pytest API_tests/ -v "${PYTEST_ARGS[@]}"
+
+if [[ "$RUN_REGRESSION" == true ]]; then
+  echo "==> Running regression tests..."
+  if compgen -G "${ROOT}/regression/test_*.py" > /dev/null 2>&1; then
+    python -m pytest regression/ -v "${PYTEST_ARGS[@]}"
+  else
+    echo "    (skip: no regression/test_*.py yet)"
+  fi
+fi
 
 echo ""
 echo "================================================"

@@ -1,0 +1,38 @@
+---
+description: ARIA 后端分层架构、API 与 Service 开发规范
+globs: backend/**/*
+alwaysApply: false
+---
+
+# ARIA 后端规范
+
+## 分层（禁止越层）
+
+```
+HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
+```
+
+- **路由层：** 仅参数校验、调用 Service、返回响应；**禁止**直接调用 LLM、读写文件、操作 DB
+- **Service：** 业务逻辑；Generator 插件注册到 `GeneratorRegistry`
+- **Repository：** CRUD；LLM/RAG 在 Service 中封装，单元测试全部 Mock
+
+## API 响应格式
+
+成功：`{"code": 200, "data": {...}}`（health 端点除外，见 api-design）
+
+错误：`{"code": 400|404|422|500, "msg": "..."}`；500 **禁止**暴露 StackTrace
+
+## 关键约定
+
+- Prompt 版本化：`backend/prompts/v1/`
+- LLM JSON 失败须降级（`parse_error` + `raw_output`），不可崩溃
+- 双状态：`processing_status`（系统）+ `review_status`（draft → in_review → approved → exported）
+- Excel：复制 `data/templates/quote_template.xlsx`，Demo 仅填 PM + Chassis
+- 依赖：`requirements.txt`（核心）+ `requirements-ai.txt`（LangChain/ChromaDB）
+
+## 新增 API 检查清单
+
+- [ ] 契约已对齐 [api-design.md](docs/supplementary/api-design.md)
+- [ ] `unit_tests/test_<service>.py` 覆盖 Service（LLM Mock）
+- [ ] `API_tests/test_<module>_api.py` 覆盖正常 + 异常路径
+- [ ] `./run_tests.sh` 或 `.\run_tests.ps1` 全绿

@@ -1,0 +1,39 @@
+---
+description: ARIA Git 提交规范 — 测试通过后再 commit/push
+alwaysApply: true
+---
+
+# ARIA Git 提交规范
+
+## 提交时机
+
+- **仅**在用户明确要求或功能+测试全部完成后提交
+- 每次 commit 前必须运行 `.\run_tests.ps1` 或 `./run_tests.sh` 并确认全绿
+- 改动解析/RAG/Prompt/Excel 时运行 `./run_tests.sh --regression`
+
+## Commit message 格式
+
+```
+feat: RFQ 上传接口（含格式校验）
+feat: Excel 报价 Generator + 单元测试
+fix: LLM 非法 JSON 降级处理
+test: 知识库搜索异常路径
+chore: Docker 国内镜像文档
+docs: 更新 api-design health 字段
+```
+
+类型：`feat` | `fix` | `test` | `chore` | `docs`；focus on **why**
+
+## 禁止提交
+
+- `.env`、API Key、客户脱敏 RFQ/报价
+- 仅 WIP 且无测试、测试失败的中间状态（除非用户明确要求 WIP 分支）
+- 跳过测试的「先提交后补测」
+
+## Push 前检查
+
+```powershell
+git status          # 确认无 .env
+git diff --stat     # 范围与任务一致
+.\run_tests.ps1     # 最终门禁
+```

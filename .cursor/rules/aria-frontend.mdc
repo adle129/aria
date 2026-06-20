@@ -1,0 +1,34 @@
+---
+description: ARIA 前端 Next.js + Ant Design + EDAG 品牌 UI 规范
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# ARIA 前端规范
+
+## 技术栈
+
+- Next.js 14 App Router、TypeScript、Ant Design 5.x、axios
+- 主题：`frontend/src/theme/edagTheme.ts`（白/灰 + 信号红 `#E30613`）
+- API 基址：`NEXT_PUBLIC_API_BASE_URL`（Docker 经 Nginx 为 `/api/v1`）
+
+## UI / UX
+
+- 布局：顶栏 EDAG +「ARIA · 智能报价辅助系统」+ 左侧导航
+- 所有 API 调用须有 **loading**；错误走 `api/client.ts` 统一 `message.error()`
+- LLM 任务 30s–2min：轮询 `/tasks/{id}/status`，禁止空白等待
+- AI 草稿与人工编辑视觉区分；**导出前必须确认 checkbox**
+- 下载按钮在生成完成前 **disabled**
+
+## 路由（Demo）
+
+- `/rfq` — 上传与分析
+- `/quote` — Excel 生成与导出
+- `/knowledge` — 知识库管理
+- Phase 2 预留：`/qa`、`/proposal`
+
+## 新增页面检查清单
+
+- [ ] 符合 EDAG 品牌主题，不引入额外 UI 库
+- [ ] loading / error / empty 三态完整
+- [ ] 与 [api-design.md](docs/supplementary/api-design.md) 字段一致

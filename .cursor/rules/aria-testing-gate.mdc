@@ -1,0 +1,52 @@
+---
+description: ARIA 测试门禁 — 单元测试、API 测试、回归测试；提交前必须全绿
+alwaysApply: true
+---
+
+# ARIA 测试门禁（提交前强制）
+
+## 原则
+
+- **单元测试 + API 测试均不可缺失**（硬性验收）
+- 每完成一个功能模块，必须补/更新对应测试后再提交
+- LLM/RAG 在单元测试与 API 测试中 **一律 Mock**，不依赖 Ollama
+
+## 目录与职责
+
+| 目录 | 测什么 |
+|------|--------|
+| `unit_tests/` | `services/` 业务逻辑、schemas、工具函数 |
+| `API_tests/` | FastAPI 路由契约（TestClient + Mock Service） |
+| `regression/` | 固定 RFQ 样本 + 期望 JSON（`./run_tests.sh --regression`） |
+
+## 每个功能必须满足的测试
+
+1. **Service 层：** `unit_tests/test_<module>.py` — 正常路径 + 至少 1 个异常/降级路径
+2. **API 层：** `API_tests/test_<module>_api.py` — 200 成功 + 400/404/422 等契约错误
+3. **Mock 边界：** 非法 LLM JSON、空文件、任务不存在等不可导致 500（除非契约明确要求）
+
+## 提交前必须执行的命令
+
+```powershell
+# Windows
+$env:PYTHONPATH="<项目根>/backend"
+.\run_tests.ps1
+
+# 或 Git Bash / WSL
+./run_tests.sh
+
+# 涉及 Prompt / RAG / 解析逻辑变更时额外执行
+./run_tests.sh --regression
+```
+
+**全部通过后方可 `git commit`。** 若有失败，先修复再提交，禁止 `--no-verify` 跳过 hooks。
+
+## 功能完成定义（DoD）
+
+- [ ] 已对照 prod.md / dev-context.md 确认在 Demo 范围内
+- [ ] Service + unit test 已完成
+- [ ] API + API test 已完成
+- [ ] 前端（若涉及）loading/error/确认流已实现
+- [ ] `run_tests.sh` / `run_tests.ps1` 全绿
+- [ ] 回归集通过（若改动解析/RAG/Prompt/Excel 生成）
+- [ ] 未提交 `.env`、密钥、客户脱敏文件

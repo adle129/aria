@@ -1,0 +1,48 @@
+---
+description: ARIA 项目身份、文档地图与开发前必读（目标/阶段/技术栈）
+alwaysApply: true
+---
+
+# ARIA 项目上下文
+
+## 身份
+
+- **ARIA**（Automated RFQ Intelligence Assistant）— EDAG 本地私有化 AI **辅助**报价系统
+- **当前 Demo 范围：** 模块 1（RFQ 解析 + 历史比对）+ 模块 4（Excel 人力报价，PM+Chassis）
+- **不在 Demo：** QA、PPT、全 9 Function Sheet、财务模块、模型训练（用 RAG + 现成 LLM）
+
+## 开发前必须查阅的文档
+
+开始任何功能前，先阅读与任务相关的文档，确保范围、契约、验收一致：
+
+| 文档 | 何时读 |
+|------|--------|
+| [prod.md](prod.md) | 功能范围、验收标准、人机协同、分阶段交付 |
+| [dev-context.md](dev-context.md) | 技术栈、目录、API 摘要、分层、测试与 Commit 规范 |
+| [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | 新增/修改 API 时 |
+| [docs/supplementary/prompt-spec.md](docs/supplementary/prompt-spec.md) | LLM Prompt / JSON Schema |
+| [docs/supplementary/template-mapping.md](docs/supplementary/template-mapping.md) | Excel/QA/PPT 模板填充 |
+| [docs/supplementary/test-plan.md](docs/supplementary/test-plan.md) | 测试策略与回归集 |
+| [docs/implementation-plan.md](docs/implementation-plan.md) | 里程碑与 WBS |
+
+## 技术栈（不可擅自替换）
+
+- **后端：** Python 3.11、FastAPI、SQLAlchemy 2、LangChain、ChromaDB、PostgreSQL 16
+- **前端：** Next.js 14 App Router、TypeScript、Ant Design 5、axios
+- **LLM：** Ollama + Qwen2.5（宿主机进程，**不入容器**）；Embedding: nomic-embed-text
+- **交付：** Docker Compose 一键启动；`MOCK_LLM` / `MOCK_RAG` 可切换
+
+## 工程硬性要求
+
+- 真实业务逻辑，生产环境禁止 Mock 欺骗；开发期可用 Mock 开关
+- 配置来自 `config.py` / 环境变量，禁止硬编码路径与密钥
+- 不提交 `.env`、客户脱敏数据、大型二进制模板（见 `.gitignore`）
+- `backend/data/` Volume 挂载，不入镜像
+
+## 模块六步开发法（必须遵守顺序）
+
+```
+Service → unit test → API 路由 → API test → 前端组件 → 联调
+```
+
+每完成一步再进入下一步；**不得跳过测试直接提交**。
