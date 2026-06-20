@@ -4,5 +4,19 @@ def test_health_returns_ok(client):
     body = response.json()
     assert body["status"] == "ok"
     assert body["version"] == "1.0.0"
-    assert "model" in body
-    assert "embedding_model" in body
+    assert body["model"] == "qwen2.5:14b"
+    assert body["embedding_model"] == "nomic-embed-text"
+    assert body["mock_llm"] is True
+    assert body["mock_rag"] is True
+
+
+def test_health_response_schema_keys(client):
+    response = client.get("/api/v1/health")
+    assert set(response.json().keys()) == {
+        "status",
+        "version",
+        "model",
+        "embedding_model",
+        "mock_llm",
+        "mock_rag",
+    }

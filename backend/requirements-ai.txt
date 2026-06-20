@@ -1,0 +1,4 @@
+# AI / RAG — installed after core; large dependency tree
+langchain==0.2.11
+langchain-community==0.2.10
+chromadb==0.5.5

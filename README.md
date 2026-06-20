@@ -9,8 +9,41 @@
 ### 前置条件
 
 - Docker Desktop（Windows / macOS）或 Docker Engine + Compose（Linux）
+- **国内网络：先配置 Docker 镜像加速**（见下方，首次启动前完成，可避免 90% 拉取失败）
 - Git Bash 或 WSL（用于运行 `run_tests.sh`）
 - （可选）Ollama + Qwen2.5 14B，用于真实 LLM 调用
+
+### 国内网络：Docker Desktop 推荐配置（首次启动前）
+
+若 `docker compose up` 报错 `registry-1.docker.io` 超时、IPv6 `2a03:2880` 连接失败，**优先配置 Docker Engine 镜像加速**，然后使用标准 `docker-compose.yml` 即可（无需改 Compose 文件）。
+
+Docker Desktop → **Settings** → **Docker Engine**，将 JSON 设为（保留你已有的 `builder.gc` 等字段）：
+
+```json
+{
+  "builder": {
+    "gc": {
+      "defaultKeepStorage": "20GB",
+      "enabled": true
+    }
+  },
+  "experimental": false,
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1ms.run"
+  ],
+  "ipv6": false
+}
+```
+
+**Apply & Restart** 后验证：
+
+```powershell
+docker info | Select-String "Registry Mirrors"
+docker pull nginx:alpine
+```
+
+完整示例文件：[docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)
 
 ### 一键启动（Docker）
 
@@ -18,49 +51,154 @@
 # 1. 复制环境变量
 cp .env.example .env
 
-# 2. 构建并启动全部服务
+# 2. 构建并启动全部服务（首次约 10～30 分钟，见下方「首次构建须知」）
 docker compose up --build
 
-# 3. 访问
+# Phase 0 仅需验证页面/health、暂不做 RAG 时，可用精简版（跳过后端 AI 大包，构建更快）：
+# docker compose -f docker-compose.dev.yml up --build
+
+# 后台启动（推荐熟悉流程后使用，不占用当前终端）
+# docker compose up --build -d
+# docker compose ps
+# docker compose logs -f
+
+# 3. 等终端出现各容器 Started 后再访问（构建完成前 localhost 无法打开）
 # 前端（经 Nginx）：http://localhost
 # 后端 API：       http://localhost:8000/api/v1/health
 # 前端直连：       http://localhost:3000
 ```
 
-### Docker Hub 拉取失败？（国内网络常见）
+### 首次 `docker compose up --build` 须知
 
-报错含 `registry-1.docker.io` 或 IPv6 `2a03:2880` 时，任选其一：
+第一次执行会**同时拉镜像、构建前后端、启动 4 个容器**，终端会长时间有输出，**属于正常现象**。在全部完成之前，上述 localhost 地址**还无法访问**。
 
-**方案 A — 国内镜像 Compose（推荐）**
+#### 大概要多久
+
+| 阶段 | 耗时（参考） | 说明 |
+|------|-------------|------|
+| 拉取基础镜像 | 5～15 分钟 | postgres、nginx、python、node（国内网络可能更慢） |
+| 后端构建 | 5～15 分钟 | `pip install`（含 LangChain、ChromaDB 等，体积较大） |
+| 前端构建 | 3～10 分钟 | `npm install` + `next build` |
+| 启动容器 | 1～2 分钟 | 等待 postgres 健康检查通过 |
+| **合计** | **约 10～30 分钟** | 网络慢或首次构建可能更久 |
+
+#### 构建过程中你会看到什么
+
+- `Pulling` / `Building` / `Installing` — 正常进行中
+- 终端被占用、无法输入 — `docker compose up` 默认**前台运行**，不要关这个窗口
+- `aria-*` 容器尚未出现 — 在 `docker compose ps` 里为空也正常，说明还没 build 完
+
+#### 什么时候可以访问
+
+另开一个终端，在项目根目录执行：
 
 ```powershell
-docker compose -f docker-compose.cn.yml up --build
+docker compose ps
 ```
 
-**方案 B — 手动拉取后打 tag**
+当看到类似下面且状态为 **Up** 时，即可访问网页：
+
+```
+aria-nginx      Up    0.0.0.0:80->80/tcp
+aria-frontend   Up    0.0.0.0:3000->3000/tcp
+aria-backend    Up    0.0.0.0:8000->8000/tcp
+aria-postgres   Up (healthy)  0.0.0.0:5432->5432/tcp
+```
+
+前台 `up` 成功时，原始终端末尾通常会出现：
+
+```
+✔ Container aria-postgres   Started
+✔ Container aria-backend    Started
+✔ Container aria-frontend   Started
+✔ Container aria-nginx      Started
+```
+
+#### 如何查看进度（不中断当前构建）
+
+```powershell
+# 另开终端
+docker compose ps
+docker compose logs -f          # 查看所有服务日志
+docker compose logs -f backend  # 只看后端
+```
+
+#### 判断是否卡住
+
+| 现象 | 建议 |
+|------|------|
+| 同一层 `Pulling fs layer 0B` 超过 **20～30 分钟** 无变化 | 可能镜像下载卡住，Ctrl+C 停止后改用下方「Docker Hub 拉取失败」方案 |
+| 容器 **Restarting** 或 **Exited** | 执行 `docker compose logs backend` 查看报错 |
+| `pip install` 报 **HASHES DO NOT MATCH** | 镜像源与包不一致，见下方「pip 安装失败」 |
+| 不想等 Docker | 使用 `.\scripts\start-local.ps1` 本地启动（见下方方案 D） |
+
+#### 构建完成后的快速验证
+
+```powershell
+curl http://localhost:8000/api/v1/health
+curl http://localhost/api/v1/health
+```
+
+浏览器打开 http://localhost ，应能看到 RFQ / 人力报价 / 知识库 三个菜单页。
+
+```powershell
+# 自动化测试（可不依赖 Docker）
+$env:PYTHONPATH="e:\work\aria\backend"   # 或你的项目绝对路径
+python -m pytest unit_tests API_tests -v
+```
+
+### Docker 常见问题与方案
+
+| 问题 | 原因 | 推荐处理 |
+|------|------|---------|
+| `registry-1.docker.io` / IPv6 超时 | Docker Hub 直连失败 | 配置上方 **registry-mirrors + ipv6:false** |
+| `pip HASHES DO NOT MATCH` | PyPI 下载慢/镜像不一致 | `docker compose build --no-cache backend` 后重试；依赖已拆分为 core + ai 两步安装 |
+| `docker.m.daocloud.io` **401**（cn Dockerfile） | 部分镜像需登录 | 改用 **Docker Engine 镜像加速** + 标准 `docker-compose.yml` |
+| 构建 30+ 分钟仍无容器 | 正常或网络慢 | 另开终端 `docker compose ps`；或先用 `docker-compose.dev.yml` |
+| 不想等 Docker | 本地开发 | `.\scripts\start-local.ps1` |
+
+**方案 A — Docker Engine 镜像加速（推荐，已验证可用）**
+
+见上文「国内网络：Docker Desktop 推荐配置」，配置后直接：
+
+```powershell
+docker compose up --build
+```
+
+**方案 B — 手动拉取基础镜像后打 tag**
 
 ```powershell
 .\scripts\pull-images-cn.ps1
 docker compose up --build
 ```
 
-**方案 C — 配置 Docker Desktop 镜像加速**
+**方案 C — 国内镜像 Compose（Engine 加速仍失败时备用）**
 
-Docker Desktop → Settings → Docker Engine，在 JSON 中加入：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.1ms.run",
-    "https://docker.m.daocloud.io"
-  ],
-  "ipv6": false
-}
+```powershell
+docker compose -f docker-compose.cn.yml up --build
 ```
 
-Apply & Restart 后重试 `docker compose up --build`。
+> 注意：`docker-compose.cn.yml` 在 Dockerfile 中写死部分镜像地址，DaoCloud 可能对 `python` 等返回 401；**优先用方案 A**。
 
-**方案 D — 不用 Docker，本地直接跑（Phase 0 验证够用）**
+### pip 安装失败？（`HASHES DO NOT MATCH`）
+
+后端构建时若出现 `THESE PACKAGES DO NOT MATCH THE HASHES`，多为 **PyPI 下载过慢导致包损坏** 或镜像源不同步（构建超过 30 分钟较常见）。
+
+**处理步骤：**
+
+```powershell
+docker compose build --no-cache backend
+docker compose up --build
+```
+
+依赖已拆为：
+
+- `backend/requirements.txt` — 核心（FastAPI、DB、文档 I/O）
+- `backend/requirements-ai.txt` — LangChain / ChromaDB（RAG 阶段需要）
+
+Phase 0 若只需 health + 前端，可用 `docker-compose.dev.yml` 跳过 AI 包安装。
+
+### 本地开发（不用 Docker）
 
 ```powershell
 .\scripts\start-local.ps1
@@ -85,11 +223,14 @@ npm run dev
 ### 运行测试
 
 ```bash
-# 安装后端依赖（本地跑测试时）
+# 安装后端依赖（本地跑测试时；AI 包可选）
 pip install -r backend/requirements.txt
+pip install -r backend/requirements-ai.txt   # RAG 模块开发时需要
 
 # 一键测试
 bash run_tests.sh
+# Windows PowerShell:
+# .\run_tests.ps1
 ```
 
 ## 服务说明
@@ -112,6 +253,8 @@ aria/
 ├── docs/             # 项目文档
 ├── nginx/            # Nginx 配置
 ├── docker-compose.yml
+├── docker-compose.dev.yml   # Phase 0 精简构建（跳过 AI 大包）
+├── docker-compose.cn.yml    # 国内备用
 └── run_tests.sh
 ```
 
@@ -137,7 +280,8 @@ MOCK_RAG=true
 
 ## Phase 0 完成标准
 
-- [x] `docker-compose up --build` 可启动
-- [x] `GET /api/v1/health` 返回 200
+- [x] 配置 Docker Engine 镜像加速（国内）或网络可达 Docker Hub
+- [x] `docker compose up --build` 可启动
+- [x] `GET /api/v1/health` 返回 200（`mock_llm` / `mock_rag` 为 true）
 - [x] 前端四页空壳可访问（RFQ / 报价 / 知识库）
 - [x] `./run_tests.sh` 全绿

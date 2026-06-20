@@ -104,6 +104,28 @@ UPS：     在线式 2 KVA
 
 ## 3. 环境准备
 
+### 3.0 Windows 开发机 / 国内网络（Docker Desktop）
+
+开发阶段在 Windows 上使用 Docker Desktop 时，若拉取 `nginx`、`postgres`、`python` 等镜像失败（`registry-1.docker.io` 超时或 IPv6 不可达），在 **Docker Engine** 中配置：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io",
+    "https://docker.1ms.run"
+  ],
+  "ipv6": false
+}
+```
+
+完整示例见 [docker-desktop-engine.example.json](docker-desktop-engine.example.json)。配置后使用项目根目录标准命令：
+
+```bash
+docker compose up --build
+```
+
+后端 `pip install` 若出现哈希校验失败，执行 `docker compose build --no-cache backend`；Phase 0 可用 `docker-compose.dev.yml` 跳过 LangChain/ChromaDB 以缩短构建时间。详见 [README.md](../README.md)。
+
 ### 3.1 操作系统初始化
 
 ```bash

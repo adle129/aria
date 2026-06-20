@@ -6,8 +6,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-ai.txt ./
+
+# Set INSTALL_AI=false in docker-compose.dev.yml for faster Phase 0 builds
+ARG INSTALL_AI=true
+ARG PIP_INDEX_URL=
+ARG PIP_TRUSTED_HOST=
+
+RUN pip install --upgrade pip setuptools wheel \
+    && if [ -n "$PIP_INDEX_URL" ]; then \
+         PIP_OPTS="-i $PIP_INDEX_URL --trusted-host $PIP_TRUSTED_HOST"; \
+       else \
+         PIP_OPTS=""; \
+       fi \
+    && pip install --no-cache-dir --default-timeout=300 --retries 5 $PIP_OPTS -r requirements.txt \
+    && if [ "$INSTALL_AI" = "true" ]; then \
+         pip install --no-cache-dir --default-timeout=300 --retries 5 $PIP_OPTS -r requirements-ai.txt; \
+       fi
 
 COPY app ./app
 COPY prompts ./prompts

@@ -1,11 +1,10 @@
-# Docker Compose — 国内镜像源版本
-# 用法: docker compose -f docker-compose.cn.yml up --build
-#
-# 若仍失败，先运行: .\scripts\pull-images-cn.ps1
+# Phase 0 快速启动：跳过后端 AI 大包（LangChain/ChromaDB），构建更快
+# 用法: docker compose -f docker-compose.dev.yml up --build
+# RAG 模块开发前可先用此配置；需要 ingest/search 时改回 docker-compose.yml
 
 services:
   postgres:
-    image: docker.1ms.run/library/postgres:16-alpine
+    image: postgres:16-alpine
     container_name: aria-postgres
     environment:
       POSTGRES_DB: aria_db
@@ -24,7 +23,8 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile.cn
+      args:
+        INSTALL_AI: "false"
     container_name: aria-backend
     env_file:
       - .env
@@ -43,7 +43,6 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.cn
       args:
         NEXT_PUBLIC_API_BASE_URL: /api/v1
     container_name: aria-frontend
@@ -53,7 +52,7 @@ services:
       - "3000:3000"
 
   nginx:
-    image: docker.1ms.run/library/nginx:alpine
+    image: nginx:alpine
     container_name: aria-nginx
     ports:
       - "80:80"

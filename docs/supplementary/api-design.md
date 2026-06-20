@@ -65,7 +65,9 @@ GET /api/v1/health
   "status": "ok",
   "version": "1.0.0",
   "model": "qwen2.5:14b",
-  "embedding_model": "nomic-embed-text"
+  "embedding_model": "nomic-embed-text",
+  "mock_llm": true,
+  "mock_rag": true
 }
 ```
 
