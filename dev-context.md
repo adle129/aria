@@ -1,8 +1,8 @@
 # ARIA — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.1  
-**日期：** 2026-06-18  
+**版本：** v1.3  
+**日期：** 2026-06-20  
 **受众：** 工程师、Cursor Agent  
 **产品基线：** [prod.md](prod.md)
 
@@ -28,7 +28,7 @@
 
 - **项目名：** ARIA（Automated RFQ Intelligence Assistant）
 - **定位：** 本地私有化 AI 报价辅助系统
-- **当前阶段：** Demo 开发（模块 1 + 模块 4）
+- **当前阶段：** 框架可认知 Demo（五步 UI + RFQ/对标/Excel 真实能力；方案/QA Stub）
 - **根目录：** `aria/`
 
 ---
@@ -64,17 +64,34 @@ aria/
 ├── run_tests.sh
 ├── README.md
 ├── backend/
+│   ├── requirements.txt       # FastAPI、SQLAlchemy、openpyxl、pytest 等
+│   ├── requirements-ai.txt    # LangChain、ChromaDB
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py
-│   │   ├── api/v1/          # 路由层，无业务逻辑
-│   │   ├── services/        # 业务逻辑 + Generator 插件
-│   │   ├── repositories/    # 数据库 CRUD
+│   │   ├── api/v1/            # 路由层，无业务逻辑
+│   │   ├── services/          # 业务逻辑
+│   │   │   ├── llm_service.py       # Ollama（120s 超时，MAX_RETRIES=2）
+│   │   │   ├── rag_service.py
+│   │   │   ├── rfq_parser.py
+│   │   │   ├── mock_data.py         # MOCK_RAG_HITS、MOCK_MANPOWER_BASELINES
+│   │   │   ├── ollama_service.py    # /health 探针
+│   │   │   └── generators/
+│   │   │       ├── base.py          # BaseGenerator
+│   │   │       ├── registry.py      # GeneratorRegistry
+│   │   │       ├── excel_manpower.py
+│   │   │       ├── proposal_stub.py   # Demo
+│   │   │       └── qa_stub.py         # Demo
+│   │   ├── repositories/
 │   │   ├── models/
 │   │   ├── schemas/
 │   │   └── utils/
-│   ├── prompts/v1/          # Prompt 版本化
-│   └── data/                # Volume 挂载，不入镜像
+│   │       └── json_utils.py        # LLM JSON 清洗与 safe_parse
+│   ├── prompts/v1/            # Prompt 版本化（PROMPT_VERSION=v1）
+│   │   ├── rfq_parse.txt
+│   │   ├── qa_generate.txt      # Phase 2
+│   │   └── excel_manpower.txt   # Phase 2 可选
+│   └── data/                  # Volume 挂载，不入镜像
 │       ├── uploads/ outputs/ knowledge_base/ chroma_db/
 │       └── templates/
 │           ├── quote_template.xlsx    # EDAG 12 Sheet
@@ -96,11 +113,20 @@ POSTGRES_PASSWORD=localdev123
 OLLAMA_BASE_URL=http://host.docker.internal:11434
 OLLAMA_MODEL=qwen2.5:14b
 EMBEDDING_MODEL=nomic-embed-text
+MOCK_LLM=true                    # true=规则 Mock；false=真实 Ollama
+MOCK_RAG=true                    # true=固定 Mock 检索结果
 PROMPT_VERSION=v1
 CHROMA_PATH=/app/data/chroma_db
 UPLOAD_PATH=/app/data/uploads
 OUTPUT_PATH=/app/data/outputs
 ```
+
+**依赖文件：**
+
+| 文件 | 用途 |
+|------|------|
+| `requirements.txt` | Web、DB、python-docx、openpyxl、pytest |
+| `requirements-ai.txt` | langchain、chromadb（Docker 构建时安装） |
 
 ---
 
@@ -113,17 +139,20 @@ OUTPUT_PATH=/app/data/outputs
 | GET | `/api/v1/health` | 健康检查 |
 | POST | `/api/v1/rfq/upload` | 上传 .docx，返回 task_id |
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
-| GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果 |
+| GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`） |
+| GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
 | GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（parsing/retrieving/generating） |
 | PUT | `/api/v1/rfq/tasks/{id}` | 编辑/确认（review_status） |
 | POST | `/api/v1/rfq/tasks/{id}/generate-excel` | 生成 Excel |
+| POST | `/api/v1/rfq/tasks/{id}/generate-proposal` | Demo Stub：Mock 方案草案 |
+| POST | `/api/v1/rfq/tasks/{id}/generate-qa` | Demo Stub：Mock QA 清单 |
 | GET | `/api/v1/rfq/tasks/{id}/download/excel` | 下载 Excel |
 | GET | `/api/v1/knowledge/stats` | 知识库统计 |
 | POST | `/api/v1/knowledge/search` | 向量检索 |
 | GET | `/api/v1/projects` | 历史项目列表 |
 | GET | `/api/v1/projects/{id}` | 项目详情 |
 
-Phase 2：`generate-qa`、`generate-ppt`、对应 download 接口。
+Phase 2 全量：`generate-ppt`、真实 QA/方案 Generator 替换 Stub；`download/qa`、`download/ppt`。
 
 ---
 
@@ -151,6 +180,8 @@ class RFQTask(Base):
     rfq_modules       = Column(JSON, nullable=True)
     similar_projects  = Column(JSON, nullable=True)
     comparison_table  = Column(JSON, nullable=True)
+    solution_draft    = Column(JSON, nullable=True)   # Demo Stub / Phase 2 真实
+    qa_items          = Column(JSON, nullable=True)   # Demo Stub / Phase 2 真实
     excel_path        = Column(String, nullable=True)
     ppt_path          = Column(String, nullable=True)
     error_msg         = Column(Text, nullable=True)
@@ -176,6 +207,37 @@ class Project(Base):
 
 ## 核心 Service
 
+### LLMService（`services/llm_service.py`）
+
+- `complete_json(prompt, rfq_text?) → dict`
+- `MOCK_LLM=true` 时走 `rfq_text_extractor` 规则提取
+- 真实模式：Ollama `/api/generate`，`TIMEOUT_SECONDS=120`，`MAX_RETRIES=2`，JSON 解析失败自动重试 Prompt
+
+### GeneratorRegistry（`services/generators/`）
+
+```python
+# 路由/QuoteService 通过注册表获取生成器，禁止直接 new 各 Generator
+from app.services.generators.registry import GeneratorRegistry
+generator = GeneratorRegistry.create("excel_manpower")
+generator.generate(context, template_path, output_path)
+```
+
+- `BaseGenerator`：抽象基类（`generators/base.py`）
+- 已注册：`excel_manpower` → `ExcelManpowerGenerator`
+- Demo Stub：`proposal_stub`、`qa_stub`（Phase 2 换真实实现，路由不变）
+- Phase 2 全量：`qa`、`proposal`（PPT）
+
+### Mock 数据（`services/mock_data.py`）
+
+| 常量 | 用途 |
+|------|------|
+| `MOCK_RFQ_PARSE_RESULT` | 测试用 RFQ 结构样例 |
+| `MOCK_RAG_HITS` | `MOCK_RAG=true` 时相似项目检索结果 |
+| `MOCK_COMPARISON_TABLE` | 技术维度对比表基线 |
+| `MOCK_MANPOWER_BASELINES` | Excel 人天 Mock 基线 |
+| `MOCK_SOLUTION_DRAFT` | Demo 方案草案 Stub |
+| `MOCK_QA_ITEMS` | Demo QA 清单 Stub |
+
 ### RFQParser（`services/rfq_parser.py`）
 
 - `extract_text_from_docx(file_path) → str`
@@ -187,16 +249,31 @@ class Project(Base):
 - `search_similar_projects(query, top_k) → list`
 - `build_comparison_table(rfq_data, similar_docs) → dict`
 
-### ExcelManpowerGenerator（`services/excel_generator.py`）
+### ExcelManpowerGenerator（`services/generators/excel_manpower.py`）
 
-- 实现 `BaseGenerator` 插件，注册到 `GeneratorRegistry`
+- 实现 `BaseGenerator`，注册到 `GeneratorRegistry`（`generators/registry.py`）
 - 复制 `templates/quote_template.xlsx`（**EDAG 12 Sheet**）
 - Demo：填充 `Project information` + `Manpower` + **PM** + **Chassis**
 - 详见 [template-mapping.md](docs/supplementary/template-mapping.md)
 
-### QAGenerator / PPTGenerator
+### QAGenerator / ProposalGenerator
 
-Phase 2 实现；输出须符合 Q_A 模板与 EDAG PPT 章节结构。
+- **Demo：** Stub Generator + Mock 数据；页面标「Demo 预览」
+- **Phase 2：** QAGenerator = RAG（历史 Q_A）+ LLM（`qa_generate.txt`）；ProposalGenerator = 原子模块 RAG + 组装 + 可选 PPT 导出
+
+---
+
+## 前端：五步工作流（Demo 框架）
+
+| 路由 | 组件要点 |
+|------|---------|
+| `/rfq` | 上传、最近分析列表、解析结果、对比矩阵、相似项目 Expand |
+| `/proposal` | 按 Function 的模块卡片、Stub 生成、`solution_draft` |
+| `/qa` | Q_A 列结构表格、Stub 生成、可编辑、`qa_items` |
+| `/quote` | Excel 生成下载、人天构成明细 Mock 表 |
+| `/knowledge` | 统计、检索测试、原子模块 Tab 占位 |
+
+**公共组件：** `TaskContextBar`（`LAST_TASK_ID_KEY` + 任务下拉）、`WorkflowSteps`（读 `artifacts_status`）。
 
 ---
 
@@ -284,7 +361,7 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 
 | 维度 | Demo 用户流程 | 工程实现顺序 |
 |------|-------------|-------------|
-| 顺序 | RFQ 上传 → 解析/比对 → Excel | 脚手架 → **Excel 插件+模板** → RAG → RFQ 解析 → 联调 |
+| 顺序 | RFQ → 对标 → 方案 → QA → 人天（五步 UI） | 脚手架 → Excel → RAG → RFQ → **五步框架 UI** → Stub API → 联调 |
 
 ### Phase 0：脚手架（1–2 天）
 
@@ -294,14 +371,32 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 
 数据模型 → 文件上传 → RAG + ingest 脚本 → 知识库 search API。
 
-### Phase 2：Demo 业务模块（2–3 周）
+### Demo Sprint：框架可认知 Demo（2–3 周）
 
-**仅模块 1 + 模块 4**（与 prod.md 一致）：
+> **命名说明：** 本节称 **Demo Sprint**，与 [prod.md §9](prod.md) **Phase 1 框架可认知 Demo** 同义；**勿与 prod「Phase 2 正式版」混淆**。
 
-1. Excel 报价（PM + Chassis，EDAG 模板）
-2. RFQ 解析 + 技术维度对比表 + 置信度/来源引用
+**能力档（真实）：** RFQ 解析 + 对标 + Excel PM/Chassis  
+**框架档（Stub/Mock）：** `/proposal`、`/qa` 页面 + `generate-proposal` / `generate-qa` + `TaskContextBar` + `WorkflowSteps` + 任务历史列表
 
-QA、PPT、全 9 Function Sheet → **正式版 Phase 2**，不在 Demo 范围。
+1. 五步导航与公共任务上下文组件
+2. RFQ 页：最近分析、Expand 相似项目
+3. Stub Generator + `solution_draft` / `qa_items` / `artifacts_status`
+4. Excel 报价（已有）+ 人天构成明细 Mock 表
+5. 知识库：原子模块 Tab 占位
+
+**prod Phase 2 正式版（替换 Stub）：** 真实原子化 RAG、QA LLM、PPT、全 9 Function、交付物级人天 — 见 [prod.md §9](prod.md)。
+
+### 数据库 Schema 变更（Demo Sprint）
+
+当前项目**未使用 Alembic**；新增字段须遵守：
+
+| 规则 | 说明 |
+|------|------|
+| 开发/Demo | 可在 `RFQTask` 模型增加 `solution_draft`、`qa_items`（JSON）；首次启动由 SQLAlchemy `create_all` 建表 |
+| 已有库升级 | 提供一次性脚本 `scripts/migrate_rfq_task_stub_columns.sql`（或等价 Python 脚本），**禁止**生产环境 `drop_all` |
+| 生产（Phase 2） | 引入 Alembic 或客户 IT 审批的 SQL 迁移；变更须写入 deployment-guide |
+
+字段与 `artifacts_status` 计算逻辑见 [prod.md §5.4](prod.md) 与 [api-design.md](docs/supplementary/api-design.md)。
 
 ### 每个模块六步开发法
 

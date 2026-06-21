@@ -1,7 +1,7 @@
 # ARIA 智能报价辅助系统 — 部署方案
 
-**版本：** v1.0  
-**日期：** 2026-06-18
+**版本：** v1.1  
+**日期：** 2026-06-20
 
 ---
 
@@ -9,6 +9,8 @@
 
 1. [部署架构](#1-部署架构)
 2. [服务器配置要求](#2-服务器配置要求)
+   - [2.4 模型选型与扩展规划](#24-模型选型与扩展规划)
+   - [2.5 Demo 双档验收与 Stub 说明](#25-demo-双档验收与-stub-说明)
 3. [环境准备](#3-环境准备)
 4. [Ollama 安装与配置](#4-ollama-安装与配置)
 5. [ARIA 应用部署](#5-aria-应用部署)
@@ -100,6 +102,143 @@ UPS：     在线式 2 KVA
 | `/opt/aria/data/outputs` | 1–10 GB | 生成文件 |
 | `/data/aria_backups` | 按保留策略 | 每日备份 |
 
+### 2.4 模型选型与扩展规划
+
+> **原则：** 扩展性靠 ARIA 插件架构（Generator / Prompt / `.env` 换模型），**不要求 Day 1 安装最大参数量模型**。硬件按 **RTX 4090 24G** 采购，模型按阶段从 14B 升级到 32B 即可。
+
+#### 2.4.1 ARIA 中哪些环节需要模型
+
+| 环节 | 模型类型 | 是否必须大 LLM |
+|------|----------|----------------|
+| RFQ 解析（Function、里程碑、交付物） | 主 LLM（Qwen2.5） | 是 |
+| 相似项目检索 | Embedding（`nomic-embed-text`） | 小模型即可 |
+| 技术对比 / 置信度 | RAG + 规则 | 基本不靠 LLM |
+| Excel 人力报价 | 模板 + 基线 | **否** |
+| 方案/QA Stub（Demo 框架） | 无 LLM | **否** — 固定 Mock JSON |
+| QA 清单 / PPT（Phase 2 全量） | 主 LLM | 是，文案质量敏感 |
+| 财务规则（Phase 3） | 规则为主 | LLM 辅助有限 |
+
+只需选型：**1 个主 LLM + 1 个 Embedding**（RAG 开启时）。
+
+#### 2.4.2 主 LLM 推荐（按阶段）
+
+| 阶段 | 推荐模型 | 典型显存 | 单次 RFQ（GPU） | `.env` |
+|------|----------|----------|-----------------|--------|
+| 内部开发 / 笔记本 | `qwen2.5:7b` | ~6 GB | 较慢 | `OLLAMA_MODEL=qwen2.5:7b` |
+| **客户 Demo（Phase 1）** | **`qwen2.5:14b`** | ~16 GB | 约 30s–2min | `OLLAMA_MODEL=qwen2.5:14b` |
+| **正式生产（Phase 2）** | **`qwen2.5:32b`（Q4）** | ~20 GB（4090 可跑） | 更稳、JSON 更规整 | `OLLAMA_MODEL=qwen2.5:32b` |
+| 高并发 / 多用户 | 32B + 任务队列 | — | 加 GPU 或限流 | 同左 |
+
+Embedding（知识库向量，与主 LLM 独立）：
+
+| 模型 | 用途 | 何时需要 |
+|------|------|----------|
+| **`nomic-embed-text`** | RAG 检索 | `MOCK_RAG=false` 时 |
+
+#### 2.4.3 按硬件倒推
+
+| 客户 GPU | 现实选择 |
+|----------|----------|
+| 无独显 / &lt;8 GB | `MOCK_LLM=true`（流程 Demo）；或 7B CPU（不推荐对客户 Demo） |
+| 8–12 GB | 7B 或 14B 量化 |
+| **16 GB+** | **14B**（Demo 舒适区） |
+| **24 GB（RTX 4090）★** | **14B 全速 / 32B Q4**（推荐采购档位） |
+| 40 GB+（A100） | 32B 全精度；远期多模型并存 |
+
+**口诀：** 有 4090 → Demo 用 14B，稳定后升 32B；无 GPU → 先 Mock，硬件到位再开真实 LLM。
+
+#### 2.4.4 选型决策流程
+
+```
+开始
+  │
+  ├─ 是否已有 GPU（≥16 GB 显存）？
+  │     否 → MOCK_LLM=true，先交付流程 Demo
+  │     是 ↓
+  │
+  ├─ 当前阶段？
+  │     Demo / Phase 1  → qwen2.5:14b
+  │     生产 / Phase 2  → qwen2.5:32b
+  │     本地开发        → qwen2.5:7b 或 Mock
+  │
+  ├─ 是否启用真实知识库（MOCK_RAG=false）？
+  │     是 → ollama pull nomic-embed-text
+  │
+  └─ 验收：GET /api/v1/health
+        ollama_reachable: true
+        ollama_model_ready: true
+        embedding_model_ready: true（若开 RAG）
+```
+
+Windows 开发机快速安装见 [local-llm-setup.md](local-llm-setup.md)（`scripts/setup_ollama.ps1` / `check_ollama.ps1`）。
+
+#### 2.5 Demo 双档验收与 Stub 说明
+
+Phase 1 交付为 **框架可认知 Demo**（见 [prod.md §9](../prod.md)），部署与验收分两档：
+
+| 档位 | 依赖 Ollama | 依赖 GPU | 验收文档 |
+|------|------------|---------|---------|
+| **框架档** | 否（Stub 不调用 LLM） | 否 | prod §10.1.1；test-plan §6.1 |
+| **能力档** | 是（`MOCK_LLM=false`） | 建议 16GB+ | prod §10.1.2 |
+
+**Stub 环境变量：**
+
+- `generate-proposal` / `generate-qa` **不需要**额外配置；与 `MOCK_LLM`、`MOCK_RAG` **无关**
+- 能力档仍须：`OLLAMA_BASE_URL`、`OLLAMA_MODEL`、可选 `MOCK_RAG=false` + ingest
+
+**部署检查（Demo 彩排前）：**
+
+```bash
+# 1. 容器与健康
+curl -s http://localhost/api/v1/health | jq .
+
+# 2. 能力档：LLM 就绪（若 MOCK_LLM=false）
+# ollama_reachable / ollama_model_ready 应为 true
+
+# 3. 框架档：Stub（实现后）
+curl -s -X POST http://localhost/api/v1/rfq/tasks/{task_id}/generate-proposal
+curl -s -X POST http://localhost/api/v1/rfq/tasks/{task_id}/generate-qa
+# 应返回 demo_preview: true 与结构化 JSON
+```
+
+**对客户说明：** 使用 [demo-scope-brief.md](demo-scope-brief.md) 一页纸；演示时方案/QA 页须可见「Demo 预览」标识。
+
+**UI 路由：** `/rfq` → `/proposal` → `/qa` → `/quote` → `/knowledge`（与 prod §7.2 一致）。
+
+#### 2.4.5 如何验证「选对了」（3 份脱敏 RFQ）
+
+| 指标 | 14B 可接受 | 建议升级到 32B |
+|------|------------|----------------|
+| JSON 一次解析成功 | 大部分成功 | 频繁 `parse_error` / 需重试 2–3 次 |
+| Function / 模块识别 | 与人工一致 ≥80% | &lt;70% |
+| 单次耗时（4090） | &lt;2 分钟 | &gt;3 分钟且 GPU 未满载 |
+| 工程师手工改字段量 | 少量修正 | 需大面积手改 |
+
+#### 2.4.6 扩展性与未来 AI 功能
+
+| 扩展方式 | 是否需要更大模型 |
+|----------|------------------|
+| 新增 QA / PPT / 财务模块 | 通常 **14B → 32B** 即可 |
+| Excel 全 9 Function | **不需要** LLM |
+| 多模型路由（解析 32B + 摘要 14B，远期） | **两个中等模型**，非 72B |
+| 多用户并发 | **加 GPU / 队列**，非单纯换最大模型 |
+
+**给客户的默认方案：**
+
+| 角色 | 主模型 | Embedding | 硬件 |
+|------|--------|-----------|------|
+| Demo（节后） | 14B | nomic-embed-text | RTX 4090 或 ≥16 GB 显卡 |
+| 生产（Phase 2） | 32B | nomic-embed-text | RTX 4090 24G × 1 |
+| 开发（EDAG 内部） | 7B 或 Mock | 可选 | 现有笔记本 |
+
+切换模型仅改 `.env`，无需改 ARIA 代码：
+
+```bash
+OLLAMA_MODEL=qwen2.5:14b   # 或 qwen2.5:32b
+EMBEDDING_MODEL=nomic-embed-text
+MOCK_LLM=false
+```
+
 ---
 
 ## 3. 环境准备
@@ -183,6 +322,8 @@ sudo systemctl restart ollama
 ```
 
 ### 4.3 拉取模型
+
+按 [§2.4 模型选型与扩展规划](#24-模型选型与扩展规划) 选择档位：
 
 ```bash
 # Demo / 开发

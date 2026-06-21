@@ -29,9 +29,25 @@ export interface HealthData {
   embedding_model: string;
   mock_llm: boolean;
   mock_rag: boolean;
+  ollama_reachable: boolean;
+  ollama_model_ready: boolean;
+  embedding_model_ready: boolean;
+  ollama_error?: string | null;
 }
 
 export async function fetchHealth(): Promise<HealthData> {
   const { data } = await apiClient.get<HealthData>("/health");
   return data;
 }
+
+/** Build absolute API URL for browser navigation (download links). */
+export function buildApiUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (base.startsWith("/") && typeof window !== "undefined") {
+    return `${window.location.origin}${base}${normalizedPath}`;
+  }
+  return `${base.replace(/\/$/, "")}${normalizedPath}`;
+}
+
+export const LAST_TASK_ID_KEY = "aria_last_task_id";

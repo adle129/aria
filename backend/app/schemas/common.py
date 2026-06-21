@@ -18,3 +18,7 @@ class HealthResponse(BaseModel):
     embedding_model: str
     mock_llm: bool = False
     mock_rag: bool = False
+    ollama_reachable: bool = False
+    ollama_model_ready: bool = False
+    embedding_model_ready: bool = False
+    ollama_error: str | None = None

@@ -28,6 +28,8 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 - LLM JSON 失败须降级（`parse_error` + `raw_output`），不可崩溃
 - 双状态：`processing_status`（系统）+ `review_status`（draft → in_review → approved → exported）
 - Excel：复制 `data/templates/quote_template.xlsx`，Demo 仅填 PM + Chassis
+- **Demo Stub（框架 Demo）：** `proposal_stub` / `qa_stub` Generator；`POST .../generate-proposal`、`POST .../generate-qa` 写入 `solution_draft` / `qa_items`；`GET .../tasks/{id}` 返回 `artifacts_status`（契约见 api-design.md）
+- Phase 2 替换 Stub 为真实 RAG+LLM，**路由与 JSON 形状不变**
 - 依赖：`requirements.txt`（核心）+ `requirements-ai.txt`（LangChain/ChromaDB）
 
 ## 新增 API 检查清单

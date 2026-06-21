@@ -8,6 +8,7 @@ def test_health_returns_ok(client):
     assert body["embedding_model"] == "nomic-embed-text"
     assert body["mock_llm"] is True
     assert body["mock_rag"] is True
+    assert "ollama_reachable" in body
 
 
 def test_health_response_schema_keys(client):
@@ -19,4 +20,8 @@ def test_health_response_schema_keys(client):
         "embedding_model",
         "mock_llm",
         "mock_rag",
+        "ollama_reachable",
+        "ollama_model_ready",
+        "embedding_model_ready",
+        "ollama_error",
     }

@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI, Request
@@ -7,14 +8,23 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.config import get_settings
+from app.database import init_db
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="ARIA",
     description="Automated RFQ Intelligence Assistant",
     version=settings.app_version,
+    lifespan=lifespan,
 )
 
 app.add_middleware(

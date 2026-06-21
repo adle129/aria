@@ -2,7 +2,17 @@
 
 本地私有化 AI 报价辅助工具，面向 EDAG 车辆工程服务场景。
 
-**当前阶段：** Phase 0 工程脚手架（Demo 开发中）
+**当前阶段：** 框架可认知 Demo（五步 UI + RFQ/对标/Excel 真实；方案/QA Stub）
+
+### 实现进度 vs 验收（prod §10.1）
+
+| 类别 | 状态 |
+|------|------|
+| 能力档：RFQ 解析、对标表、Excel PM+Chassis | 已实现 |
+| 能力档：相似项目 Expand、任务历史列表 | 进行中 |
+| 框架档：五步导航、TaskContextBar、/proposal、/qa、Stub API | 待实现 |
+
+详见 [implementation-plan.md §3.1.1](docs/implementation-plan.md)。对外 Demo 范围见 [demo-scope-brief.md](docs/demo-scope-brief.md)。
 
 ## 快速启动
 
@@ -267,7 +277,7 @@ MOCK_LLM=true
 MOCK_RAG=true
 ```
 
-节后替换真实样本后设为 `false` 并配置 Ollama。
+节后启用本地 Ollama 见 **[docs/local-llm-setup.md](docs/local-llm-setup.md)**（`scripts/setup_ollama.ps1` / `check_ollama.ps1`）。
 
 ## 文档
 
@@ -276,6 +286,8 @@ MOCK_RAG=true
 | [prod.md](prod.md) | 产品需求基线 |
 | [dev-context.md](dev-context.md) | 开发规范与技术栈 |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | 实施计划 |
+| [docs/local-llm-setup.md](docs/local-llm-setup.md) | 本地 Ollama 安装（Windows） |
+| [docs/deployment-guide.md](docs/deployment-guide.md) | 部署与 **模型选型**（§2.4） |
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 契约 |
 
 ## Phase 0 完成标准

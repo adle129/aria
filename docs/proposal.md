@@ -51,23 +51,27 @@
 
 ```mermaid
 flowchart LR
-    RFQ[上传RFQ] --> Parse[AI解析模块]
-    Parse --> RAG[检索历史项目]
-    RAG --> Compare[技术维度对比表]
-    Compare --> Review[工程师二次校验]
-    Review --> Excel[Excel人力报价]
-    Review --> QA[QA清单 Phase2]
-    Review --> PPT[PPT方案 Phase2]
+    RFQ[上传RFQ] --> Parse[AI解析]
+    Parse --> Compare[历史对标]
+    Compare --> Proposal[技术方案草案]
+    Compare --> QA[澄清问题]
+    Proposal --> Review[工程师审阅]
+    QA --> Review
+    Compare --> Review
+    Review --> Excel[人力报价Excel]
+    Review --> PPT[PPT导出 Phase2]
 ```
+
+> Demo 展示完整五步 UI；方案与 QA 为 Mock 预览，RFQ/对标/Excel 为真实能力。详见 [prod.md §9](../prod.md)。
 
 ### 2.2 四大功能模块
 
-| 模块 | 能力 | Phase 1 | Phase 2 |
-|------|------|---------|---------|
-| **模块 1** RFQ 解析 + 历史比对 | 拆解 Function、检索相似项目、维度对比表 | ✓ | ✓ 全格式 |
-| **模块 2** QA 澄清清单 | 历史疑问汇总、优先级、历史依据 | — | ✓ |
-| **模块 3** PPT 方案初稿 | EDAG 模板结构、四段式填充 | — | ✓ |
-| **模块 4** Excel 人力报价 | 企业模板、Function×技能等级×月度 | PM+Chassis | 全 9 Function |
+| 模块 | 能力 | Phase 1 Demo | Phase 2 |
+|------|------|-------------|---------|
+| **模块 1** RFQ 解析 + 历史比对 | 拆解 Function、检索相似项目、维度对比表 | ✓ 真实 | ✓ 全格式 |
+| **模块 2** QA 澄清清单 | 历史疑问汇总、优先级、历史依据 | UI+Mock | ✓ 真实 RAG+LLM |
+| **模块 3** 技术方案草案 / PPT | 原子模块拼接、EDAG 模板 | UI+Mock | ✓ 真实 + PPT |
+| **模块 4** Excel 人力报价 | 企业模板、Function×技能等级×月度 | PM+Chassis 真实 | 全 9 Function |
 
 ### 2.3 差异化设计
 

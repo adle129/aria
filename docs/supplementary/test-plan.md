@@ -121,6 +121,18 @@ def test_generate_quote_empty_modules():
 
 ## 6. 集成测试（Demo 验收）
 
+### 6.1 框架档
+
+| # | 场景 | 步骤 | 期望 |
+|---|------|------|------|
+| IT-F01 | 五步导航 | 依次打开 rfq/proposal/qa/quote | TaskContextBar 与 Steps 一致 |
+| IT-F02 | 任务上下文 | 上传 RFQ → 切到 /qa → 返回 /rfq | 同一 task_id，结果不丢 |
+| IT-F03 | Stub 方案 | POST generate-proposal | `solution_draft` 非空，`demo_preview=true` |
+| IT-F04 | Stub QA | POST generate-qa | `qa_items` 5–10 条，列结构完整 |
+| IT-F05 | Demo 标识 | 打开 /proposal、/qa | 可见「Demo 预览」 |
+
+### 6.2 能力档
+
 | # | 场景 | 步骤 | 期望 |
 |---|------|------|------|
 | IT-01 | RFQ 端到端 | 上传 docx → 等待 → 查看对比表 | 有 modules + similar_projects |

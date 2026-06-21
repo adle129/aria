@@ -14,21 +14,29 @@ alwaysApply: false
 
 ## UI / UX
 
-- 布局：顶栏 EDAG +「ARIA · 智能报价辅助系统」+ 左侧导航
+- 布局：顶栏 EDAG +「ARIA · 智能报价辅助系统」+ 左侧五步导航
+- **TaskContextBar + WorkflowSteps**：业务页（`/rfq` `/proposal` `/qa` `/quote`）顶部展示当前 `task_id` 与五步进度
 - 所有 API 调用须有 **loading**；错误走 `api/client.ts` 统一 `message.error()`
 - LLM 任务 30s–2min：轮询 `/tasks/{id}/status`，禁止空白等待
-- AI 草稿与人工编辑视觉区分；**导出前必须确认 checkbox**
-- 下载按钮在生成完成前 **disabled**
+- AI 草稿与人工编辑视觉区分；Mock/Stub 内容须标 **「Demo 预览」** Tag
+- **导出前必须确认 checkbox**；下载按钮在生成完成前 **disabled**
 
-## 路由（Demo）
+## 路由（框架可认知 Demo）
 
-- `/rfq` — 上传与分析
-- `/quote` — Excel 生成与导出
-- `/knowledge` — 知识库管理
-- Phase 2 预留：`/qa`、`/proposal`
+| 路由 | 说明 | Demo 深度 |
+|------|------|-----------|
+| `/rfq` | RFQ 上传、解析、历史对标 | 真实 AI |
+| `/proposal` | 技术方案草案 | Mock + Stub API |
+| `/qa` | 澄清问题清单 | Mock + Stub API |
+| `/quote` | Excel 人力报价 | Excel 真实；构成明细 Mock |
+| `/knowledge` | 知识库 | 统计真实；原子目录占位 |
+
+- 任务 ID：`sessionStorage` 键 `aria_last_task_id`（`LAST_TASK_ID_KEY`）
+- Phase 3 预留：`/finance`
 
 ## 新增页面检查清单
 
 - [ ] 符合 EDAG 品牌主题，不引入额外 UI 库
 - [ ] loading / error / empty 三态完整
+- [ ] 挂载 `TaskContextBar`；无 task 时引导回 `/rfq`
 - [ ] 与 [api-design.md](docs/supplementary/api-design.md) 字段一致

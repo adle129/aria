@@ -8,8 +8,11 @@ alwaysApply: true
 ## 身份
 
 - **ARIA**（Automated RFQ Intelligence Assistant）— EDAG 本地私有化 AI **辅助**报价系统
-- **当前 Demo 范围：** 模块 1（RFQ 解析 + 历史比对）+ 模块 4（Excel 人力报价，PM+Chassis）
-- **不在 Demo：** QA、PPT、全 9 Function Sheet、财务模块、模型训练（用 RAG + 现成 LLM）
+- **当前 Demo 范围（框架可认知 Demo）：**
+  - **真实能力：** RFQ 解析 + 历史对标 + Excel 人力（PM+Chassis）
+  - **框架/UI：** 五步导航（`/rfq` → `/proposal` → `/qa` → `/quote`）+ TaskContextBar + Stub API（方案/QA Mock，标「Demo 预览」）
+- **Phase 2 正式版替换 Stub：** 原子化 RAG、真实 QA LLM、PPT、全 9 Function、交付物级人天
+- **不在 Demo：** 财务模块、PDF RFQ 全量、真实 PPT 导出
 
 ## 开发前必须查阅的文档
 
@@ -17,13 +20,14 @@ alwaysApply: true
 
 | 文档 | 何时读 |
 |------|--------|
-| [prod.md](prod.md) | 功能范围、验收标准、人机协同、分阶段交付 |
-| [dev-context.md](dev-context.md) | 技术栈、目录、API 摘要、分层、测试与 Commit 规范 |
+| [prod.md](prod.md) | 功能范围、双档验收（§10.1.1 框架 / §10.1.2 能力）、分阶段交付 |
+| [dev-context.md](dev-context.md) | 技术栈、目录、API 摘要、五步 UI、Stub 契约 |
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | 新增/修改 API 时 |
 | [docs/supplementary/prompt-spec.md](docs/supplementary/prompt-spec.md) | LLM Prompt / JSON Schema |
 | [docs/supplementary/template-mapping.md](docs/supplementary/template-mapping.md) | Excel/QA/PPT 模板填充 |
 | [docs/supplementary/test-plan.md](docs/supplementary/test-plan.md) | 测试策略与回归集 |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | 里程碑与 WBS |
+| [docs/user-manual.md](docs/user-manual.md) | 用户可见流程与 Demo 预览说明 |
 
 ## 技术栈（不可擅自替换）
 
@@ -35,6 +39,7 @@ alwaysApply: true
 ## 工程硬性要求
 
 - 真实业务逻辑，生产环境禁止 Mock 欺骗；开发期可用 Mock 开关
+- Demo Stub（方案/QA）须在 UI 与 API 响应中明示 `demo_preview` / 「Demo 预览」
 - 配置来自 `config.py` / 环境变量，禁止硬编码路径与密钥
 - 不提交 `.env`、客户脱敏数据、大型二进制模板（见 `.gitignore`）
 - `backend/data/` Volume 挂载，不入镜像

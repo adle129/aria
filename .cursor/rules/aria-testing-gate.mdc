@@ -43,10 +43,11 @@ $env:PYTHONPATH="<项目根>/backend"
 
 ## 功能完成定义（DoD）
 
-- [ ] 已对照 prod.md / dev-context.md 确认在 Demo 范围内
+- [ ] 已对照 prod.md §9/§10 确认在 Demo 范围（框架档和/或能力档）
+- [ ] Stub 接口/UI 含 `demo_preview` 或「Demo 预览」标识（若适用）
 - [ ] Service + unit test 已完成
 - [ ] API + API test 已完成
-- [ ] 前端（若涉及）loading/error/确认流已实现
+- [ ] 前端（若涉及）TaskContextBar、loading/error/确认流已实现
 - [ ] `run_tests.sh` / `run_tests.ps1` 全绿
 - [ ] 回归集通过（若改动解析/RAG/Prompt/Excel 生成）
 - [ ] 未提交 `.env`、密钥、客户脱敏文件

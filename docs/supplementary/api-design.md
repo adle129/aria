@@ -102,6 +102,14 @@ Content-Type: multipart/form-data
 }
 ```
 
+#### 查询任务列表
+
+```
+GET /api/v1/rfq/tasks?limit=20&unique_file=true
+```
+
+**响应 `data` 数组元素：** `task_id`、`file_name`、`status`（review_status）、`processing_status`、`created_at`
+
 #### 查询任务
 
 ```
@@ -116,13 +124,25 @@ GET /api/v1/rfq/tasks/{task_id}
   "data": {
     "task_id": "uuid",
     "status": "draft | in_review | approved | exported",
+    "processing_status": "pending | parsing | retrieving | generating | completed | failed",
     "rfq_modules": { ... },
     "comparison_table": { ... },
+    "solution_draft": null,
+    "qa_items": null,
+    "artifacts_status": {
+      "rfq_parsed": true,
+      "comparison_ready": true,
+      "proposal_ready": false,
+      "qa_ready": false,
+      "excel_ready": false
+    },
     "created_at": "2026-06-18T10:00:00Z",
     "updated_at": "2026-06-18T10:05:00Z"
   }
 }
 ```
+
+> **字段说明：** `status` = 人工审阅状态 `review_status`；`processing_status` = 后台流水线状态。`solution_draft` / `qa_items` Demo 由 Stub 生成写入。`artifacts_status` 计算规则与页面解锁见 [prod.md §5.4](../../prod.md)。进度轮询见 `/tasks/{id}/status`。
 
 #### 更新任务（编辑/确认）
 
@@ -235,19 +255,85 @@ POST /api/v1/knowledge/import
 
 ---
 
-### 2.4 QA 模块（Phase 2）
+### 2.4 QA 模块
+
+#### Demo Stub — 生成 QA 清单
 
 ```
 POST /api/v1/rfq/tasks/{task_id}/generate-qa
 ```
 
+**前置：** `processing_status=completed`；`rfq_modules` 非空。
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "qa_items": [
+      {
+        "no": 1,
+        "question": "副车架与车身连接点的边界载荷是否由客户提供？",
+        "function": "Chassis",
+        "impact": "高",
+        "history_reference": "项目X因边界条件未明确，返工+30%人天"
+      }
+    ],
+    "demo_preview": true
+  }
+}
+```
+
+> Demo 返回 `mock_data.MOCK_QA_ITEMS`；Phase 2 替换为 RAG + LLM（`qa_generate.txt`）。
+
 ```
 GET /api/v1/rfq/tasks/{task_id}/download/qa
 ```
 
+Phase 2：导出 Q_A 模板 Excel。
+
 ---
 
-### 2.5 PPT 模块（Phase 2）
+### 2.5 技术方案模块
+
+#### Demo Stub — 生成方案草案
+
+```
+POST /api/v1/rfq/tasks/{task_id}/generate-proposal
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "solution_draft": {
+      "sections": [
+        {
+          "function": "Chassis",
+          "module_key": "Chassis-Suspension-FEA",
+          "assumptions": "...",
+          "inputs": "...",
+          "work_content": "...",
+          "deliverables": "...",
+          "source_project": "2023_MEB_Chassis",
+          "deviation_rate": "+8%",
+          "similarity_score": 0.88
+        }
+      ]
+    },
+    "demo_preview": true
+  }
+}
+```
+
+> Phase 2：真实原子模块 RAG 拼接；可选 `generate-ppt` 导出 .pptx。
+
+---
+
+### 2.6 PPT 模块（Phase 2 全量）
 
 ```
 POST /api/v1/rfq/tasks/{task_id}/generate-ppt
@@ -259,7 +345,7 @@ GET /api/v1/rfq/tasks/{task_id}/download/ppt
 
 ---
 
-### 2.6 财务模块（Phase 3 预留）
+### 2.7 财务模块（Phase 3 预留）
 
 ```
 POST /api/v1/finance/calculate

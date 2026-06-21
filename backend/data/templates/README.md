@@ -9,3 +9,11 @@
 | `Technical Proposal_template.pptx`（如有） | `proposal_template.pptx` |
 
 复制完成后，ExcelManpowerGenerator 将读取 `quote_template.xlsx` 进行填充。
+
+若尚无客户模板，可先运行 Demo 脚手架生成：
+
+```bash
+python scripts/generate_quote_template.py
+```
+
+正式 Demo 前请将客户提供的 `报价人力模板.xlsx` 覆盖 `quote_template.xlsx`。

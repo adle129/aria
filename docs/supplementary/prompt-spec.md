@@ -49,20 +49,14 @@
 }
 ```
 
-**Prompt 模板要点：**
+**Prompt 模板要点（`backend/prompts/v1/rfq_parse.txt`）：**
+
+- 角色定义 + JSON Schema 内嵌 + **1 组 Few-shot 示例**（Mock Chassis RFQ）
+- 兜底：不确定填「未知」，禁止编造
+- 变更 Prompt 须跑回归测试集（`samples/rfq/`）
 
 ```
-你是 EDAG 车辆工程报价专家。请分析以下 RFQ 文档，提取结构化信息。
-
-要求：
-1. functions_in_scope 只包含 RFQ 中明确提及的工程领域
-2. modules 按 Function 分组，每个 module 列出具体工作和交付物
-3. 只输出 JSON，不要其他文字
-4. 日期格式 YYYY-MM-DD
-5. 不确定的字段填 "未知" 或空数组
-
-RFQ 内容：
-{rfq_text}
+（完整内容见 rfq_parse.txt，含 Schema 与 Few-shot）
 ```
 
 ---
@@ -136,15 +130,49 @@ RFQ 内容：
 
 ---
 
-## 5. QA 清单 Prompt（Phase 2）
+## 5. QA 清单 Prompt
 
 **文件：** `prompts/v1/qa_generate.txt`
 
-**约束：**
+**阶段：**
+
+| 阶段 | 实现 |
+|------|------|
+| Demo 框架 | Stub `generate-qa` 返回 `MOCK_QA_ITEMS`（见 `mock_data.py`），UI 标「Demo 预览」 |
+| Phase 2 全量 | RAG 检索历史 Q_A + LLM 调用本 Prompt |
+
+**约束（Phase 2）：**
 
 - 每条 QA 必须标注 Area 和 History Reference
 - 影响程度基于历史项目变更/返工记录
 - 输出符合 Q_A 模板列结构
+- **相关性过滤：** 只保留与当前 RFQ 模块直接相关的问题，输出 5–10 条，禁止凑数量（见 `qa_generate.txt`）
+
+---
+
+## 5.1 方案草案 Stub JSON（Demo 框架）
+
+Demo 阶段 `POST .../generate-proposal` 返回的 `solution_draft` 形状（Phase 2 真实 RAG 须兼容）：
+
+```json
+{
+  "sections": [
+    {
+      "function": "Chassis",
+      "module_key": "Chassis-Suspension-FEA",
+      "assumptions": "string",
+      "inputs": "string",
+      "work_content": "string",
+      "deliverables": "string",
+      "source_project": "2023_MEB_Chassis",
+      "deviation_rate": "+8%",
+      "similarity_score": 0.88
+    }
+  ]
+}
+```
+
+Demo 阶段 `generate-qa` 的 `qa_items` 元素字段：`no`（序号）、`question`（待澄清问题）、`function`（涉及功能）、`impact`（影响程度）、`history_reference`（历史依据）。
 
 ---
 
@@ -177,6 +205,17 @@ MAX_RETRIES = 2
 | 高 | 相似项目 ≥ 3 且 max(similarity) ≥ 0.85 |
 | 中 | 相似项目 1–2 或 max(similarity) 0.70–0.85 |
 | 低 | 无相似项目或 max(similarity) < 0.70 |
+
+---
+
+## 8. Embedding 模型选型（RAG）
+
+| 阶段 | 模型 | 说明 |
+|------|------|------|
+| Demo / Phase 1 | `nomic-embed-text` | 默认，轻量 |
+| Phase 2 评估 | `bge-large-zh` 等中文模型 | 导入客户文档前用 10 份样本做检索 A/B 对比 |
+
+配置：`EMBEDDING_MODEL` in `.env`；详见 [deployment-guide.md §2.4](../deployment-guide.md#24-模型选型与扩展规划)。
 
 ---
 

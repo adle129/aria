@@ -1,0 +1,8 @@
+# Phase 2 可选 — LLM 人力排布建议 Prompt（占位）
+# Demo 阶段使用 manpower_plan_service 规则基线；详见 prompt-spec.md §4
+
+基于 RFQ 模块与历史相似项目人天基线，输出 manpower_plan JSON。
+只输出 JSON，结构见 prompt-spec.md §4。
+
+RFQ 模块：{rfq_modules}
+历史基线：{baseline_sources}

@@ -1,8 +1,8 @@
 # ARIA 智能报价辅助系统 — 项目实施计划
 
-**版本：** v1.0  
-**日期：** 2026-06-18  
-**状态：** 立项
+**版本：** v1.1  
+**日期：** 2026-06-20  
+**状态：** 执行中（框架可认知 Demo）
 
 ---
 
@@ -53,9 +53,10 @@ gantt
     section 开发
     工程脚手架             :d1, after m2, 5d
     RFQ解析+RAG            :d2, after d1, 10d
-    Excel生成+前端           :d3, after d2, 10d
+    Excel生成+前端           :d3, after d2, 8d
+    五步框架UI+Stub          :d4, after d3, 7d
     section 验收
-    测试+联调              :t1, after d3, 5d
+    测试+联调              :t1, after d4, 5d
     客户Demo演示           :done1, after t1, 2d
 ```
 
@@ -65,7 +66,8 @@ gantt
 | M1 脚手架就绪 | D+13 | docker-compose 可启动 | 健康检查 200 |
 | M2 RFQ 链路通 | D+23 | 上传→解析→对比表 | 3 份 RFQ 测试通过 |
 | M3 Excel 链路通 | D+33 | 模板填充+下载 | xlsx 可打开，PM+Chassis 有数据 |
-| M4 Demo 验收 | D+40 | 完整 Demo | [prod.md §10.1](../prod.md) 清单全通过 |
+| M3b 五步框架 UI | D+38 | TaskContextBar + /proposal + /qa Stub | [prod.md §10.1.1](../prod.md) 框架档 | **前端 R** / 后端 Stub **R** / PM **A** |
+| M4 Demo 验收 | D+42 | 完整 Demo | 框架档 + 能力档全通过 |
 
 ### 2.2 Phase 2 — 正式版（10–12 周）
 
@@ -112,24 +114,42 @@ gantt
    5.3 PM/Chassis Sheet 映射
    5.4 Manpower 汇总
    5.5 历史人天基线检索
-6. 后端 — 公共
-   6.1 GeneratorRegistry 插件架构
-   6.2 LLMService 封装
-   6.3 任务状态管理
-   6.4 结构化日志
-7. 前端
-   7.1 RFQ 上传页
-   7.2 分析结果页（对比表+置信度）
-   7.3 报价生成页
-   7.4 知识库管理页
-8. 测试
-   8.1 单元测试
-   8.2 API 测试
-   8.3 回归测试集（3 RFQ）
-9. 集成
-   9.1 端到端联调
-   9.2 Demo 彩排
+6. 后端 — Demo Stub
+   6.1 proposal_stub / qa_stub Generator
+   6.2 solution_draft / qa_items / artifacts_status
+   6.3 generate-proposal / generate-qa API
+7. 后端 — 公共
+   7.1 GeneratorRegistry 插件架构
+   7.2 LLMService 封装
+   7.3 任务状态管理
+   7.4 结构化日志
+8. 前端
+   8.1 TaskContextBar + WorkflowSteps 公共组件
+   8.2 RFQ 页（上传、最近分析、对比表、Expand）
+   8.3 技术方案页 /proposal（Mock 模块卡片 + Stub 生成）
+   8.4 澄清问题页 /qa（Q_A 表格 + Stub 生成）
+   8.5 报价生成页 /quote（Excel + 人天明细 Mock）
+   8.6 知识库页（统计 + 原子模块 Tab 占位）
+9. 测试
+   9.1 单元测试
+   9.2 API 测试
+   9.3 回归测试集（3 RFQ）
+10. 集成
+   10.1 端到端联调（含五步 UI 走通）
+   10.2 Demo 彩排
 ```
+
+### 3.1.1 文档 ↔ 实现追踪（M3b / M4 前须对齐）
+
+| prod §10.1 条目 | 文档状态 | 代码状态（截至 2026-06-20） |
+|-----------------|---------|---------------------------|
+| 10.1.1 五步导航 + TaskContextBar | ✓ | 待实现 |
+| 10.1.1 Stub generate-proposal/qa | ✓ api-design | 待实现 |
+| 10.1.1 任务历史列表 | ✓ | 部分（sessionStorage） |
+| 10.1.2 RFQ + 对标 + Excel | ✓ | 已实现 |
+| 10.1.2 相似项目 Expand | ✓ | 待实现 |
+
+> 彩排前 PM 按本表更新「代码状态」列；框架档不得仅文档验收。
 
 ### 3.2 Phase 2 增量 WBS
 
@@ -155,9 +175,10 @@ gantt
 | RFQ 解析 | R | C | I | A |
 | RAG 检索 | C | R | I | A |
 | Excel 生成 | R | C | I | A |
-| 前端页面 | C | C | R | A |
+| 五步框架 UI + Stub API | C | R | **R** | A |
+| 前端页面（整体） | C | C | R | A |
 | Docker/测试 | R | R | C | A |
-| Demo 彩排 | C | C | C | R |
+| Demo 彩排 | C | C | C | **R** |
 
 > R=Responsible, A=Accountable, C=Consulted, I=Informed
 
@@ -204,6 +225,9 @@ gantt
 | R4 | GPU 未到位影响体验 | 中 | 中 | Demo 用开发机 GPU；文档推荐配置 | PM |
 | R5 | 客户二次校验流程不清 | 低 | 中 | prod.md 明确状态机；Demo 演示确认流 | PM |
 | R6 | Phase 2 范围蔓延 | 中 | 高 | 变更须书面确认；Phase 3 独立合同 | PM |
+| R7 | 客户将 Demo Mock 当作真实 AI | 中 | 高 | UI「Demo 预览」Tag + [demo-scope-brief.md](demo-scope-brief.md) 对外说明 | PM |
+| R8 | 文档超前于代码实现 | 高 | 中 | M3b 专档排期；彩排前对照 prod §10.1 逐条打勾 | PM |
+| R9 | 框架 UI 延期挤压 AI 调优 | 中 | 中 | 框架档/能力档分开验收；M3b 与 M2/M3 并行 | PM |
 
 ---
 

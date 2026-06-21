@@ -1,4 +1,4 @@
-# Core — Phase 0 / API / DB / document I/O
+# Core: Phase 0 / API / DB / document I/O
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
 sqlalchemy==2.0.31

@@ -2,9 +2,9 @@
 
 **产品名称：** ARIA（Automated RFQ Intelligence Assistant）  
 **中文名：** 智能报价辅助系统  
-**版本：** v1.0  
-**日期：** 2026-06-18  
-**状态：** 立项 / Demo 开发前  
+**版本：** v1.1  
+**日期：** 2026-06-20  
+**状态：** Demo 开发中（框架可认知 Demo）  
 **客户：** EDAG（爱达克）车辆工程服务  
 
 ---
@@ -87,13 +87,19 @@ ARIA 是**本地私有化部署**的 AI **辅助**报价系统：
 
 > 作为管理员，我希望在新项目完成后增量导入文档，使系统检索越来越准确。
 
-**US-05 QA 清单（Phase 2）**
+**US-05 澄清问题清单**
 
-> 作为报价工程师，我希望获得基于历史同类项目的待澄清技术问题清单，避免遗漏关键假设。
+> **Demo（框架）：** 在 `/qa` 页预览 Q_A 结构与编辑流程（Mock +「Demo 预览」）。  
+> **Phase 2（全量）：** 基于历史 Q_A 的 RAG + LLM 生成真实澄清清单并导出 Excel。
 
-**US-06 技术方案初稿（Phase 2）**
+> 作为报价工程师，我希望获得基于历史同类项目的待澄清技术问题清单（含优先级与历史依据），避免遗漏关键假设。
 
-> 作为报价工程师，我希望获得符合 EDAG 模板结构的技术方案 PPT 初稿，以便在此基础上修改完善。
+**US-06 技术方案草案**
+
+> **Demo（框架）：** 在 `/proposal` 页预览按 Function 拼接的方案模块卡片（Mock）。  
+> **Phase 2（全量）：** 真实原子化 RAG 拼接 + EDAG 模板 PPT 导出。
+
+> 作为报价工程师，我希望获得符合 EDAG 模板结构的技术方案草案（章节与四段式内容），以便在此基础上修改完善。
 
 ---
 
@@ -112,6 +118,8 @@ ARIA 是**本地私有化部署**的 AI **辅助**报价系统：
 | F1.5 | 输出技术维度对比表 | ✓ | ✓ | P0 |
 | F1.6 | 标注来源引用与置信度 | ✓ | ✓ | P0 |
 | F1.7 | 差异总结与报价参考概览 | ✓ | ✓ | P1 |
+| F1.8 | RFQ 任务历史列表与切换回看 | ✓（框架） | ✓ | P0 |
+| F1.9 | 相似项目展开（方案摘要 + 链至 QA） | ✓（框架） | ✓ | P1 |
 
 #### 3.1.2 技术维度对比表（输出示例）
 
@@ -132,27 +140,33 @@ ARIA 是**本地私有化部署**的 AI **辅助**报价系统：
 
 ---
 
-### 3.2 模块二：自动生成技术澄清 QA 清单（Phase 2）
+### 3.2 模块二：自动生成技术澄清 QA 清单
 
-| ID | 功能 | 说明 |
-|----|------|------|
-| F2.1 | 匹配同类历史项目技术疑问 | RAG 检索历史 Q_A |
-| F2.2 | 按 Area 分类输出 | Packaging/GD&T/BE/Data Management 等 |
-| F2.3 | 优先级排序（高/中/低） | 标注对估算的影响程度 |
-| F2.4 | 历史依据引用 | 如「项目 X 因边界条件未明确，返工 +30% 人天」 |
-| F2.5 | 导出 Q_A 模板 Excel | 列结构见 `docs/supplementary/template-mapping.md` |
+> **Demo（框架）：** `/qa` 页面 + Stub `generate-qa` + Mock 表格（标「Demo 预览」）。**Phase 2：** 真实 RAG + LLM，见 F2.1–F2.5。
+
+| ID | 功能 | Demo 框架 | Phase 2 全量 |
+|----|------|-----------|-------------|
+| F2.0 | QA 页面与五步工作流入口 | ✓ Mock | ✓ |
+| F2.1 | 匹配同类历史项目技术疑问 | Mock | RAG 检索历史 Q_A |
+| F2.2 | 按 Area 分类输出 | Mock | Packaging/GD&T/BE 等 |
+| F2.3 | 优先级排序（高/中/低） | Mock | 标注对估算的影响程度 |
+| F2.4 | 历史依据引用 | Mock | 如「项目 X 因边界条件未明确，返工 +30% 人天」 |
+| F2.5 | 导出 Q_A 模板 Excel | 占位/CSV | 列结构见 `docs/supplementary/template-mapping.md` |
 
 ---
 
-### 3.3 模块三：自动生成技术方案 PPT 初稿（Phase 2）
+### 3.3 模块三：技术方案草案与 PPT 初稿
 
-| ID | 功能 | 说明 |
-|----|------|------|
-| F3.1 | 基于 EDAG 53 页提案结构生成 .pptx | Part1 介绍 / Part2 定义 / Part3 方案 |
-| F3.2 | 按 RFQ 匹配模块增减章节 | Packaging、BIW、Chassis、EE、CAE 等 |
-| F3.3 | 四段式内容填充 | Assumptions / Inputs / Work Content / Deliverables |
-| F3.4 | 架构图 | 使用模板占位图，不做 AI 从零绘图 |
-| F3.5 | 填充项目假设、输入条件 | 结合 RFQ + 历史模板 |
+> **Demo（框架）：** `/proposal` 页面 + Stub `generate-proposal` + Mock 原子模块卡片。**Phase 2：** 真实原子化 RAG + PPT 导出，见 F3.1–F3.5。
+
+| ID | 功能 | Demo 框架 | Phase 2 全量 |
+|----|------|-----------|-------------|
+| F3.0 | 方案草案页（按 Function 模块卡片 + 四段式预览） | ✓ Mock | ✓ 真实 RAG 拼接 |
+| F3.1 | 基于 EDAG 53 页提案结构生成 .pptx | — | Part1/2/3 |
+| F3.2 | 按 RFQ 匹配模块增减章节 | Mock 卡片 | Packaging、BIW、Chassis 等 |
+| F3.3 | 四段式内容填充 | Mock | Assumptions / Inputs / Work / Deliverables |
+| F3.4 | 架构图 | — | 模板占位图 |
+| F3.5 | 填充项目假设、输入条件 | Mock | 结合 RFQ + 历史模板 |
 
 ---
 
@@ -188,6 +202,7 @@ ARIA 是**本地私有化部署**的 AI **辅助**报价系统：
 | F4.5 | Manpower 汇总表自动计算 | ✓ | ✓ |
 | F4.6 | 下载 .xlsx | ✓ | ✓ |
 | F4.7 | 明细仅内部使用，对外仅总价 | 说明性 | 说明性 |
+| F4.8 | 人天构成明细预览（交付物→贡献人天） | ✓ Mock 表 | ✓ 真实基线 |
 
 **Tariff Level：** STE / TE / H / M / L / E / H&SW / M&SW / TE&SW 等。
 
@@ -203,6 +218,8 @@ ARIA 是**本地私有化部署**的 AI **辅助**报价系统：
 | F5.4 | 手动检索测试 | ✓ | ✓ |
 | F5.5 | Re-index 重建向量索引 | 脚本 | UI + 脚本 |
 | F5.6 | 反馈「引用不准确」 | — | ✓ |
+| F5.7 | 历史方案原子化入库（Function × 子模块） | — | ✓ |
+| F5.8 | 原子模块目录浏览 | Tab 占位 | ✓ |
 
 **支持文档类型：**
 
@@ -262,15 +279,33 @@ AI 输出均为**草稿**，工程师必须二次校验后方可定稿导出。
 
 ### 5.1 任务状态机
 
+系统使用**两个独立状态字段**，不可混用：
+
+**① 后台处理状态 `processing_status`（机器流水线）**
+
 ```
-parsing → draft → in_review → approved → exported
+pending → parsing → retrieving → generating → completed / failed
+```
+
+| 状态 | 说明 |
+|------|------|
+| `pending` | 已创建，等待后台任务 |
+| `parsing` | 解析 docx + LLM 提取（最耗时） |
+| `retrieving` | RAG 检索相似项目 |
+| `generating` | 生成技术维度对比矩阵 |
+| `completed` / `failed` | 分析结束 |
+
+**② 人工审阅状态 `review_status`（API 字段名 `status`）**
+
+```
+draft → in_review → approved → exported
 ```
 
 | 状态 | 说明 |
 |------|------|
 | `draft` | AI 初稿，可编辑，带来源引用 |
-| `in_review` | 工程师审阅中 |
-| `approved` | 人工确认定稿 |
+| `in_review` | 工程师已确认进入审阅 |
+| `approved` | 人工确认定稿（如已生成 Excel） |
 | `exported` | 已导出文件，记录版本 |
 
 ### 5.2 能力矩阵
@@ -279,15 +314,40 @@ parsing → draft → in_review → approved → exported
 |------|------|---------|
 | 来源引用（source_project + similarity_score） | ✓ | ✓ |
 | 置信度（高/中/低） | ✓ | ✓ |
-| 在线编辑 AI 结果 | 对比表 | 全模块 |
+| 在线编辑 AI 结果 | 对比表 + 方案/QA Mock 页 | 全模块 |
 | 修改差异记录（audit trail） | — | ✓ |
 | 导出前确认弹窗 | ✓ | ✓ |
+| 五步工作流 UI（TaskContextBar + Steps） | ✓ 框架 | ✓ |
+| Stub 方案/QA 生成 | ✓ Mock（标 Demo 预览） | 真实 RAG+LLM |
 
 ### 5.3 置信度规则
 
 - **高：** 相似项目 ≥ 3 且最高相似度 ≥ 85%
 - **中：** 1–2 个相似项目或相似度 70–85%
 - **低：** 无相似项目或相似度 < 70%，UI 标红提醒重点校验
+
+### 5.4 五步进度与 `artifacts_status`（Demo 框架）
+
+`GET /rfq/tasks/{id}` 返回计算字段 `artifacts_status`：
+
+| 字段 | 为 true 的条件 |
+|------|----------------|
+| `rfq_parsed` | `processing_status=completed` 且 `rfq_modules` 非空 |
+| `comparison_ready` | `comparison_table` 非空 |
+| `proposal_ready` | `solution_draft` 非空（Stub 或真实） |
+| `qa_ready` | `qa_items` 非空（Stub 或真实） |
+| `excel_ready` | `excel_path` 存在且文件可读 |
+
+**页面解锁规则（Demo）：**
+
+| 页面 | 进入条件 | 无 task / 未解析时 |
+|------|---------|-------------------|
+| `/rfq` | 无 | 正常上传 |
+| `/proposal` | 建议 `rfq_parsed` | 允许进入，展示空态 + 引导回 RFQ；**允许** Stub 生成（不强制先完成对标） |
+| `/qa` | 建议 `rfq_parsed` | 同上 |
+| `/quote` | 建议 `comparison_ready` | 允许加载 task；Excel 生成仍须 review 确认 |
+
+> Stub API（`generate-proposal` / `generate-qa`）**不依赖** `MOCK_LLM` / `MOCK_RAG`，始终返回固定 Mock 结构，便于 UI 联调。
 
 ---
 
@@ -323,16 +383,61 @@ parsing → draft → in_review → approved → exported
 - **Prompt 版本化：** `prompts/v1/`、`prompts/v2/`，变更须回归测试
 - **模型可配置：** `.env` 中 `OLLAMA_MODEL` / `EMBEDDING_MODEL` 独立升级
 
-### 7.2 前端路由预留
+### 7.2 前端路由
 
-| 路由 | 阶段 |
+| 路由 | 阶段 | 说明 |
+|------|------|------|
+| `/rfq` | Demo | RFQ 上传、解析、历史对标（输出 3） |
+| `/proposal` | Demo 框架 | 技术方案草案（输出 2）；Demo 为 Mock + Stub API |
+| `/qa` | Demo 框架 | 澄清问题清单（输出 1）；Demo 为 Mock + Stub API |
+| `/quote` | Demo | 人力报价 Excel（输出 4）；构成明细 Demo 为 Mock |
+| `/knowledge` | Demo | 知识库统计与检索；原子模块 Tab 占位 |
+| `/finance` | Phase 3 | 菜单占位 |
+
+**跨页公共组件（Demo）：** `TaskContextBar`（当前 task 切换）+ `WorkflowSteps`（五步进度：RFQ → 对标 → 方案 → QA → 人天）。
+
+### 7.3 实现目录与依赖（与代码对齐）
+
+**后端目录（摘要）：**
+
+```
+backend/
+├── requirements.txt          # FastAPI、SQLAlchemy、openpyxl、pytest 等
+├── requirements-ai.txt       # LangChain、ChromaDB（RAG 阶段）
+├── prompts/v1/
+│   ├── rfq_parse.txt         # RFQ 解析（含 JSON Schema + Few-shot）
+│   ├── qa_generate.txt       # Phase 2 QA 清单
+│   └── excel_manpower.txt    # Phase 2 可选：LLM 人天建议
+└── app/
+    ├── utils/json_utils.py   # LLM 输出 JSON 清洗与解析
+    ├── services/
+    │   ├── llm_service.py    # Ollama 调用（120s 超时，最多 3 次重试）
+    │   ├── mock_data.py      # MOCK_RAG_HITS、MOCK_MANPOWER_BASELINES 等
+    │   └── generators/
+    │       ├── base.py       # BaseGenerator 抽象类
+    │       ├── registry.py   # GeneratorRegistry 插件注册表
+    │       ├── excel_manpower.py
+    │       ├── proposal_stub.py   # Demo：Mock 方案草案
+    │       └── qa_stub.py         # Demo：Mock QA 清单
+    └── data/templates/       # quote_template.xlsx 等
+```
+
+**GeneratorRegistry：** 路由层不直接 import 各 Generator；通过 `GeneratorRegistry.create("excel_manpower")` 按任务类型路由（Excel / 未来 PPT、QA）。
+
+**Mock 开关（`.env`）：**
+
+| 变量 | 说明 |
 |------|------|
-| `/rfq` | Demo |
-| `/quote` | Demo |
-| `/knowledge` | Demo |
-| `/qa` | Phase 2 |
-| `/proposal` | Phase 2 |
-| `/finance` | Phase 3（菜单占位） |
+| `MOCK_LLM=true` | RFQ 解析走规则提取，不调用 Ollama |
+| `MOCK_RAG=true` | 相似项目返回 `mock_data.py` 固定结果 |
+| `PROMPT_VERSION=v1` | 使用 `prompts/v1/` 下 Prompt 文件 |
+
+**依赖分工：**
+
+| 文件 | 内容 |
+|------|------|
+| `requirements.txt` | Web、DB、文档 I/O、测试（pytest） |
+| `requirements-ai.txt` | LangChain、ChromaDB |
 
 ---
 
@@ -348,6 +453,8 @@ parsing → draft → in_review → approved → exported
 
 ### 8.2 Demo 验收指标
 
+#### 8.2.1 能力档（真实 AI）
+
 | 指标 | 目标 |
 |------|------|
 | Function 识别准确率 | ≥ 70%（抽样 3 份 RFQ） |
@@ -356,19 +463,52 @@ parsing → draft → in_review → approved → exported
 | 端到端 RFQ→对比表 P95 | < 5 分钟 |
 | Excel 生成 | < 60 秒 |
 
+#### 8.2.2 框架档（五步可认知）
+
+| 指标 | 目标 |
+|------|------|
+| 无培训走通五步 | ≥ 3/5 名试点工程师可在 15 分钟内完成上传→方案→QA→报价导航 |
+| 任务上下文保持 | 切换 `/proposal`、`/qa`、`/quote` 后 `task_id` 不丢失（IT-F02） |
+| Stub 生成成功率 | `generate-proposal` / `generate-qa` 100% 返回合法 JSON |
+| Demo 预览标识 | Mock 区域 100% 可见「Demo 预览」Tag |
+| 详细用例 | 见 [test-plan.md §6.1](docs/supplementary/test-plan.md) |
+
 ---
 
 ## 9. 分阶段交付范围
 
-### Phase 1 — Demo MVP（4–6 周）
+### Phase 1 — 框架可认知 Demo（4–6 周）
 
-**包含：** 模块 1 + 模块 4（PM/Chassis）、知识库管理、人机校验最小闭环、docker-compose 交付
+Demo 采用 **双档验收**：**框架档**（完整五步 UI + 任务主线）+ **能力档**（RFQ/对标/Excel 真实 AI）。
 
-**不包含：** QA、PPT、全 Function Sheet、财务、PDF RFQ、完整 audit trail
+**框架档 — 包含：**
+
+- 五步导航：`/rfq` → `/proposal` → `/qa` → `/quote` + `/knowledge`
+- `TaskContextBar` + `WorkflowSteps`；`task_id` 跨页共享
+- RFQ 任务历史列表与切换回看（F1.8）
+- Stub API：`generate-proposal`、`generate-qa`（Mock 数据，契约与 Phase 2 一致）
+- 方案草案页、QA 页 Mock 展示（标「Demo 预览」）
+- 相似项目 Expand 交互（F1.9）；人天构成明细 Mock 表（F4.8）
+- 知识库统计 + 原子模块目录 Tab 占位（F5.8）
+
+**能力档 — 包含（真实 AI / 业务逻辑）：**
+
+- RFQ 解析 + 历史对标（模块 1 核心）
+- Excel 人力报价 PM + Chassis（模块 4 片段）
+- 人机校验：对比表编辑 + 确认
+- docker-compose 交付、`run_tests.sh` 全绿
+
+**Demo 框架不包含（Phase 2 替换 Mock）：**
+
+- 历史方案真实原子化 RAG、QA 真实 LLM 质量、PPT 导出
+- 全 9 Function Sheet、交付物级真实人天基线
+- PDF RFQ、财务、完整 audit trail
+
+**对客户演示话术：** RFQ/对标/Excel 为真实能力；方案与 QA 为界面与数据结构预览，正式版接入历史原子库后替换 Mock。
 
 ### Phase 2 — 正式版（10–12 周）
 
-**包含：** 模块 2/3/4 全量、人机协同全闭环、知识库飞轮、PDF RFQ、生产部署、培训
+**包含：** 模块 2/3/4 **全量能力**（替换 Stub）、知识库原子化（F5.7）、人机协同全闭环、PDF RFQ、生产部署、培训
 
 ### Phase 3 — 财务 AI（远期）
 
@@ -381,14 +521,34 @@ parsing → draft → in_review → approved → exported
 
 ### 10.1 Demo 验收清单
 
+#### 10.1.1 框架档（五步工作流可认知）
+
+- [ ] 侧栏五步导航与 `TaskContextBar` 在四页一致展示
+- [ ] 选定 task 后切换 `/proposal`、`/qa`、`/quote` 不丢失上下文
+- [ ] `GET /rfq/tasks` 列表可选历史任务并加载完整结果
+- [ ] `POST .../generate-proposal`、`POST .../generate-qa` 返回 Mock 结构化数据
+- [ ] Mock 区域有「Demo 预览」标识；`artifacts_status` 驱动步骤状态
+
+#### 10.1.2 能力档（核心 AI 链路）
+
 - [ ] 上传 .docx RFQ，返回 Function 模块列表 + 交付物
 - [ ] 展示 Top 3–5 相似项目技术维度对比表，含来源与置信度
+- [ ] 相似项目可展开查看摘要（Mock 或 RAG 片段）
 - [ ] 生成 Excel 初稿（Project info + Manpower + PM + Chassis）
-- [ ] 导出前确认弹窗，工程师可编辑对比表
-- [ ] 知识库增量导入与统计展示
+- [ ] 导出前确认，工程师可编辑对比表
+- [ ] 知识库统计展示；原子模块 Tab 占位可见
 - [ ] `docker-compose up --build` 无报错启动
 - [ ] `./run_tests.sh` 全绿
 - [ ] 第三方按 README 可独立启动
+
+#### 10.1.3 验收签字（建议）
+
+| 档位 | 验收内容 | 建议签字方 |
+|------|---------|-----------|
+| 框架档 §10.1.1 | 五步 UI、Stub、任务主线 | 客户业务负责人 + PM |
+| 能力档 §10.1.2 | RFQ/对标/Excel 真实 AI | 客户报价工程师代表 + 开发负责人 |
+
+两档**可分开签字**；框架档未通过不阻塞能力档调试，但 **M4 Demo 对外演示须两档均通过**。
 
 ### 10.2 Phase 2 附加验收
 
@@ -452,6 +612,8 @@ parsing → draft → in_review → approved → exported
 
 ## 13. 术语表
 
+### 13.1 通用术语
+
 | 术语 | 说明 |
 |------|------|
 | RFQ | Request for Quotation，客户询价需求文件 |
@@ -461,6 +623,23 @@ parsing → draft → in_review → approved → exported
 | SOW | Scope of Work，工作范围说明书 |
 | RASI | Responsible/Approval/Support/Information 职责矩阵 |
 | Milestone | 项目节点 P1–P7、SOP |
+| 框架可认知 Demo | 五步 UI + Stub 完整，方案/QA 为 Mock 预览 |
+| 能力档 | RFQ 解析、历史对标、Excel 生成等真实 AI 链路 |
+
+### 13.2 客户需求 ↔ ARIA 模块映射
+
+客户《AI智能报价系统需求说明书》与 ARIA `prod.md` 章节编号不同，对外讲解建议用 **客户输出编号**：
+
+| 客户输出 / 功能 | 客户文档章节 | ARIA 模块 | UI 入口 | Demo 深度 |
+|----------------|-------------|-----------|---------|-----------|
+| 输出 3：历史技术对标 | 功能二 §2.2.2 | §3.1 模块一 | `/rfq`（对比矩阵） | **真实** |
+| 输出 2：技术方案草案 | 功能二 §2.2.1 | §3.3 模块三 | `/proposal` | Mock + Stub |
+| 输出 1：待澄清 QA | 功能一 §2.1 | §3.2 模块二 | `/qa` | Mock + Stub |
+| 输出 4：人天预测 | 功能三 §2.3 | §3.4 模块四 | `/quote` | Excel **真实**；构成明细 Mock |
+| （输入）RFQ 解析 | — | §3.1 模块一 | `/rfq`（Function/交付物） | **真实** |
+| 知识库 / 原子模块 | 隐含 | §3.5 | `/knowledge` | 统计真实；原子目录占位 |
+
+**说明：** 客户文档「7 Function×3 技能等级」与 EDAG Excel 模板（9 Function、多 Tariff Level）不一致时，**以 Excel 模板为准**（见 §3.4）。
 
 ---
 
@@ -469,6 +648,8 @@ parsing → draft → in_review → approved → exported
 **关联文档：**
 
 - [开发上下文](dev-context.md) — 工程师/Cursor 编码规范（技术栈、API、模型、目录）
+- [Demo 范围一页纸](docs/demo-scope-brief.md) — 框架档 vs 能力档（对客户/业务）
+- [用户手册](docs/user-manual.md)
 - [项目建议书](docs/proposal.md)
 - [实施计划](docs/implementation-plan.md)
 - [部署方案](docs/deployment-guide.md)
