@@ -222,12 +222,18 @@ export default function RfqPage() {
   const allDeliverables = modules.flatMap((m) => (m.deliverables as string[]) || []);
   const confidence = (task?.comparison_table as { overall_confidence?: string })?.overall_confidence;
   const isLowConfidence = confidence === "低";
+  const functionCoverage = (
+    task?.comparison_table as {
+      function_coverage?: { uncovered?: string[]; in_scope?: string[] };
+    }
+  )?.function_coverage;
+  const uncoveredFunctions = functionCoverage?.uncovered || [];
 
   return (
     <div>
       <Title level={3}>RFQ 分析</Title>
       <Paragraph type="secondary">
-        上传客户 RFQ 文档（.docx），系统将解析 Function 模块、里程碑与交付物，并生成技术维度对比矩阵。
+        上传客户 RFQ 文档（.docx），系统将解析工程领域（Function）模块、里程碑与交付物，并生成技术维度对比矩阵。
       </Paragraph>
 
       {recentTasks.length > 0 && (
@@ -347,7 +353,7 @@ export default function RfqPage() {
               pagination={false}
               dataSource={modules}
               columns={[
-                { title: "Function", dataIndex: "function" },
+                { title: "工程领域", dataIndex: "function" },
                 { title: "模块", dataIndex: "module_name" },
                 { title: "复杂度", dataIndex: "estimated_complexity" },
                 {
@@ -419,6 +425,22 @@ export default function RfqPage() {
               />
             ) : (
               <Alert message="暂无对比矩阵数据" type="warning" />
+            )}
+
+            {uncoveredFunctions.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginTop: 16 }}
+                message="部分工程领域缺少历史参考"
+                description={
+                  <>
+                    以下工程领域在历史资料检索中未找到足够相似项目：
+                    <Text strong> {uncoveredFunctions.join("、")}</Text>
+                    。请人工补充参考依据，或在「历史资料库」中补充该类项目资料后再确认对标结论。
+                  </>
+                }
+              />
             )}
 
             <Space style={{ marginTop: 16 }}>
@@ -499,8 +521,20 @@ export default function RfqPage() {
 
       {!task && !uploading && !restoring && (
         <Alert
-          message="提示"
-          description="可使用 samples/rfq/mock_chassis_rfq.docx 进行 Demo 测试。"
+          message="演示样例 RFQ"
+          description={
+            <>
+              可从项目 <Text code>samples/rfq/</Text> 目录取用：
+              <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                <li>
+                  <Text code>mock_chassis_rfq.docx</Text> — 基础对标（PM + Chassis）
+                </li>
+                <li>
+                  <Text code>demo_multifunction_rfq.docx</Text> — 含 BIW / EE，可触发「工程领域缺少历史参考」提示
+                </li>
+              </ul>
+            </>
+          }
           type="info"
           showIcon
         />

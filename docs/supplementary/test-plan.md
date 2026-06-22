@@ -48,7 +48,8 @@ aria/
 | 模块 | 测试文件 | 重点场景 |
 |------|---------|---------|
 | RFQ 解析 | test_rfq_parser.py | 正常 docx、空文档、文件不存在、非法 JSON 降级 |
-| RAG 服务 | test_rag_service.py | 检索排序、空库、Top-K 限制 |
+| RAG 服务 | test_rag_service.py | 检索排序、空库、Top-K 限制、comparison 从 hits 派生 |
+| RAG 契约 | test_rag_service.py, test_knowledge_api.py | Mock/Real 同一 RAGHit schema；`similarity_score` 字段名 |
 | Excel 生成 | test_excel_generator.py | 模板复制、PM/Chassis 填充、空模块 |
 | 置信度 | test_confidence.py | 高/中/低边界值 |
 | Schema | test_schemas.py | 合法/非法参数、边界 top_k |
@@ -86,8 +87,11 @@ def test_generate_quote_empty_modules():
 | POST /rfq/upload | docx 上传成功 | 非 docx 400、无文件 422 |
 | GET /rfq/tasks/{id} | 存在任务 200 | 不存在 404 |
 | POST /generate-excel | 正常生成 | task 不存在 404 |
-| POST /knowledge/search | 有结果 | 空 query 422 |
-| GET /knowledge/stats | 返回统计 | — |
+| POST /knowledge/search | 有结果、RAGHit schema | 空 query 422 |
+| GET /knowledge/stats | 返回统计（含 function_coverage P0） | — |
+| POST /knowledge/import | 触发导入 200 | — |
+
+**RAG Mock/Real parity：** 已实现（`API_tests/test_knowledge_api.py`）。
 
 ### 4.2 Mock 策略
 

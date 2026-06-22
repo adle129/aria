@@ -63,6 +63,7 @@ def test_upload_and_poll_until_completed(client, sample_rfq_bytes):
     assert task["rfq_modules"]["platform_type"] == "MEB"
     assert task["comparison_table"]["overall_confidence"] in {"高", "中", "低"}
     assert "matrix_rows" in task["comparison_table"]
+    assert "function_coverage" in task["comparison_table"]
     assert task["rfq_modules"].get("milestones")
 
 
@@ -214,3 +215,25 @@ def test_manpower_breakdown_preview(client, sample_rfq_bytes):
     data = resp.json()["data"]
     assert data["demo_preview"] is True
     assert len(data["items"]) >= 1
+
+
+def test_demo_multifunction_rfq_uncovered_functions(client, demo_multifunction_rfq_bytes):
+    upload = client.post(
+        "/api/v1/rfq/upload",
+        files={
+            "file": (
+                "demo_multifunction_rfq.docx",
+                demo_multifunction_rfq_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+    task_id = upload.json()["data"]["task_id"]
+    _wait_task_completed(client, task_id)
+
+    task = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
+    coverage = task["comparison_table"]["function_coverage"]
+    assert "BIW" in task["rfq_modules"]["functions_in_scope"]
+    assert "EE" in task["rfq_modules"]["functions_in_scope"]
+    assert "BIW" in coverage["uncovered"]
+    assert "EE" in coverage["uncovered"]

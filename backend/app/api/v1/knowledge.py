@@ -19,7 +19,11 @@ def knowledge_stats(rag: RAGService = Depends(get_rag_service)):
 
 @router.post("/search")
 def knowledge_search(body: KnowledgeSearchRequest, rag: RAGService = Depends(get_rag_service)):
-    results = rag.search_similar_projects(body.query, top_k=body.top_k)
+    results = rag.search_similar_projects(
+        body.query,
+        top_k=body.top_k,
+        function_filter=body.function_filter,
+    )
     return {"code": 200, "data": {"results": results}}
 
 

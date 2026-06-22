@@ -2,17 +2,28 @@
 
 本地私有化 AI 报价辅助工具，面向 EDAG 车辆工程服务场景。
 
-**当前阶段：** 框架可认知 Demo（五步 UI + RFQ/对标/Excel 真实；方案/QA Stub）
+**当前阶段：** 框架可认知 Demo（五步 UI + RFQ/对标/Excel；远程体验环境可用 Mock 模式）
 
 ### 实现进度 vs 验收（prod §10.1）
 
 | 类别 | 状态 |
 |------|------|
-| 能力档：RFQ 解析、对标表、Excel PM+Chassis | 已实现 |
-| 能力档：相似项目 Expand、任务历史列表 | 进行中 |
-| 框架档：五步导航、TaskContextBar、/proposal、/qa、Stub API | 待实现 |
+| 框架档：五步导航、TaskContextBar、/proposal、/qa、Stub API | ✅ 已实现 |
+| 能力档：RFQ 解析、对标表、Excel PM+Chassis | ✅ 已实现（本地可开真实 LLM） |
+| 能力档：相似项目 Expand、任务历史、历史资料库 P0 | ✅ 已实现 |
+| 远程 UI 体验（阿里云 4C8G Mock） | ✅ 见 [aliyun-demo-deploy.md](docs/aliyun-demo-deploy.md) |
 
 详见 [implementation-plan.md §3.1.1](docs/implementation-plan.md)。对外 Demo 范围见 [demo-scope-brief.md](docs/demo-scope-brief.md)。
+
+### 阿里云远程体验（仅 UI/流程，非真实 LLM）
+
+```bash
+# ECS 上
+cp .env.aliyun-demo.example .env && nano .env
+bash scripts/deploy-aliyun-demo.sh
+```
+
+Windows 推送：`.\scripts\push-and-deploy-aliyun.ps1 -Host <公网IP> -User root -KeyPath <密钥>`
 
 ## 快速启动
 

@@ -104,10 +104,11 @@ gantt
    3.4 RFQ API
 4. 后端 — RAG 模块
    4.1 ingest_documents.py
-   4.2 incremental_update.py
-   4.3 向量检索 + 相似度排序
-   4.4 技术维度对比表生成
+   4.2 incremental_update.py（Phase 2）
+   4.3 向量检索 + 相似度排序（单一 RAGService.search 契约）
+   4.4 技术维度对比表生成（从 hits 派生）
    4.5 置信度计算
+   4.6 **P0 待办：** stats Mock 增强、检索 UI、import 按钮、RFQ Function Alert（见 rag-design.md §4）
 5. 后端 — Excel 模块
    5.1 模板复制引擎
    5.2 Project information 填充
@@ -129,7 +130,7 @@ gantt
    8.3 技术方案页 /proposal（Mock 模块卡片 + Stub 生成）
    8.4 澄清问题页 /qa（Q_A 表格 + Stub 生成）
    8.5 报价生成页 /quote（Excel + 人天明细 Mock）
-   8.6 知识库页（统计 + 原子模块 Tab 占位）
+   8.6 知识库页（统计 + 检索实验室 + 触发导入 + 原子模块 Tab 占位）
 9. 测试
    9.1 单元测试
    9.2 API 测试
@@ -143,11 +144,13 @@ gantt
 
 | prod §10.1 条目 | 文档状态 | 代码状态（截至 2026-06-20） |
 |-----------------|---------|---------------------------|
-| 10.1.1 五步导航 + TaskContextBar | ✓ | 待实现 |
-| 10.1.1 Stub generate-proposal/qa | ✓ api-design | 待实现 |
-| 10.1.1 任务历史列表 | ✓ | 部分（sessionStorage） |
+| 10.1.1 五步导航 + TaskContextBar | ✓ | 已实现 |
+| 10.1.1 Stub generate-proposal/qa | ✓ api-design | 已实现 |
+| 10.1.1 任务历史列表 | ✓ | 已实现 |
 | 10.1.2 RFQ + 对标 + Excel | ✓ | 已实现 |
-| 10.1.2 相似项目 Expand | ✓ | 待实现 |
+| 10.1.2 相似项目 Expand | ✓ | 已实现 |
+| 10.1.2 知识库 stats + 检索 + import | ✓ rag-design | **已实现** |
+| 10.1.2 RFQ Function 缺口 Alert | ✓ rag-design F5.9 | **已实现** |
 
 > 彩排前 PM 按本表更新「代码状态」列；框架档不得仅文档验收。
 
@@ -159,7 +162,7 @@ gantt
 12. Excel 全 9 Function Sheet
 13. PDF RFQ 解析
 14. 人机协同全闭环（状态机 + audit trail + 在线编辑）
-15. 知识库飞轮（feedback 表 + Dashboard + Re-index UI）
+15. 知识库飞轮（Engagement + manifest + feedback 表 + Re-index UI + upload）
 16. 生产部署（prod compose + 运维脚本）
 17. 运维文档 + 用户手册 + 培训
 ```

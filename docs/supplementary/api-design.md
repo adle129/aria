@@ -186,6 +186,8 @@ GET /api/v1/rfq/tasks/{task_id}/download/{type}
 
 ### 2.3 知识库模块
 
+> **RAG 架构与分阶段计划：** [rag-design.md](rag-design.md)
+
 #### 统计
 
 ```
@@ -201,10 +203,23 @@ GET /api/v1/knowledge/stats
     "total_documents": 25,
     "total_chunks": 1250,
     "total_projects": 8,
-    "last_import_at": "2026-06-15T08:00:00Z"
+    "last_import_at": "2026-06-15T08:00:00Z",
+    "function_coverage": {
+      "Chassis": 0.92,
+      "PM": 0.88,
+      "BIW": 0.45
+    }
   }
 }
 ```
+
+| 字段 | Demo | Phase 2 | 说明 |
+|------|------|---------|------|
+| `total_documents` | ✓ | ✓ | 已索引文档数 |
+| `total_chunks` | ✓ | ✓ | 向量 chunk 数 |
+| `total_projects` | ✓ | ✓ | 项目/Engagement 数 |
+| `last_import_at` | P0 Mock | ✓ | 最近导入时间 ISO8601 |
+| `function_coverage` | P0 Mock | ✓ | Function → 覆盖率 0–1 |
 
 #### 搜索
 
@@ -216,8 +231,9 @@ POST /api/v1/knowledge/search
 |------|------|------|------|
 | query | string | 是 | 2–500 字符 |
 | top_k | int | 否 | 默认 5，最大 20 |
+| function_filter | string[] | 否 | P1；按 `metadata.functions` 过滤 |
 
-**响应：**
+**响应（RAGHit 契约 — RFQ 内部分析共用）：**
 
 ```json
 {
@@ -226,7 +242,16 @@ POST /api/v1/knowledge/search
     "results": [
       {
         "content": "底盘集成验证内容...",
-        "metadata": {"project_name": "2023_chassis", "doc_type": "rfq"},
+        "metadata": {
+          "project_name": "2023_chassis",
+          "source_doc": "knowledge_base/2023_chassis/rfq.docx",
+          "doc_type": "rfq",
+          "functions": ["Chassis"],
+          "year": 2023,
+          "customer": "OEM-A",
+          "engagement_id": null,
+          "chunk_chapter": "3.2 Scope"
+        },
         "similarity_score": 0.85
       }
     ]
@@ -234,11 +259,20 @@ POST /api/v1/knowledge/search
 }
 ```
 
-#### 触发增量导入
+**契约规则：**
+
+- 字段名统一 `similarity_score`（禁止 `similarity`）
+- `MOCK_RAG=true` 与 Chroma 真实检索返回**同一 schema**；Real 允许空 `results`
+- 展示用人天等字段来自 `comparison_table.projects`，不在 hit 顶层 duplicate
+- 实现：`RAGService.search_similar_projects()` — RFQ 与 knowledge 共用
+
+#### 触发导入
 
 ```
 POST /api/v1/knowledge/import
 ```
+
+扫描 `knowledge_base/` 并 upsert 至 Chroma（Demo：同步；无 DB 轮询）。
 
 **响应：**
 
@@ -252,6 +286,41 @@ POST /api/v1/knowledge/import
   }
 }
 ```
+
+#### 2.3.4 文档列表（P1，Demo 可选）
+
+```
+GET /api/v1/knowledge/documents
+```
+
+只读；扫描 filesystem 或返回 Mock 三态（indexed / processing / failed）各 1 条。**Demo 不建 `knowledge_documents` 表。**
+
+#### 2.3.5 Phase 2 — Engagement 与文档（设计已定，未实现）
+
+**Engagement 项目包** — 关联 RFQ / QA / 报价成套资料。
+
+```
+POST /api/v1/knowledge/engagements/import-manifest
+```
+
+请求体：manifest 路径或 JSON（见 rag-design.md §5.2）。
+
+**文档 upload（Phase 2，晚于 manifest）：**
+
+```
+POST /api/v1/knowledge/documents/upload
+POST /api/v1/knowledge/documents/upload/preview   # LLM 预识别，非 Demo
+DELETE /api/v1/knowledge/documents/{id}
+POST /api/v1/knowledge/reindex                    # Phase 2 UI；Demo = 脚本
+```
+
+**RFQTask 归档：**
+
+```
+POST /api/v1/rfq/tasks/{task_id}/archive-to-knowledge
+```
+
+`review_status=exported` 后，复制交付物并写入 engagement。
 
 ---
 

@@ -47,8 +47,9 @@ Mock 区域界面标 **「Demo 预览」**，请勿当作最终 AI 质量或对�
 | 输出 4：人天预测（Excel） | ✓ 真实（PM+Chassis；构成明细为预览表） |
 | 输出 2：技术方案草案 | ○ 界面 + 数据结构预览 |
 | 输出 1：待澄清 QA | ○ 界面 + 数据结构预览 |
+| 知识库（管理员） | ○ 统计 + 检索 + 导入（非完整 DMS） |
 
-完整映射见 [prod.md §13.2](../prod.md)。
+完整映射见 [prod.md §13.2](../prod.md)。RAG 分阶段计划见 [rag-design.md](supplementary/rag-design.md)。
 
 ---
 
@@ -59,6 +60,7 @@ Mock 区域界面标 **「Demo 预览」**，请勿当作最终 AI 质量或对�
 - PPT 方案导出  
 - 全部 9 个 Function Sheet、交付物级 **真实** 人天基线  
 - PDF/Excel 格式 RFQ 上传  
+- 知识库 upload 弹窗、文档 DB、Re-index UI、Engagement 项目包（Phase 2，见 rag-design.md）
 
 以上在 **Phase 2 正式版** 交付，**沿用同一套 UI 与 API 形状**，替换 Mock 为真实 AI。
 

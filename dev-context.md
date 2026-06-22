@@ -1,7 +1,7 @@
 # ARIA — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.3  
+**版本：** v1.4  
 **日期：** 2026-06-20  
 **受众：** 工程师、Cursor Agent  
 **产品基线：** [prod.md](prod.md)
@@ -20,6 +20,7 @@
 | [.cursor/rules/](.cursor/rules/) | **Cursor Agent 规则**（开发前读文档、测试门禁、提交规范） |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | 里程碑与日级开发任务 |
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 详细契约 |
+| [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md) | RAG 架构、统一检索契约、Demo P0 / Phase 2 计划 |
 | [docs/supplementary/template-mapping.md](docs/supplementary/template-mapping.md) | EDAG Excel/QA/PPT 模板映射 |
 
 ---
@@ -245,9 +246,29 @@ generator.generate(context, template_path, output_path)
 
 ### RAGService（`services/rag_service.py`）
 
+> **设计详述：** [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md)
+
+**架构铁律：** 一条检索管道，多处消费 — RFQ 对标、`POST /knowledge/search`、Phase 2 QA/方案生成均调用同一 `search()`（或 `search_similar_projects()`），禁止为 `/knowledge` 与 `/rfq` 维护两套 Mock。
+
 - `ingest_document(file_path, metadata)`
-- `search_similar_projects(query, top_k) → list`
-- `build_comparison_table(rfq_data, similar_docs) → dict`
+- `search_similar_projects(query, top_k) → list[RAGHit]`
+- `build_comparison_table(rfq_data, similar_docs) → dict` — 从 hits **派生** projects，勿 duplicate 人天等展示字段
+- `calculate_overall_confidence(hits) → float`
+- `get_stats() → dict`
+
+**Mock 规则（`mock_data.py`）：**
+
+| 常量 | 规则 |
+|------|------|
+| `MOCK_RAG_HITS` | **唯一** chunk 级 Mock；扩展 metadata 时在此维护 |
+| `MOCK_COMPARISON_TABLE` | 与 hits 字段对齐或由 hits 派生；**禁止**第三套嵌套 Mock |
+| `MOCK_KNOWLEDGE_STATS` | P0：含 `function_coverage`、`last_import_at` |
+
+切换 `MOCK_RAG` 时前端零改动；API 测试断言 Mock/Real 同一 JSON schema。
+
+**Demo P0：** stats 增强、检索 UI、import 按钮、RFQ Function Alert — **已实现**（见 implementation-plan §3.1.1）。
+
+**Phase 2 优先于 upload UI：** Engagement + manifest.json + RFQTask 归档 → 再实现文档 upload 弹窗。
 
 ### ExcelManpowerGenerator（`services/generators/excel_manpower.py`）
 
@@ -267,11 +288,11 @@ generator.generate(context, template_path, output_path)
 
 | 路由 | 组件要点 |
 |------|---------|
-| `/rfq` | 上传、最近分析列表、解析结果、对比矩阵、相似项目 Expand |
+| `/rfq` | 上传、最近分析、对比矩阵、相似项目 Expand、**Function 缺口 Alert**（P0） |
 | `/proposal` | 按 Function 的模块卡片、Stub 生成、`solution_draft` |
 | `/qa` | Q_A 列结构表格、Stub 生成、可编辑、`qa_items` |
 | `/quote` | Excel 生成下载、人天构成明细 Mock 表 |
-| `/knowledge` | 统计、检索测试、原子模块 Tab 占位 |
+| `/knowledge` | 统计、检索实验室（可编辑 query）、触发导入、原子模块 Tab 占位 |
 
 **公共组件：** `TaskContextBar`（`LAST_TASK_ID_KEY` + 任务下拉）、`WorkflowSteps`（读 `artifacts_status`）。
 
@@ -382,7 +403,7 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 2. RFQ 页：最近分析、Expand 相似项目
 3. Stub Generator + `solution_draft` / `qa_items` / `artifacts_status`
 4. Excel 报价（已有）+ 人天构成明细 Mock 表
-5. 知识库：原子模块 Tab 占位
+5. 知识库 P0：stats 增强 + 检索实验室 UI + import 按钮 + RFQ Function Alert（见 [rag-design.md](docs/supplementary/rag-design.md)）
 
 **prod Phase 2 正式版（替换 Stub）：** 真实原子化 RAG、QA LLM、PPT、全 9 Function、交付物级人天 — 见 [prod.md §9](prod.md)。
 
@@ -437,4 +458,4 @@ test: 知识库搜索异常路径
 
 ---
 
-**关联文档：** [prod.md](prod.md) | [implementation-plan.md](docs/implementation-plan.md) | [api-design.md](docs/supplementary/api-design.md)
+**关联文档：** [prod.md](prod.md) | [implementation-plan.md](docs/implementation-plan.md) | [api-design.md](docs/supplementary/api-design.md) | [rag-design.md](docs/supplementary/rag-design.md)

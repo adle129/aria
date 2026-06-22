@@ -5,11 +5,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 SAMPLE_RFQ = Path(__file__).resolve().parents[1] / "samples" / "rfq" / "mock_chassis_rfq.docx"
+DEMO_MULTIFUNCTION_RFQ = Path(__file__).resolve().parents[1] / "samples" / "rfq" / "demo_multifunction_rfq.docx"
 
 # Configure test environment before importing app modules
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["MOCK_LLM"] = "true"
 os.environ["MOCK_RAG"] = "true"
+os.environ["OLLAMA_MODEL"] = "qwen2.5:14b"
+os.environ["EMBEDDING_MODEL"] = "nomic-embed-text"
 
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
@@ -83,3 +86,9 @@ def client(upload_dir, monkeypatch):
 def sample_rfq_bytes():
     assert SAMPLE_RFQ.exists(), f"Missing sample RFQ: {SAMPLE_RFQ}"
     return SAMPLE_RFQ.read_bytes()
+
+
+@pytest.fixture
+def demo_multifunction_rfq_bytes():
+    assert DEMO_MULTIFUNCTION_RFQ.exists(), f"Missing demo RFQ: {DEMO_MULTIFUNCTION_RFQ}"
+    return DEMO_MULTIFUNCTION_RFQ.read_bytes()

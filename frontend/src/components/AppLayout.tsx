@@ -37,17 +37,27 @@ const { Header, Sider, Content } = Layout;
 
 
 const menuItems = [
-
-  { key: "/rfq", icon: <FileSearchOutlined />, label: <Link href="/rfq">RFQ 分析</Link> },
-
-  { key: "/proposal", icon: <BulbOutlined />, label: <Link href="/proposal">方案草案</Link> },
-
-  { key: "/qa", icon: <QuestionCircleOutlined />, label: <Link href="/qa">QA 清单</Link> },
-
-  { key: "/quote", icon: <FileTextOutlined />, label: <Link href="/quote">人力报价</Link> },
-
-  { key: "/knowledge", icon: <DatabaseOutlined />, label: <Link href="/knowledge">知识库</Link> },
-
+  {
+    type: "group" as const,
+    label: "报价流程",
+    children: [
+      { key: "/rfq", icon: <FileSearchOutlined />, label: <Link href="/rfq">RFQ 分析</Link> },
+      { key: "/proposal", icon: <BulbOutlined />, label: <Link href="/proposal">方案草案</Link> },
+      { key: "/qa", icon: <QuestionCircleOutlined />, label: <Link href="/qa">QA 清单</Link> },
+      { key: "/quote", icon: <FileTextOutlined />, label: <Link href="/quote">人力报价</Link> },
+    ],
+  },
+  {
+    type: "group" as const,
+    label: "系统管理",
+    children: [
+      {
+        key: "/knowledge",
+        icon: <DatabaseOutlined />,
+        label: <Link href="/knowledge">历史资料库</Link>,
+      },
+    ],
+  },
 ];
 
 

@@ -103,6 +103,10 @@ MOCK_RAG_HITS = [
             "project_name": "HOZON MEB Chassis Module (2023)",
             "doc_type": "summary",
             "source_doc": "mock_project_1/summary.docx",
+            "functions": ["PM", "Chassis"],
+            "year": 2023,
+            "customer": "HOZON",
+            "engagement_id": None,
         },
         "similarity_score": 0.92,
     },
@@ -112,6 +116,10 @@ MOCK_RAG_HITS = [
             "project_name": "Mock EV Platform Chassis (2022)",
             "doc_type": "summary",
             "source_doc": "mock_project_2/summary.docx",
+            "functions": ["Chassis", "CAE"],
+            "year": 2022,
+            "customer": "Mock Auto",
+            "engagement_id": None,
         },
         "similarity_score": 0.78,
     },
@@ -121,10 +129,28 @@ MOCK_RAG_HITS = [
             "project_name": "Compact SUV Chassis Development (2021)",
             "doc_type": "summary",
             "source_doc": "mock_project_3/summary.docx",
+            "functions": ["Chassis"],
+            "year": 2021,
+            "customer": "Compact OEM",
+            "engagement_id": None,
         },
         "similarity_score": 0.71,
     },
 ]
+
+MOCK_KNOWLEDGE_STATS = {
+    "total_documents": 128,
+    "total_chunks": 3840,
+    "total_projects": 24,
+    "last_import_at": "2026-06-15T08:00:00Z",
+    "function_coverage": {
+        "Chassis": 0.92,
+        "PM": 0.88,
+        "BIW": 0.45,
+        "CAE": 0.38,
+        "EE": 0.22,
+    },
+}
 
 MOCK_MANPOWER_BASELINES = {
     "default": {

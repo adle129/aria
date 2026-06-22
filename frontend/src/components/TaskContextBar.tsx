@@ -25,7 +25,7 @@ export default function TaskContextBar() {
   const pathname = usePathname();
   const { taskId, task, loading, recentTasks, setTaskId, loadTask } = useTaskContext();
 
-  if (pathname === "/") return null;
+  if (pathname === "/" || pathname.startsWith("/knowledge")) return null;
 
   return (
     <Card size="small" style={{ marginBottom: 24 }} title="当前任务">

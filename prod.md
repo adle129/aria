@@ -210,16 +210,25 @@ ARIA 是**本地私有化部署**的 AI **辅助**报价系统：
 
 ### 3.5 知识库管理
 
+> **设计详述：** [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md)  
+> **Demo 定位：** 知识库页 =「信任后台 + 检索实验室」，非完整 DMS。Demo = **统计 + 可编辑检索 + 触发导入**；upload 弹窗、文档 DB、Re-index UI = **Phase 2**。
+
 | ID | 功能 | Demo | Phase 2 |
 |----|------|------|---------|
-| F5.1 | 批量导入历史文档 | ✓ | ✓ |
-| F5.2 | 增量导入（跳过已入库） | ✓ | ✓ |
-| F5.3 | 知识库统计（文档数/chunk 数/最近导入） | ✓ | ✓ |
-| F5.4 | 手动检索测试 | ✓ | ✓ |
-| F5.5 | Re-index 重建向量索引 | 脚本 | UI + 脚本 |
+| F5.1 | 批量导入历史文档 | ✓ 文件夹 + **触发导入**按钮 | ✓ + upload UI |
+| F5.2 | 增量导入（跳过已入库） | 脚本说明 | ✓ `incremental_update.py` |
+| F5.3 | 知识库统计（文档数/chunk 数/最近导入 + Function 覆盖） | ✓ | ✓ |
+| F5.4 | 手动检索测试（可编辑 query + top_k） | ✓ | ✓ |
+| F5.5 | Re-index 重建向量索引 | **脚本 only** | UI + 脚本 |
 | F5.6 | 反馈「引用不准确」 | — | ✓ |
 | F5.7 | 历史方案原子化入库（Function × 子模块） | — | ✓ |
 | F5.8 | 原子模块目录浏览 | Tab 占位 | ✓ |
+| F5.9 | RFQ Function 无历史参考警告 | ✓ Alert | ✓ |
+| F5.10 | Engagement 项目包（RFQ–QA–报价关联） | — | ✓ manifest + 归档 |
+
+**Demo 明确不做：** multipart upload、AI 预识别 preview、`knowledge_documents` 异步轮询、RFQ 独立历史参考侧栏。
+
+**RAG 架构原则：** `RAGService.search()` 单一出口；RFQ 对标与 `/knowledge/search` 共用契约；禁止双份 Mock 数据源（详见 rag-design.md §3）。
 
 **支持文档类型：**
 
@@ -363,13 +372,15 @@ draft → in_review → approved → exported
 
 ### 6.2 实现要求
 
-| 环节 | 要求 |
-|------|------|
-| 增量导入 | `scripts/incremental_update.py`，跳过已入库文件 |
-| 版本管理 | `knowledge_imports` 表记录批次与时间戳 |
-| 结构化沉淀 | Excel 报价 → `manpower_baselines` 人天基线表 |
-| Re-index | Embedding/Prompt 升级后可重建向量 |
-| 反馈闭环 | Phase 2：标记不准确引用，定期审查修正 |
+| 环节 | Demo | Phase 2 |
+|------|------|---------|
+| 批量入库 | `knowledge_base/<项目>/` + `ingest_documents.py` + UI **触发导入** | manifest.json + Engagement 项目包 |
+| 增量导入 | 文档说明；脚本 `incremental_update.py`（待实现） | 文件 hash skip |
+| 版本管理 | — | `knowledge_imports` 表记录批次与时间戳 |
+| 结构化沉淀 | — | Excel 报价 → `manpower_baselines`；Q_A → 结构化记录 |
+| Re-index | **脚本 only**（F5.5）；无 UI | Embedding 升级后可重建 + UI |
+| 反馈闭环 | — | 标记不准确引用，定期审查修正 |
+| 检索契约 | 单一 `RAGService.search()`；见 [rag-design.md](docs/supplementary/rag-design.md) | engagement 维度过滤 |
 
 ---
 
@@ -391,7 +402,7 @@ draft → in_review → approved → exported
 | `/proposal` | Demo 框架 | 技术方案草案（输出 2）；Demo 为 Mock + Stub API |
 | `/qa` | Demo 框架 | 澄清问题清单（输出 1）；Demo 为 Mock + Stub API |
 | `/quote` | Demo | 人力报价 Excel（输出 4）；构成明细 Demo 为 Mock |
-| `/knowledge` | Demo | 知识库统计与检索；原子模块 Tab 占位 |
+| `/knowledge` | Demo | 信任后台：统计 + 检索实验室 + 触发导入；原子模块 Tab 占位 |
 | `/finance` | Phase 3 | 菜单占位 |
 
 **跨页公共组件（Demo）：** `TaskContextBar`（当前 task 切换）+ `WorkflowSteps`（五步进度：RFQ → 对标 → 方案 → QA → 人天）。
@@ -489,7 +500,8 @@ Demo 采用 **双档验收**：**框架档**（完整五步 UI + 任务主线）
 - Stub API：`generate-proposal`、`generate-qa`（Mock 数据，契约与 Phase 2 一致）
 - 方案草案页、QA 页 Mock 展示（标「Demo 预览」）
 - 相似项目 Expand 交互（F1.9）；人天构成明细 Mock 表（F4.8）
-- 知识库统计 + 原子模块目录 Tab 占位（F5.8）
+- 知识库：统计 + 检索实验室 + 触发导入 + 原子模块 Tab 占位（F5.3–F5.4、F5.8；详见 rag-design.md P0）
+- RFQ Function 无历史参考 Alert（F5.9）；演示样例 `demo_multifunction_rfq.docx`
 
 **能力档 — 包含（真实 AI / 业务逻辑）：**
 
@@ -503,6 +515,7 @@ Demo 采用 **双档验收**：**框架档**（完整五步 UI + 任务主线）
 - 历史方案真实原子化 RAG、QA 真实 LLM 质量、PPT 导出
 - 全 9 Function Sheet、交付物级真实人天基线
 - PDF RFQ、财务、完整 audit trail
+- 知识库 upload 弹窗、文档 DB、Re-index UI、Engagement 归档（见 rag-design.md Phase 2）
 
 **对客户演示话术：** RFQ/对标/Excel 为真实能力；方案与 QA 为界面与数据结构预览，正式版接入历史原子库后替换 Mock。
 
@@ -536,7 +549,8 @@ Demo 采用 **双档验收**：**框架档**（完整五步 UI + 任务主线）
 - [ ] 相似项目可展开查看摘要（Mock 或 RAG 片段）
 - [ ] 生成 Excel 初稿（Project info + Manpower + PM + Chassis）
 - [ ] 导出前确认，工程师可编辑对比表
-- [ ] 知识库统计展示；原子模块 Tab 占位可见
+- [ ] 知识库：统计展示 + 可编辑检索 + 触发导入；原子模块 Tab 占位可见
+- [ ] RFQ：Function 无历史参考时展示 Alert（F5.9）
 - [ ] `docker-compose up --build` 无报错启动
 - [ ] `./run_tests.sh` 全绿
 - [ ] 第三方按 README 可独立启动
@@ -637,7 +651,7 @@ Demo 采用 **双档验收**：**框架档**（完整五步 UI + 任务主线）
 | 输出 1：待澄清 QA | 功能一 §2.1 | §3.2 模块二 | `/qa` | Mock + Stub |
 | 输出 4：人天预测 | 功能三 §2.3 | §3.4 模块四 | `/quote` | Excel **真实**；构成明细 Mock |
 | （输入）RFQ 解析 | — | §3.1 模块一 | `/rfq`（Function/交付物） | **真实** |
-| 知识库 / 原子模块 | 隐含 | §3.5 | `/knowledge` | 统计真实；原子目录占位 |
+| 知识库 / 原子模块 | 隐含 | §3.5 | `/knowledge` | 统计 + 检索 + 导入；原子目录占位 |
 
 **说明：** 客户文档「7 Function×3 技能等级」与 EDAG Excel 模板（9 Function、多 Tariff Level）不一致时，**以 Excel 模板为准**（见 §3.4）。
 

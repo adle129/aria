@@ -57,9 +57,14 @@ const MODULE_CONFIG: Record<DemoModule, { items: CapabilityItem[] }> = {
   knowledge: {
     items: [
       {
-        name: "文档检索",
+        name: "历史资料检索",
         type: "stub",
-        detail: "Mock RAG 模式下为本地模拟检索；真实向量检索需关闭 MOCK_RAG",
+        detail: "演示环境下为模拟检索结果；接入贵司资料并开启真实向量检索后，界面不变、数据来自真实知识库",
+      },
+      {
+        name: "更新知识库索引",
+        type: "framework",
+        detail: "扫描服务器上的历史项目文件夹并建立检索索引；网页上传功能在正式版提供",
       },
     ],
   },

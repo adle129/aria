@@ -1,0 +1,63 @@
+# 阿里云 4C8G 远程 UI Demo — 国内镜像 + 轻量后端（不装 AI 大包，省内存）
+# 用法: docker compose -f docker-compose.aliyun-demo.yml up --build -d
+
+services:
+  postgres:
+    image: docker.1ms.run/library/postgres:16-alpine
+    container_name: aria-postgres
+    environment:
+      POSTGRES_DB: aria_db
+      POSTGRES_USER: aria_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aria_admin -d aria_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cn
+      args:
+        INSTALL_AI: "false"
+    container_name: aria-backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.cn
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /api/v1
+    container_name: aria-frontend
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  nginx:
+    image: docker.1ms.run/library/nginx:alpine
+    container_name: aria-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

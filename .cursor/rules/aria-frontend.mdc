@@ -29,7 +29,7 @@ alwaysApply: false
 | `/proposal` | 技术方案草案 | Mock + Stub API |
 | `/qa` | 澄清问题清单 | Mock + Stub API |
 | `/quote` | Excel 人力报价 | Excel 真实；构成明细 Mock |
-| `/knowledge` | 知识库 | 统计真实；原子目录占位 |
+| `/knowledge` | 知识库（信任后台） | 统计 + 检索实验室 + 触发导入；原子目录占位 |
 
 - 任务 ID：`sessionStorage` 键 `aria_last_task_id`（`LAST_TASK_ID_KEY`）
 - Phase 3 预留：`/finance`

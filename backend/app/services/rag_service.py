@@ -4,7 +4,7 @@ from typing import Any
 from app.config import Settings
 from app.services.chroma_store import ChromaStore
 from app.services.comparison_service import build_comparison_matrix
-from app.services.mock_data import MOCK_COMPARISON_TABLE, MOCK_RAG_HITS
+from app.services.mock_data import MOCK_COMPARISON_TABLE, MOCK_KNOWLEDGE_STATS, MOCK_RAG_HITS
 from app.services.rfq_parser import RFQParser
 
 
@@ -20,6 +20,39 @@ def calculate_overall_confidence(similarity_scores: list[float]) -> str:
     return "低"
 
 
+def compute_function_coverage(
+    functions_in_scope: list[str] | None,
+    similar_docs: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    covered: set[str] = set()
+    for hit in similar_docs:
+        meta = hit.get("metadata") or {}
+        for fn in meta.get("functions") or []:
+            covered.add(str(fn))
+    in_scope = [str(f) for f in (functions_in_scope or [])]
+    uncovered = [f for f in in_scope if f not in covered]
+    return {
+        "in_scope": in_scope,
+        "covered": sorted(covered),
+        "uncovered": uncovered,
+    }
+
+
+def _filter_hits_by_functions(
+    hits: list[dict[str, Any]], function_filter: list[str] | None
+) -> list[dict[str, Any]]:
+    if not function_filter:
+        return hits
+    wanted = set(function_filter)
+    filtered: list[dict[str, Any]] = []
+    for hit in hits:
+        meta = hit.get("metadata") or {}
+        hit_functions = set(meta.get("functions") or [])
+        if wanted & hit_functions:
+            filtered.append(hit)
+    return filtered
+
+
 class RAGService:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -32,14 +65,21 @@ class RAGService:
             self._chroma = ChromaStore(self.settings.chroma_path)
         return self._chroma
 
-    def search_similar_projects(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    def search_similar_projects(
+        self,
+        query: str,
+        top_k: int = 5,
+        function_filter: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         if self.settings.mock_rag:
-            return MOCK_RAG_HITS[:top_k]
+            hits = _filter_hits_by_functions(MOCK_RAG_HITS, function_filter)
+            return hits[:top_k]
 
         hits = self._get_chroma().search(query, top_k=top_k)
-        if hits:
-            return hits
-        return MOCK_RAG_HITS[:top_k]
+        if not hits:
+            hits = MOCK_RAG_HITS
+        hits = _filter_hits_by_functions(hits, function_filter)
+        return hits[:top_k]
 
     def build_comparison_table(
         self, rfq_data: dict[str, Any], similar_docs: list[dict[str, Any]]
@@ -64,6 +104,10 @@ class RAGService:
             dimensions=table.get("comparison_dimensions"),
         )
         table.update(matrix)
+        table["function_coverage"] = compute_function_coverage(
+            rfq_data.get("functions_in_scope"),
+            similar_docs,
+        )
         return table
 
     def _projects_from_hits(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -104,21 +148,24 @@ class RAGService:
         return MOCK_COMPARISON_TABLE["recommendation"]
 
     def get_stats(self) -> dict[str, Any]:
+        if self.settings.mock_rag:
+            return {**MOCK_KNOWLEDGE_STATS, "mock_rag": True}
+
         kb = Path(self.knowledge_base_path)
         docx_files = list(kb.rglob("*.docx")) if kb.exists() else []
         project_dirs = [p for p in kb.iterdir() if p.is_dir()] if kb.exists() else []
         chunk_count = len(docx_files) * 10 if docx_files else 0
-        if not self.settings.mock_rag:
-            try:
-                chunk_count = self._get_chroma().count()
-            except Exception:
-                pass
+        try:
+            chunk_count = self._get_chroma().count()
+        except Exception:
+            pass
         return {
             "total_documents": len(docx_files),
             "total_chunks": chunk_count,
             "total_projects": len(project_dirs),
             "last_import_at": None,
-            "mock_rag": self.settings.mock_rag,
+            "function_coverage": {},
+            "mock_rag": False,
         }
 
     def import_documents(self) -> dict[str, int]:

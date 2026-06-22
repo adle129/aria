@@ -25,6 +25,7 @@ alwaysApply: true
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | 新增/修改 API 时 |
 | [docs/supplementary/prompt-spec.md](docs/supplementary/prompt-spec.md) | LLM Prompt / JSON Schema |
 | [docs/supplementary/template-mapping.md](docs/supplementary/template-mapping.md) | Excel/QA/PPT 模板填充 |
+| [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md) | 知识库/RAG 架构、统一契约、Demo P0 与 Phase 2 计划 |
 | [docs/supplementary/test-plan.md](docs/supplementary/test-plan.md) | 测试策略与回归集 |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | 里程碑与 WBS |
 | [docs/user-manual.md](docs/user-manual.md) | 用户可见流程与 Demo 预览说明 |

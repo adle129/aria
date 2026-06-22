@@ -30,6 +30,7 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 - Excel：复制 `data/templates/quote_template.xlsx`，Demo 仅填 PM + Chassis
 - **Demo Stub（框架 Demo）：** `proposal_stub` / `qa_stub` Generator；`POST .../generate-proposal`、`POST .../generate-qa` 写入 `solution_draft` / `qa_items`；`GET .../tasks/{id}` 返回 `artifacts_status`（契约见 api-design.md）
 - Phase 2 替换 Stub 为真实 RAG+LLM，**路由与 JSON 形状不变**
+- **RAG：** 单一 `RAGService.search()` 出口；RFQ 与 `/knowledge/search` 共用 `RAGHit` 契约；禁止双份 Mock（见 [rag-design.md](docs/supplementary/rag-design.md)）
 - 依赖：`requirements.txt`（核心）+ `requirements-ai.txt`（LangChain/ChromaDB）
 
 ## 新增 API 检查清单
