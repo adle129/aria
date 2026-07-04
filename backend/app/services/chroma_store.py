@@ -28,6 +28,17 @@ class ChromaStore:
         safe_meta = {k: str(v) for k, v in metadata.items() if v is not None}
         self._collection.upsert(ids=[doc_id], documents=[text], metadatas=[safe_meta])
 
+    def get_metadata(self, doc_id: str) -> dict[str, Any] | None:
+        self._ensure_client()
+        assert self._collection is not None
+        if self._collection.count() == 0:
+            return None
+        result = self._collection.get(ids=[doc_id], include=["metadatas"])
+        metas = result.get("metadatas") or []
+        if not metas or not metas[0]:
+            return None
+        return dict(metas[0])
+
     def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
         self._ensure_client()
         assert self._collection is not None

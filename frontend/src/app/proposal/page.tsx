@@ -67,7 +67,7 @@ function ProposalPageContent() {
     <div>
       <Title level={3}>方案草案</Title>
       <Paragraph type="secondary">
-        基于 RFQ 模块与历史项目参考，预览技术方案模块结构（Phase 2 接入真实 RAG + LLM）。
+        报价助手 · 预览技术方案模块结构（Demo 预览；Phase 2 接入真实 RAG + LLM）。
       </Paragraph>
 
       <DemoModuleCapability module="proposal" />
@@ -114,7 +114,7 @@ function ProposalPageContent() {
             style={{ marginTop: 16 }}
             type="warning"
             showIcon
-            message="下方表格为 Mock 示例，未调用大模型"
+            message="Demo 预览 · 下方为 Mock 示例，未调用大模型"
           />
         )}
       </Card>
@@ -122,7 +122,7 @@ function ProposalPageContent() {
       {sections.length > 0 ? (
         <Card
           title={`方案模块（${sections.length} 节）`}
-          extra={<Tag color="orange">Mock 示例 · 未调用 LLM</Tag>}
+          extra={<Tag color="orange">Demo 预览</Tag>}
         >
           <Table
             rowKey={(_, i) => String(i)}

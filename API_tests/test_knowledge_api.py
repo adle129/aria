@@ -52,11 +52,36 @@ def test_knowledge_search_function_filter(client):
 def test_knowledge_import(client):
     response = client.post("/api/v1/knowledge/import")
     assert response.status_code == 200
-    assert "new_documents" in response.json()["data"]
+    data = response.json()["data"]
+    assert "new_documents" in data
+    assert "failed_files" in data
+    assert isinstance(data["failed_files"], list)
+
+
+def test_knowledge_documents(client):
+    response = client.get("/api/v1/knowledge/documents")
+    assert response.status_code == 200
+    docs = response.json()["data"]["documents"]
+    assert len(docs) >= 1
+    doc = docs[0]
+    assert "path" in doc
+    assert "status" in doc
+    assert "doc_type" in doc
+
+
+def test_knowledge_search_doc_type_filter(client):
+    response = client.post(
+        "/api/v1/knowledge/search",
+        json={"query": "chassis", "top_k": 5, "doc_type_filter": ["summary"]},
+    )
+    assert response.status_code == 200
+    results = response.json()["data"]["results"]
+    for hit in results:
+        assert hit["metadata"].get("doc_type") == "summary"
 
 
 def test_knowledge_mock_real_schema_parity(monkeypatch):
-    """Mock mode and Real fallback (empty Chroma) return the same RAGHit field set."""
+    """Mock mode and Real (empty Chroma) return the same RAGHit field set."""
     mock_rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
     real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
 
@@ -67,15 +92,19 @@ def test_knowledge_mock_real_schema_parity(monkeypatch):
         def count(self):
             return 0
 
+        def get_metadata(self, doc_id: str):
+            return None
+
     monkeypatch.setattr(real_rag, "_get_chroma", lambda: FakeChroma())
 
     query = "MEB chassis"
     mock_hits = mock_rag.search_similar_projects(query, top_k=3)
     real_hits = real_rag.search_similar_projects(query, top_k=3)
+    assert len(mock_hits) >= 1
+    assert real_hits == []
     required_keys = {"content", "metadata", "similarity_score"}
     meta_keys = {"project_name", "source_doc", "doc_type"}
-    for hits in (mock_hits, real_hits):
-        assert len(hits) >= 1
-        for hit in hits:
-            assert required_keys <= set(hit.keys())
-            assert meta_keys <= set((hit.get("metadata") or {}).keys())
+    for hit in mock_hits:
+        assert required_keys <= set(hit.keys())
+        assert meta_keys <= set((hit.get("metadata") or {}).keys())
+

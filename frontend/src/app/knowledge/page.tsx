@@ -7,8 +7,10 @@ import {
   Input,
   InputNumber,
   Progress,
+  Select,
   Space,
   Statistic,
+  Steps,
   Table,
   Tabs,
   Tag,
@@ -20,8 +22,25 @@ import { InfoCircleOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
 
 const { Paragraph, Text, Title } = Typography;
+
+const FUNCTION_OPTIONS = ["PM", "Chassis", "BIW", "CAE", "EE", "Interior", "GI", "PS", "Test validation"];
+const DOC_TYPE_OPTIONS = [
+  { value: "rfq", label: "RFQ" },
+  { value: "qa", label: "QA 清单" },
+  { value: "quote_manpower", label: "人力报价" },
+  { value: "summary", label: "方案 / 摘要" },
+];
+
+/** Quoting-stage hint for indexed documents (tooltip only). */
+const DOC_TYPE_QUOTING_HINT: Record<string, string> = {
+  rfq: "RFQ 分析 · 对标参考",
+  summary: "RFQ 分析 · 方案摘要",
+  qa: "QA 清单 · Phase 2",
+  quote_manpower: "人力报价 · Phase 2",
+};
 
 interface KnowledgeStats {
   total_documents?: number;
@@ -30,6 +49,15 @@ interface KnowledgeStats {
   last_import_at?: string | null;
   function_coverage?: Record<string, number>;
   mock_rag?: boolean;
+}
+
+interface KnowledgeDocument {
+  path: string;
+  project_name: string;
+  doc_type: string;
+  status: string;
+  file_size_bytes?: number;
+  error?: string;
 }
 
 interface RAGHitRow {
@@ -42,6 +70,20 @@ interface RAGHitRow {
     functions?: string[];
   };
 }
+
+interface ImportResult {
+  new_documents: number;
+  new_chunks: number;
+  skipped: number;
+  failed_files: Array<{ path: string; error: string }>;
+  last_import_at?: string;
+}
+
+const STATUS_TAG: Record<string, { color: string; label: string }> = {
+  indexed: { color: "green", label: "已索引" },
+  pending: { color: "default", label: "待索引" },
+  failed: { color: "red", label: "失败" },
+};
 
 function coverageColor(rate: number): string {
   if (rate >= 0.7) return "#52c41a";
@@ -60,14 +102,27 @@ function StatLabel({ title, tip }: { title: string; tip: string }) {
   );
 }
 
+function formatBytes(n?: number): string {
+  if (n == null) return "—";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function KnowledgePage() {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [results, setResults] = useState<RAGHitRow[]>([]);
   const [query, setQuery] = useState("MEB 底盘 悬架");
   const [topK, setTopK] = useState(5);
+  const [functionFilter, setFunctionFilter] = useState<string[]>([]);
+  const [docTypeFilter, setDocTypeFilter] = useState<string[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  const [lastImport, setLastImport] = useState<ImportResult | null>(null);
+  const [wizardStep, setWizardStep] = useState(0);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -81,9 +136,37 @@ export default function KnowledgePage() {
     }
   }, []);
 
+  const loadDocuments = useCallback(async () => {
+    setDocsLoading(true);
+    try {
+      const resp = await apiClient.get<{ code: number; data: { documents: KnowledgeDocument[] } }>(
+        "/knowledge/documents",
+      );
+      setDocuments(resp.data.data.documents);
+    } catch {
+      message.error("加载文档列表失败");
+    } finally {
+      setDocsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadStats();
-  }, [loadStats]);
+    void loadDocuments();
+  }, [loadStats, loadDocuments]);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) {
+      setQuery(decodeURIComponent(q));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (stats && stats.total_chunks && stats.total_chunks > 0) {
+      setWizardStep(2);
+    }
+  }, [stats]);
 
   const runSearch = async () => {
     if (query.trim().length < 2) {
@@ -94,9 +177,15 @@ export default function KnowledgePage() {
     try {
       const resp = await apiClient.post<{ code: number; data: { results: RAGHitRow[] } }>(
         "/knowledge/search",
-        { query: query.trim(), top_k: topK },
+        {
+          query: query.trim(),
+          top_k: topK,
+          function_filter: functionFilter.length ? functionFilter : undefined,
+          doc_type_filter: docTypeFilter.length ? docTypeFilter : undefined,
+        },
       );
       setResults(resp.data.data.results);
+      setWizardStep(3);
       if (resp.data.data.results.length === 0) {
         message.info("未找到匹配结果，可调整关键词或先更新知识库索引");
       }
@@ -110,15 +199,21 @@ export default function KnowledgePage() {
   const runImport = async () => {
     setImportLoading(true);
     try {
-      const resp = await apiClient.post<{
-        code: number;
-        data: { new_documents: number; new_chunks: number; skipped: number };
-      }>("/knowledge/import");
-      const { new_documents, new_chunks, skipped } = resp.data.data;
-      message.success(
-        `索引更新完成：新增 ${new_documents} 篇文档，${new_chunks} 个可检索片段，跳过 ${skipped} 篇`,
-      );
-      await loadStats();
+      const resp = await apiClient.post<{ code: number; data: ImportResult }>("/knowledge/import");
+      const data = resp.data.data;
+      setLastImport(data);
+      const failedCount = data.failed_files?.length ?? 0;
+      if (failedCount > 0) {
+        message.warning(
+          `索引完成：新增 ${data.new_documents} 篇，跳过 ${data.skipped} 篇，失败 ${failedCount} 篇`,
+        );
+      } else {
+        message.success(
+          `索引更新完成：新增 ${data.new_documents} 篇文档，${data.new_chunks} 个可检索片段，跳过 ${data.skipped} 篇`,
+        );
+      }
+      setWizardStep(2);
+      await Promise.all([loadStats(), loadDocuments()]);
     } catch {
       message.error("索引更新失败");
     } finally {
@@ -130,12 +225,22 @@ export default function KnowledgePage() {
     (a, b) => b[1] - a[1],
   );
 
+  const indexedCount = documents.filter((d) => d.status === "indexed").length;
+
   return (
     <div>
-      <Title level={3}>历史资料库</Title>
+      <Space align="center" style={{ marginBottom: 8 }}>
+        <Title level={3} style={{ margin: 0 }}>
+          知识库
+        </Title>
+        <Tag color="blue">平台能力</Tag>
+      </Space>
       <Paragraph type="secondary">
-        管理历史项目文档，供 RFQ 分析中的历史对标检索使用。报价工程师日常在「RFQ 分析」页查看对标结果即可，无需每日进入本页。
+        历史项目 RFQ、方案、报价等工程资料 · 平台共享检索底座。报价工程师日常在「RFQ
+        分析」查看对标结果即可；本页供管理员入库、索引与检索验证。
       </Paragraph>
+
+      <PlatformKnowledgeExplainer />
 
       {stats?.mock_rag && (
         <Alert
@@ -153,6 +258,60 @@ export default function KnowledgePage() {
 
       <DemoModuleCapability module="knowledge" />
 
+      <Card title="入库与验证向导" style={{ marginBottom: 16 }} size="small">
+        <Steps
+          size="small"
+          current={wizardStep}
+          items={[
+            {
+              title: "准备项目资料",
+              description: "目录落盘或 Web 上传",
+            },
+            {
+              title: "更新索引",
+              description: "扫描并写入向量库",
+            },
+            {
+              title: "查看清单",
+              description: `${indexedCount}/${documents.length} 已索引`,
+            },
+            {
+              title: "检索验证",
+              description: "确认能命中预期资料",
+            },
+          ]}
+        />
+        <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 8 }}>
+          <Text strong>R1 入库方式：</Text>
+          <Text strong>（A）</Text> IT 将项目包放入服务器{" "}
+          <Text code>knowledge_base/&lt;项目名&gt;/</Text>
+          （100+ 推荐）→ 点击「更新知识库索引」；
+          <Text strong>（B）</Text> 本页「上传项目包」— 单套 ZIP/多文件，或一次最多{" "}
+          <Text strong>5 套</Text> → 查看缺件提示 → 更新索引。
+        </Paragraph>
+        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
+        </Paragraph>
+      </Card>
+
+      {lastImport && (lastImport.failed_files?.length ?? 0) > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`${lastImport.failed_files.length} 个文件索引失败`}
+          description={
+            <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+              {lastImport.failed_files.map((f) => (
+                <li key={f.path}>
+                  <Text code>{f.path}</Text> — {f.error}
+                </li>
+              ))}
+            </ul>
+          }
+        />
+      )}
+
       <Tabs
         defaultActiveKey="docs"
         items={[
@@ -166,13 +325,16 @@ export default function KnowledgePage() {
                     <Button onClick={() => void loadStats()} loading={statsLoading}>
                       刷新统计
                     </Button>
-                    <Button type="primary" loading={importLoading} onClick={() => void runImport()}>
+                    <Button
+                      type="primary"
+                      loading={importLoading}
+                      onClick={() => void runImport()}
+                    >
                       更新知识库索引
                     </Button>
-                    <Text type="secondary">
-                      先将文件放入服务器目录{" "}
-                      <Text code>knowledge_base/&lt;项目名&gt;/</Text>，再点击「更新知识库索引」
-                    </Text>
+                    <Button onClick={() => void loadDocuments()} loading={docsLoading}>
+                      刷新文档清单
+                    </Button>
                   </Space>
 
                   {stats && (
@@ -250,6 +412,73 @@ export default function KnowledgePage() {
                   )}
                 </Card>
 
+                <Card title="文档清单" style={{ marginBottom: 16 }}>
+                  <Table
+                    rowKey="path"
+                    size="small"
+                    loading={docsLoading}
+                    dataSource={documents}
+                    pagination={{ pageSize: 8, hideOnSinglePage: true }}
+                    locale={{
+                      emptyText:
+                        "暂无文档；Demo 请将 .docx 放入 knowledge_base/<项目名>/（Phase 2 支持项目包上传）",
+                    }}
+                    columns={[
+                      { title: "路径", dataIndex: "path", ellipsis: true },
+                      { title: "项目", dataIndex: "project_name", width: 140 },
+                      {
+                        title: "类型",
+                        dataIndex: "doc_type",
+                        width: 100,
+                        render: (v: string, row: KnowledgeDocument) => {
+                          const label = DOC_TYPE_OPTIONS.find((o) => o.value === v)?.label || v;
+                          const hint =
+                            row.status === "indexed" ? DOC_TYPE_QUOTING_HINT[v] : undefined;
+                          return hint ? (
+                            <Tooltip title={`报价环节参考：${hint}`}>
+                              <span>{label}</span>
+                            </Tooltip>
+                          ) : (
+                            label
+                          );
+                        },
+                      },
+                      {
+                        title: "大小",
+                        dataIndex: "file_size_bytes",
+                        width: 88,
+                        render: (v: number) => formatBytes(v),
+                      },
+                      {
+                        title: "状态",
+                        dataIndex: "status",
+                        width: 100,
+                        render: (v: string, row: KnowledgeDocument) => {
+                          const cfg = STATUS_TAG[v] || { color: "default", label: v };
+                          const tag = <Tag color={cfg.color}>{cfg.label}</Tag>;
+                          if (
+                            v === "failed" &&
+                            (row.doc_type === "quote_manpower" || row.path.endsWith(".xlsx"))
+                          ) {
+                            return (
+                              <Tooltip title="Demo 暂不支持 Excel 入库；Phase 2 将通过项目包 manifest 关联 QA / 报价等文件">
+                                {tag}
+                              </Tooltip>
+                            );
+                          }
+                          return tag;
+                        },
+                      },
+                      {
+                        title: "说明",
+                        dataIndex: "error",
+                        ellipsis: true,
+                        render: (v: string) => v || "—",
+                      },
+                    ]}
+                  />
+                </Card>
+
                 <Card title="历史资料检索" style={{ marginBottom: 16 }}>
                   <Paragraph type="secondary" style={{ marginBottom: 12 }}>
                     RFQ 分析页中的「相似历史项目」由相同检索逻辑产生，可在此验证关键词能否命中预期资料。
@@ -268,6 +497,24 @@ export default function KnowledgePage() {
                       </Tooltip>
                       <InputNumber min={1} max={20} value={topK} onChange={(v) => setTopK(v ?? 5)} />
                     </Space>
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      placeholder="工程领域筛选"
+                      style={{ minWidth: 160 }}
+                      value={functionFilter}
+                      onChange={setFunctionFilter}
+                      options={FUNCTION_OPTIONS.map((f) => ({ value: f, label: f }))}
+                    />
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      placeholder="文档类型"
+                      style={{ minWidth: 140 }}
+                      value={docTypeFilter}
+                      onChange={setDocTypeFilter}
+                      options={DOC_TYPE_OPTIONS}
+                    />
                     <Button type="primary" loading={searchLoading} onClick={() => void runSearch()}>
                       检索
                     </Button>
@@ -293,6 +540,11 @@ export default function KnowledgePage() {
                         render: (v: number) => `${Math.round(v * 100)}%`,
                       },
                       {
+                        title: "类型",
+                        width: 88,
+                        render: (_, row) => row.metadata?.doc_type || "—",
+                      },
+                      {
                         title: "来源文档",
                         width: 200,
                         render: (_, row) => row.metadata?.source_doc || "—",
@@ -315,7 +567,7 @@ export default function KnowledgePage() {
           },
           {
             key: "modules",
-            label: "方案模块目录（即将推出）",
+            label: "原子模块（Phase 2）",
             children: (
               <Card>
                 <Alert

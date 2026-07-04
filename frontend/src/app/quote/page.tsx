@@ -111,7 +111,7 @@ function QuotePageContent() {
     <div>
       <Title level={3}>人力报价</Title>
       <Paragraph type="secondary">
-        基于 RFQ 解析结果与历史基线，按 EDAG 模板生成 Excel 人力报价初稿（Demo：PM + Chassis）。
+        报价助手 · 按 EDAG 模板生成 Excel 人力报价初稿（Demo：PM + Chassis 真实填充；人天分解为 Demo 预览）。
       </Paragraph>
 
       <DemoModuleCapability module="quote" />
@@ -156,7 +156,7 @@ function QuotePageContent() {
           title={
             <Space>
               <span>交付物级人天分解（Demo 预览）</span>
-              <Tag color="orange">Mock</Tag>
+              <Tag color="orange">Demo 预览</Tag>
             </Space>
           }
           style={{ marginBottom: 24 }}

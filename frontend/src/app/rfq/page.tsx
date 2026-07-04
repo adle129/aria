@@ -20,6 +20,7 @@ import { InboxOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient, fetchHealth } from "@/api/client";
+import DemoModuleCapability from "@/components/DemoModuleCapability";
 import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/ComparisonMatrix";
 import { useTaskContext } from "@/context/TaskContext";
 import type { TaskPayload, TaskSummary } from "@/types/task";
@@ -48,6 +49,17 @@ const STAGE_LABELS: Record<string, string> = {
   failed: "分析失败",
 };
 
+function buildKnowledgeVerifyQuery(task: TaskData): string {
+  const mods = task.rfq_modules as Record<string, unknown> | undefined;
+  if (!mods) return "MEB 底盘";
+  const parts: string[] = [];
+  if (mods.platform_type) parts.push(String(mods.platform_type));
+  if (Array.isArray(mods.functions_in_scope)) {
+    parts.push(...mods.functions_in_scope.slice(0, 2).map(String));
+  }
+  return parts.join(" ").trim() || "MEB 底盘";
+}
+
 export default function RfqPage() {
   const { syncFromPayload, refreshRecentTasks, recentTasks, loadTask: loadTaskFromContext } =
     useTaskContext();
@@ -60,11 +72,31 @@ export default function RfqPage() {
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [useRealLlm, setUseRealLlm] = useState<boolean | null>(null);
   const [restoring, setRestoring] = useState(true);
+  const [demoSamples, setDemoSamples] = useState<
+    Array<{ filename: string; title: string; description: string; download_url: string }>
+  >([]);
 
   useEffect(() => {
     fetchHealth()
       .then((h) => setUseRealLlm(!h.mock_llm))
       .catch(() => setUseRealLlm(null));
+  }, []);
+
+  useEffect(() => {
+    apiClient
+      .get<{
+        code: number;
+        data: {
+          samples: Array<{
+            filename: string;
+            title: string;
+            description: string;
+            download_url: string;
+          }>;
+        };
+      }>("/demo/rfq-samples")
+      .then((resp) => setDemoSamples(resp.data.data?.samples ?? []))
+      .catch(() => setDemoSamples([]));
   }, []);
 
   const syncMatrixFromTask = useCallback(
@@ -182,6 +214,20 @@ export default function RfqPage() {
     return false;
   };
 
+  const handleTrySample = async (filename: string) => {
+    try {
+      const resp = await apiClient.get(`/demo/rfq-samples/${filename}`, {
+        responseType: "blob",
+      });
+      const file = new File([resp.data], filename, {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      await handleUpload(file);
+    } catch {
+      message.error("加载演示样例失败，请尝试下载后手动上传");
+    }
+  };
+
   const handleNewProjectChange = (dimension: string, value: string) => {
     setMatrixRows((rows) =>
       rows.map((row) => (row.dimension === dimension ? { ...row, new_project: value } : row)),
@@ -233,8 +279,10 @@ export default function RfqPage() {
     <div>
       <Title level={3}>RFQ 分析</Title>
       <Paragraph type="secondary">
-        上传客户 RFQ 文档（.docx），系统将解析工程领域（Function）模块、里程碑与交付物，并生成技术维度对比矩阵。
+        报价助手 · 上传客户 RFQ 文档（.docx），解析工程领域（Function）模块、里程碑与交付物，并生成技术维度对比矩阵。
       </Paragraph>
+
+      <DemoModuleCapability module="rfq" />
 
       {recentTasks.length > 0 && (
         <Card title="最近分析" style={{ marginBottom: 24 }} size="small">
@@ -437,7 +485,7 @@ export default function RfqPage() {
                   <>
                     以下工程领域在历史资料检索中未找到足够相似项目：
                     <Text strong> {uncoveredFunctions.join("、")}</Text>
-                    。请人工补充参考依据，或在「历史资料库」中补充该类项目资料后再确认对标结论。
+                    。请人工补充参考依据，或在「知识库」中补充该类历史项目资料后再确认对标结论。
                   </>
                 }
               />
@@ -515,24 +563,52 @@ export default function RfqPage() {
                 { title: "摘要", dataIndex: "summary" },
               ]}
             />
+            {task && projects.length > 0 && (
+              <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+                以上对标结果来自平台知识库同一检索引擎 ·{" "}
+                <Link
+                  href={`/knowledge?q=${encodeURIComponent(buildKnowledgeVerifyQuery(task))}`}
+                >
+                  用相同关键词验证
+                </Link>
+              </Paragraph>
+            )}
           </Card>
         </>
       )}
 
-      {!task && !uploading && !restoring && (
+      {!task && !uploading && !restoring && demoSamples.length > 0 && (
         <Alert
           message="演示样例 RFQ"
           description={
             <>
-              可从项目 <Text code>samples/rfq/</Text> 目录取用：
-              <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-                <li>
-                  <Text code>mock_chassis_rfq.docx</Text> — 基础对标（PM + Chassis）
-                </li>
-                <li>
-                  <Text code>demo_multifunction_rfq.docx</Text> — 含 BIW / EE，可触发「工程领域缺少历史参考」提示
-                </li>
-              </ul>
+              可直接下载，或一键试用（自动上传并分析）：
+              <List
+                size="small"
+                style={{ marginTop: 8 }}
+                dataSource={demoSamples}
+                renderItem={(item) => (
+                  <List.Item
+                    actions={[
+                      <a key="download" href={item.download_url} download={item.filename}>
+                        下载
+                      </a>,
+                      <Button
+                        key="try"
+                        type="link"
+                        size="small"
+                        disabled={uploading}
+                        onClick={() => void handleTrySample(item.filename)}
+                      >
+                        试用此样例
+                      </Button>,
+                    ]}
+                  >
+                    <Text strong>{item.title}</Text>
+                    <Text type="secondary"> — {item.description}</Text>
+                  </List.Item>
+                )}
+              />
             </>
           }
           type="info"

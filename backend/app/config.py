@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     output_path: str = "./data/outputs"
     knowledge_base_path: str = "./data/knowledge_base"
     template_path: str = "./data/templates"
+    samples_rfq_path: str = "/app/samples/rfq"
 
 
 @lru_cache

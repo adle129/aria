@@ -12,6 +12,8 @@ const STEP_DEFS = [
   { key: "excel_ready", title: "Excel 报价", href: "/quote" },
 ] as const;
 
+const DEMO_PREVIEW_KEYS = new Set(["proposal_ready", "qa_ready"]);
+
 export default function WorkflowSteps({
   status,
   currentPath,
@@ -37,7 +39,13 @@ export default function WorkflowSteps({
     return {
       title: <Link href={step.href}>{step.title}</Link>,
       status: stepStatus,
-      description: done ? "就绪" : "待完成",
+      description: done
+        ? DEMO_PREVIEW_KEYS.has(step.key)
+          ? "Demo 预览 · 就绪"
+          : "就绪"
+        : step.key === "proposal_ready" || step.key === "qa_ready"
+          ? "Demo 预览"
+          : "待完成",
     };
   });
 

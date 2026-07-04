@@ -28,7 +28,7 @@ export default function TaskContextBar() {
   if (pathname === "/" || pathname.startsWith("/knowledge")) return null;
 
   return (
-    <Card size="small" style={{ marginBottom: 24 }} title="当前任务">
+    <Card size="small" style={{ marginBottom: 24 }} title="当前报价任务">
       <Space wrap style={{ width: "100%", marginBottom: 12 }}>
         <Select
           placeholder="从最近分析选择"

@@ -152,6 +152,31 @@ MOCK_KNOWLEDGE_STATS = {
     },
 }
 
+MOCK_KNOWLEDGE_DOCUMENTS = [
+    {
+        "path": "demo_chassis/rfq.docx",
+        "project_name": "Demo Chassis",
+        "doc_type": "rfq",
+        "status": "indexed",
+        "file_size_bytes": 245760,
+    },
+    {
+        "path": "demo_biw/proposal.docx",
+        "project_name": "Demo BIW",
+        "doc_type": "summary",
+        "status": "pending",
+        "file_size_bytes": 512000,
+    },
+    {
+        "path": "demo_legacy/quote.xlsx",
+        "project_name": "Demo Legacy",
+        "doc_type": "quote_manpower",
+        "status": "failed",
+        "file_size_bytes": 102400,
+        "error": "Demo：仅 .docx 纳入向量索引（Phase 2 支持 Excel）",
+    },
+]
+
 MOCK_MANPOWER_BASELINES = {
     "default": {
         "PM_total_man_days": 180,

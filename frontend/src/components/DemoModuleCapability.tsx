@@ -6,7 +6,7 @@ import { fetchHealth, type HealthData } from "@/api/client";
 
 const { Text } = Typography;
 
-export type DemoModule = "proposal" | "qa" | "quote" | "knowledge";
+export type DemoModule = "rfq" | "proposal" | "qa" | "quote" | "knowledge";
 
 type CapabilityType = "llm" | "real" | "stub" | "framework";
 
@@ -14,9 +14,25 @@ interface CapabilityItem {
   name: string;
   type: CapabilityType;
   detail: string;
+  usesRag?: boolean;
 }
 
 const MODULE_CONFIG: Record<DemoModule, { items: CapabilityItem[] }> = {
+  rfq: {
+    items: [
+      {
+        name: "RFQ 解析（Function / 交付物 / 里程碑）",
+        type: "llm",
+        detail: "上传 .docx 后调用本地大模型或 Mock 规则提取；为报价助手核心真实能力",
+      },
+      {
+        name: "历史项目对标（对比矩阵 + 相似度）",
+        type: "real",
+        usesRag: true,
+        detail: "向量检索 + 技术维度对比表；与平台「知识库」共用同一 RAG 引擎",
+      },
+    ],
+  },
   proposal: {
     items: [
       {
@@ -59,18 +75,19 @@ const MODULE_CONFIG: Record<DemoModule, { items: CapabilityItem[] }> = {
       {
         name: "历史资料检索",
         type: "stub",
-        detail: "演示环境下为模拟检索结果；接入贵司资料并开启真实向量检索后，界面不变、数据来自真实知识库",
+        detail: "ARIA 平台共享能力；演示环境下可为模拟结果，接入贵司资料后界面不变",
       },
       {
         name: "更新知识库索引",
         type: "framework",
-        detail: "扫描服务器上的历史项目文件夹并建立检索索引；网页上传功能在正式版提供",
+        detail:
+          "扫描服务器项目文件夹并建立索引（Demo 稳定支持 .docx）；Phase 2：manifest 项目包 + 页面上传 + Excel/PDF 解析",
       },
     ],
   },
 };
 
-function capabilityTag(type: CapabilityType, health: HealthData | null) {
+function capabilityTag(type: CapabilityType, health: HealthData | null, usesRag?: boolean) {
   switch (type) {
     case "llm":
       if (health?.mock_llm) return <Tag>Mock LLM</Tag>;
@@ -79,6 +96,7 @@ function capabilityTag(type: CapabilityType, health: HealthData | null) {
       }
       return <Tag color="orange">LLM 未就绪</Tag>;
     case "real":
+      if (usesRag && health?.mock_rag) return <Tag color="orange">Mock RAG</Tag>;
       return <Tag color="green">真实能力</Tag>;
     case "stub":
       return <Tag color="orange">Demo Stub · 无 LLM</Tag>;
@@ -105,13 +123,13 @@ export default function DemoModuleCapability({ module }: { module: DemoModule })
       type="info"
       showIcon
       style={{ marginBottom: 24 }}
-      message="本页 Demo 能力说明（与 RFQ 分析页标注方式一致）"
+      message="本页 Demo 能力说明"
       description={
         <Space direction="vertical" size={8} style={{ width: "100%" }}>
           {items.map((item) => (
             <div key={item.name}>
               <Space wrap size={8}>
-                {capabilityTag(item.type, health)}
+                {capabilityTag(item.type, health, item.usesRag)}
                 <Text strong>{item.name}</Text>
               </Space>
               <div>

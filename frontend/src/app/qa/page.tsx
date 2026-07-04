@@ -95,7 +95,7 @@ function QAPageContent() {
     <div>
       <Title level={3}>QA 清单</Title>
       <Paragraph type="secondary">
-        按需求文档字段展示待澄清问题：序号、待澄清问题、涉及功能、影响程度、历史依据。
+        报价助手 · 待澄清技术问题清单（Demo 预览；Phase 2 基于历史 Q_A 真实生成）。
       </Paragraph>
 
       <DemoModuleCapability module="qa" />
@@ -149,7 +149,7 @@ function QAPageContent() {
       {items.length > 0 ? (
         <Card
           title={`待澄清问题（${items.length} 条）`}
-          extra={<Tag color="orange">Mock 示例 · 未调用 LLM</Tag>}
+          extra={<Tag color="orange">Demo 预览</Tag>}
         >
           <Table
             rowKey="no"

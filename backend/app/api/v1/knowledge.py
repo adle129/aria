@@ -12,6 +12,11 @@ def get_rag_service() -> RAGService:
     return RAGService(get_settings())
 
 
+@router.get("/documents")
+def knowledge_documents(rag: RAGService = Depends(get_rag_service)):
+    return {"code": 200, "data": {"documents": rag.list_documents()}}
+
+
 @router.get("/stats")
 def knowledge_stats(rag: RAGService = Depends(get_rag_service)):
     return {"code": 200, "data": rag.get_stats()}
@@ -23,6 +28,7 @@ def knowledge_search(body: KnowledgeSearchRequest, rag: RAGService = Depends(get
         body.query,
         top_k=body.top_k,
         function_filter=body.function_filter,
+        doc_type_filter=body.doc_type_filter,
     )
     return {"code": 200, "data": {"results": results}}
 

@@ -26,10 +26,32 @@ class KnowledgeSearchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=500)
     top_k: int = Field(default=5, ge=1, le=20)
     function_filter: list[str] | None = None
+    doc_type_filter: list[str] | None = None
 
 
 class KnowledgeSearchResponse(BaseModel):
     results: list[RAGHit]
+
+
+class KnowledgeDocumentItem(BaseModel):
+    path: str
+    project_name: str
+    doc_type: str
+    status: str
+    file_size_bytes: int | None = None
+    error: str | None = None
+
+
+class KnowledgeDocumentsResponse(BaseModel):
+    documents: list[KnowledgeDocumentItem]
+
+
+class KnowledgeImportResponse(BaseModel):
+    new_documents: int
+    new_chunks: int
+    skipped: int
+    failed_files: list[dict[str, str]] = Field(default_factory=list)
+    last_import_at: str | None = None
 
 
 class KnowledgeStatsResponse(BaseModel):
