@@ -26,3 +26,5 @@ backend/data/chroma_db/*
 
 .DS_Store
 Thumbs.db
+aria-deploy.tar.gz
+deploy-stamp.txt

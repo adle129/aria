@@ -5,7 +5,7 @@
 
 services:
   postgres:
-    image: docker.1ms.run/library/postgres:16-alpine
+    image: docker.m.daocloud.io/library/postgres:16-alpine
     container_name: aria-postgres
     environment:
       POSTGRES_DB: aria_db
@@ -30,8 +30,10 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
+      SAMPLES_RFQ_PATH: /app/samples/rfq
     volumes:
       - ./backend/data:/app/data
+      - ./samples:/app/samples:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,7 +55,7 @@ services:
       - "3000:3000"
 
   nginx:
-    image: docker.1ms.run/library/nginx:alpine
+    image: docker.m.daocloud.io/library/nginx:alpine
     container_name: aria-nginx
     ports:
       - "80:80"

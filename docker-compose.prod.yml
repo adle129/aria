@@ -1,3 +1,4 @@
+﻿# Production: bind persistent data to host disk (see docs/deployment-guide.md)
 services:
   postgres:
     image: postgres:16-alpine
@@ -5,36 +6,30 @@ services:
     environment:
       POSTGRES_DB: aria_db
       POSTGRES_USER: aria_admin
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - ${ARIA_DATA_ROOT:-/data/aria}/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aria_admin -d aria_db"]
       interval: 5s
       timeout: 5s
       retries: 5
-
+    restart: unless-stopped
   backend:
     build: ./backend
     container_name: aria-backend
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
-      SAMPLES_RFQ_PATH: /app/samples/rfq
+      DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD}@postgres:5432/aria_db
     volumes:
-      - ./backend/data:/app/data
-      - ./samples:/app/samples:ro
+      - ${ARIA_DATA_ROOT:-/data/aria}/app:/app/data
     depends_on:
       postgres:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "8000:8000"
-
+    restart: unless-stopped
   frontend:
     build:
       context: ./frontend
@@ -43,9 +38,7 @@ services:
     container_name: aria-frontend
     depends_on:
       - backend
-    ports:
-      - "3000:3000"
-
+    restart: unless-stopped
   nginx:
     image: nginx:alpine
     container_name: aria-nginx
@@ -56,6 +49,4 @@ services:
     depends_on:
       - backend
       - frontend
-
-volumes:
-  postgres_data:
+    restart: unless-stopped
