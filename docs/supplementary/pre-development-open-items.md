@@ -89,7 +89,7 @@
 | **I-01** | `OLLAMA_MAX_CONCURRENT`（1 或 2） | **`1`** | O-06 确认后 | 内部待定 | dev-context · api-design |
 | **I-02** | 吞吐方案：32B 排队 / 降 14B / 多卡 | **32B + 排队** | O-06 后 | 内部待定 | 容量架构讨论 |
 | **I-03** | R1-α 内部 seed 基准条数 | **20–30 项** | R1 编码启动 | 内部待定 | rfq-dimension-baseline-spec §5 |
-| **I-04** | Git 分支 `release/r1` 是否已创建 | 待创建 | 正式开工前 | 内部待定 | formal-delivery-strategy §9 |
+| **I-04** | Git 分支 `release/r1` 是否已创建 | 已创建（本地）；push 待网络 | 正式开工前 | **已关闭** | formal-delivery-strategy §9 |
 | **I-05** | `.cursor/rules` 与 pgvector / 无 LangChain 口径同步 | 待排期 | R1 前 | 内部待定 | formal-delivery-strategy §9.2 |
 | **I-06** | R1 验收彩排脚本（15–20 min，仅 RFQ+知识库） | 待编写 | R1 第 6 周前 | 内部待定 | formal-delivery-strategy §9.2 |
 | **I-07** | R1 检索评测 JSON 快照 / 自动化程度 | 手工表为主 | R1 第 4 周 | 内部待定 | test-plan §7 |
