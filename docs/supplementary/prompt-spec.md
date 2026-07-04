@@ -1,7 +1,7 @@
 # ARIA — Prompt 规范
 
-**版本：** v1.0  
-**日期：** 2026-06-18
+**版本：** v1.3 · 2026-07-04  
+**基线：** [prod.md](../../prod.md) v1.5 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)
 
 ---
 
@@ -28,6 +28,10 @@
   "customer": "string",
   "platform_type": "MEB | MQB | 非平台车 | 未知",
   "functions_in_scope": ["PM", "BIW", "Chassis", "CAE", "EE", "GI", "Interior"],
+  "development_scope": [
+    {"id": "4.1.1", "title": "整车总布置开发", "function": "GI"},
+    {"id": "4.2.1", "title": "底盘系统开发", "function": "Chassis"}
+  ],
   "milestones": {
     "P1": "YYYY-MM-DD",
     "P2": "YYYY-MM-DD",
@@ -61,11 +65,104 @@
 
 ---
 
-## 3. 技术维度对比表 Prompt
+## 3. F1.10 基准维度匹配与确认（R1 · Q8）
+
+> **prod：** F1.10a–d · **规格：** [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)  
+> **API：** `GET /rfq/dimension-baseline` · `PUT /rfq/tasks/{id}` · `POST .../confirm-dimensions`  
+> **状态：** `dimension_review`  
+> **流程：** [customer-feedback-baseline.md §6](../customer-feedback-baseline.md)
+
+### 3.1 阶段 A — RFQ 匹配基准库（非动态造维度）
+
+**文件：** `prompts/v1/rfq_baseline_match.txt`
+
+**触发：** RFQ 解析完成后（`processing_status` → `dimension_review`）
+
+**输入：**
+
+- `rfq_modules`（含 `development_scope`、`modules`、`functions_in_scope`）
+- `dimension_baseline`（当前版本全量条目，或 batch 分批）
+
+**输出 Schema（`dimension_draft`）：**
+
+```json
+{
+  "baseline_version": "v1",
+  "items": [
+    {
+      "dimension_id": "chassis_front_susp",
+      "module": "Chassis",
+      "module_label": "底盘",
+      "name": "前悬架开发",
+      "in_scope": true,
+      "work_content": "前悬架 M1/M2 数据开发",
+      "source_ref": "RFQ §4.2.1",
+      "manually_adjusted": false,
+      "custom": false
+    },
+    {
+      "dimension_id": "closure_door_handle",
+      "module": "Closure",
+      "module_label": "开闭件",
+      "name": "门把手开发",
+      "in_scope": false,
+      "work_content": "—",
+      "source_ref": null,
+      "manually_adjusted": false,
+      "custom": false
+    }
+  ],
+  "custom_items": [],
+  "module_summary": [
+    {"module": "Chassis", "module_label": "底盘", "needed": true, "in_scope_count": 5}
+  ]
+}
+```
+
+**约束：**
+
+- **主路径：** 维度名来自 **基准库**，LLM **不得** 凭空新增标准维度（仅 `custom_items` 可补充）
+- `in_scope=false` 时 `work_content` **必须** 为 `—`
+- `in_scope=true` 须有 `work_content` 或 `source_ref` 之一；无依据标 `unknown` 供人工勾选
+- 规则通道（keywords）可预填，LLM 批处理修正
+
+**工程师交互（F1.10c）：** 勾选 / 取消 / 编辑 `work_content` / 添加 `custom_items` → `PUT /rfq/tasks/{id}`
+
+### 3.2 阶段 B — 对比矩阵（确认后 · F1.10d）
+
+**触发：** `POST confirm-dimensions` 提交 **最终** in_scope 项
+
+**请求映射：** 由 `dimension_draft.items`（`in_scope=true`）+ `custom_items` 生成：
+
+```json
+{
+  "comparison_dimensions": [
+    {"name": "前悬架开发", "new_project_value": "前悬架 M1/M2 数据开发", "dimension_id": "chassis_front_susp"}
+  ]
+}
+```
+
+**输入：** 确认的 in_scope 列表 + RAG **Top-3** 历史 RFQ 片段
+
+**输出：** 见 §4 `comparison_table` Schema
+
+**约束：**
+
+- **须** 在维度确认后才调用 RAG；禁止跳过 `dimension_review`
+- 矩阵 **仅含 in_scope 行**；确认页展示全量基准行
+- `similarity_score` 来自向量检索，不由 LLM 生成
+
+### 3.3 遗留 · 动态维度（降级路径）
+
+原 `prompts/v1/rfq_dimensions.txt` 动态生成 ~5 项 — **仅当基准库不可用（开发 seed）时** 作 fallback；生产环境 **必须** 加载客户基准库。
+
+---
+
+## 4. 技术维度对比表 Prompt
 
 **文件：** `prompts/v1/comparison_table.txt`
 
-**输入：** 新 RFQ 解析结果 + RAG 检索到的 Top-K 历史项目片段
+**输入：** 新 RFQ 解析结果 + **工程师已确认的** `comparison_dimensions` + RAG Top-**3** 历史项目片段
 
 **输出 Schema：**
 
@@ -104,7 +201,7 @@
 
 ---
 
-## 4. 人力报价建议 Prompt
+## 5. 人力报价建议 Prompt
 
 **文件：** `prompts/v1/excel_manpower.txt`
 
@@ -130,27 +227,45 @@
 
 ---
 
-## 5. QA 清单 Prompt
+## 6. QA 清单 Prompt（M4 · v3.5）
 
-**文件：** `prompts/v1/qa_generate.txt`
+**主路径：** [m4-qa-merge-spec.md](m4-qa-merge-spec.md) — Area 合并 + 去重 + G/H 规则。**非** `qa_generate` 造题。
 
-**阶段：**
+| Prompt | 文件 | 用途 |
+|--------|------|------|
+| **`qa_dedupe`** | `prompts/v1/qa_dedupe.txt`（待建） | 同 Area 语义相似 Question 保留 1 条 |
+| **`qa_impact_classify`** | `prompts/v1/qa_impact_classify.txt`（待建） | 源行 G 为空时 → 高/中/低 |
+| `qa_generate` | `prompts/v1/qa_generate.txt` | **已废弃主路径**；Demo Stub 参考 |
 
-| 阶段 | 实现 |
-|------|------|
-| Demo 框架 | Stub `generate-qa` 返回 `MOCK_QA_ITEMS`（见 `mock_data.py`），UI 标「Demo 预览」 |
-| Phase 2 全量 | RAG 检索历史 Q_A + LLM 调用本 Prompt |
+### 5.1 `qa_dedupe`
 
-**约束（Phase 2）：**
+- **输入：** `[{area, question, row_id, engagement_id}]`
+- **输出：** `[{kept_row_id, merged_from[]}]`
 
-- 每条 QA 必须标注 Area 和 History Reference
-- 影响程度基于历史项目变更/返工记录
-- 输出符合 Q_A 模板列结构
-- **相关性过滤：** 只保留与当前 RFQ 模块直接相关的问题，输出 5–10 条，禁止凑数量（见 `qa_generate.txt`）
+### 5.2 `qa_impact_classify`
+
+- **输入：** `area`, `question`, 可选 `rfq_scope_summary`
+- **输出：** `"高" | "中" | "低"`
+
+### 5.3 H 列历史依据
+
+**不用 LLM。** 组装：`{project_name} / {source_doc} / 行{source_row}`。
 
 ---
 
-## 5.1 方案草案 Stub JSON（Demo 框架）
+### 6.4 人力报价岗位行 Prompt（M3 · 可选）
+
+**文件：** `prompts/v1/manpower_row_map.txt`（待建）
+
+- **输入：** RFQ `development_scope` 子树 + 历史 `positions[]`（row_id, position）
+- **输出：** `retained_row_ids[]`
+- **见：** [m3-scope-match-spec.md](m3-scope-match-spec.md)
+
+---
+
+### 6.5 方案草案 Stub JSON（Demo 框架 · M5 正式不用 LLM 正文）
+
+> **M5 正式：** 不调用本 Prompt；见 [m5-proposal-fill-spec.md](m5-proposal-fill-spec.md)。Demo Stub 保留至 M5 Gate。
 
 Demo 阶段 `POST .../generate-proposal` 返回的 `solution_draft` 形状（Phase 2 真实 RAG 须兼容）：
 
@@ -176,7 +291,7 @@ Demo 阶段 `generate-qa` 的 `qa_items` 元素字段：`no`（序号）、`ques
 
 ---
 
-## 6. LLM 调用规范
+## 7. LLM 调用规范
 
 ```python
 # LLMService 统一参数
@@ -198,7 +313,7 @@ MAX_RETRIES = 2
 
 ---
 
-## 7. 置信度计算规则
+## 8. 置信度计算规则
 
 | 级别 | 条件 |
 |------|------|
@@ -208,7 +323,7 @@ MAX_RETRIES = 2
 
 ---
 
-## 8. Embedding 模型选型（RAG）
+## 9. Embedding 模型选型（RAG）
 
 | 阶段 | 模型 | 说明 |
 |------|------|------|

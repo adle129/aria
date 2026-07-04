@@ -1,7 +1,8 @@
-# ARIA 智能报价辅助系统 — 运维手册
+# ARIA 智能应用平台 — 运维手册
 
-**版本：** v1.0  
-**日期：** 2026-06-18  
+**首期应用：** ARIA 报价助手  
+**版本：** v1.2  
+**日期：** 2026-06-22  
 **适用对象：** 客户 IT 管理员、知识库管理员、开发方运维支持
 
 ---
@@ -37,7 +38,7 @@ systemctl status ollama
 curl -s http://127.0.0.1:11434/api/tags
 
 # 4. 磁盘空间
-df -h /opt/aria /data/ollama /data/aria_backups
+df -h /data/aria /data/ollama
 # 期望：使用率 < 80%
 
 # 5. 最近错误日志
@@ -61,20 +62,27 @@ docker-compose logs --tail=50 aria-backend | grep -i error
 ### 2.1 常用命令
 
 ```bash
-cd /opt/aria/deploy
+cd /opt/aria
 
-./scripts/start.sh      # 启动全部服务
-./scripts/stop.sh       # 停止全部服务
-./scripts/update.sh v1.1.0  # 版本升级
-./scripts/backup.sh     # 手动备份
-./scripts/reindex.sh    # 重建向量索引
+bash deploy/scripts/start.sh      # 生产：docker-compose.prod.yml
+bash deploy/scripts/stop.sh
+bash deploy/scripts/backup.sh     # 备份至 /data/aria/backups/
+bash deploy/scripts/reindex.sh    # 重建向量索引（封装 ingest_documents.py）
 ```
+
+> **开发环境** 使用 `docker compose up`（`docker-compose.yml`），不使用上述生产脚本。  
+> `update.sh` 与 `incremental_update.py` 为 Phase 2 规划，当前见 [deployment-guide.md §5.5](deployment-guide.md)。
+
+> **生产 Compose（R1+）：** 除 `aria-backend`（Web API）外，含 **`aria-worker`**（同镜像，消费 PG 任务队列 + Ollama 并发闸）。两者日志需分别查看。
 
 ### 2.2 日志查看
 
 ```bash
-# 后端实时日志
+# 后端 API 实时日志
 docker-compose logs -f aria-backend
+
+# 任务 worker（R1+）
+docker-compose logs -f aria-worker
 
 # 最近 200 行
 docker-compose logs --tail=200 aria-backend
@@ -87,6 +95,7 @@ docker-compose logs -f aria-frontend
 
 ```bash
 docker-compose restart aria-backend
+docker-compose restart aria-worker    # R1+ 长任务 worker
 docker-compose restart aria-frontend
 ```
 
@@ -97,8 +106,8 @@ docker-compose restart aria-frontend
 ### 3.1 批量导入（首次）
 
 ```bash
-# 1. 按项目名组织文档
-/opt/aria/data/knowledge_base/
+# 1. 按项目名组织文档（生产路径）
+/data/aria/app/knowledge_base/
 ├── project_2023_chassis/
 │   ├── rfq.docx
 │   ├── proposal.docx
@@ -110,27 +119,25 @@ docker-compose restart aria-frontend
 docker exec aria-backend python scripts/ingest_documents.py
 
 # 3. 验证
-curl http://localhost:8000/api/v1/knowledge/stats
+curl http://localhost/api/v1/knowledge/stats
 ```
 
-### 3.2 增量导入（新项目完成后）
+### 3.2 增量导入（Phase 2）
+
+> **当前版本：** 无 `incremental_update.py`。新项目文档放入 `knowledge_base/<项目名>/` 后，重新执行 `ingest_documents.py`（已索引文件按脚本逻辑跳过）。
 
 ```bash
-# 1. 将新文档放入 knowledge_base/<新项目名>/
-# 2. 执行增量更新（自动跳过已入库文件）
-docker exec aria-backend python scripts/incremental_update.py
-
-# 3. 确认统计数增加
-curl http://localhost:8000/api/v1/knowledge/stats
+# Phase 2 规划（尚未交付）
+# docker exec aria-backend python scripts/incremental_update.py
 ```
 
 ### 3.3 支持的文档类型
 
 | 类型 | 扩展名 | 处理方式 |
 |------|--------|---------|
-| RFQ / 方案 | .docx | 文本切块 → ChromaDB |
-| 历史报价 | .xlsx | 结构化解析 → PostgreSQL 基线 + 向量摘要 |
-| QA 清单 | .xlsx | 按 Area 分类入库 |
+| RFQ / 方案 | .docx | 章节+表格结构化 → Embedding → **pgvector** |
+| 历史报价 | .xlsx | 规则解析 → `manpower_baselines.json`（**不进向量主检索**） |
+| QA 清单 | .xlsx | openpyxl 按行 8 列；可选行级向量 |
 | 技术方案 | .pdf | Phase 2：PyMuPDF 提取文本 |
 
 ### 3.4 Re-index（重建向量索引）
@@ -139,15 +146,17 @@ curl http://localhost:8000/api/v1/knowledge/stats
 
 - Embedding 模型变更（如 nomic-embed-text 升级）
 - 大量文档导入后检索效果异常
-- ChromaDB 文件损坏
+- pgvector 索引异常或 Embedding 模型变更
 
 ```bash
-# 方式 1：脚本
-./scripts/reindex.sh
+# 方式 1：脚本（生产）
+bash deploy/scripts/reindex.sh
 
 # 方式 2：手动
-docker exec aria-backend python scripts/reindex_knowledge.py
+docker exec aria-backend python scripts/ingest_documents.py
 ```
+
+> `scripts/reindex_knowledge.py` 为 Phase 2 占位；当前 reindex 即全量 ingest。
 
 > Re-index 期间 RAG 检索可能短暂不可用，建议在非高峰执行。
 
@@ -253,8 +262,8 @@ prompts/
 |------|---------|------|
 | RFQ 上传后一直「解析中」 | Ollama 未响应 / GPU OOM | 检查 `systemctl status ollama`；查看 `nvidia-smi` |
 | JSON 解析失败 | LLM 输出格式异常 | 查看 backend 日志；重试；检查 Prompt 版本 |
-| 相似项目检索为空 | 知识库未导入 / ChromaDB 空 | 执行 ingest；检查 stats API |
-| Excel 下载打不开 | 模板文件缺失 | 检查 `data/templates/quote_template.xlsx` |
+| 相似项目检索为空 | 知识库未导入 / pgvector 空 / 低于拒答阈值 | 执行 ingest；检查 stats；确认 query 与评测集 |
+| Excel 下载打不开 | 模板文件缺失 | 检查 `/data/aria/app/templates/quote_template.xlsx`（生产） |
 | docker-compose 启动失败 | 端口冲突 / .env 缺失 | 检查 3000/8000/5432 端口；复制 .env.template |
 | 前端空白页 | backend 未就绪 | 等 health check 通过；检查 NEXT_PUBLIC_API_URL |
 
@@ -337,5 +346,6 @@ docker exec -it postgres psql -U aria_admin -d aria_db -c "SELECT count(*) FROM 
 **关联文档：**
 
 - [deployment-guide.md](deployment-guide.md)
+- [customer-it-infrastructure.md](customer-it-infrastructure.md)
 - [user-manual.md](user-manual.md)
 - [prod.md](../prod.md)

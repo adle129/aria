@@ -1,7 +1,7 @@
 # ARIA — 测试方案
 
-**版本：** v1.0  
-**日期：** 2026-06-18
+**版本：** v1.1 · 2026-07-02  
+**基线：** [prod.md](../../prod.md) v1.5 · [delivery-traceability.md](delivery-traceability.md)
 
 ---
 
@@ -118,8 +118,13 @@ def test_generate_quote_empty_modules():
 
 ### 5.3 通过标准
 
-- 关键 JSON 字段一致率 ≥ 90%
+- **只验结构**，不比对 LLM 生成全文（避免非确定性失败）：
+  - RFQ JSON：关键字段存在、Schema 合法
+  - 对标：Top-K 数量（如 Top-3）、projects 非空或 `insufficient_evidence`
+  - Excel：目标 Sheet 存在、PM/Chassis 行结构
+  - Q_A：8 列格式、行数范围
 - 无 crash / 500 错误
+- R1 检索质量另用 **≥15 query 人工评测**（≥12/15），见 [R1 验收说明](../R1-知识库验收与检索评测说明（客户版）.md)
 
 ---
 
@@ -193,4 +198,21 @@ set -e
 
 ---
 
-**关联文档：** [api-design.md](api-design.md) | [ops-guide.md](../ops-guide.md)
+## 7. 正式版里程碑验收（文档门禁 · 非自动化）
+
+> 下列项在 **R1/M3–M6 Gate** 前由 PM + 客户签字；部分可辅以手工评测表或合成样本单测。
+
+| 里程碑 | 验收项 | 自动化建议 |
+|--------|--------|-----------|
+| **R1** | 检索评测 ≥15 条、≥12/15 Pass | 手工表 + 可选 JSON 快照 |
+| **R1** | F1.10：`confirm-dimensions` 契约 + 3 份 RFQ 流程 | API test Mock LLM |
+| **R1** | `GET /knowledge/baselines` 与源 Excel 一致 | unit test 解析样本 |
+| **M3** | ScopeMatch 合成 3 组 engagement | unit test `ScopeMatchService` |
+| **M3** | `generate-excel` 响应含 `quote_fill_report` | API test schema |
+| **M5** | `generate-proposal` 含 `proposal_fill_report`；`demo_preview: false` | API test schema |
+
+详见 [prod.md §10.2](../../prod.md) · [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md)。
+
+---
+
+**关联文档：** [api-design.md](api-design.md) v1.2 | [ops-guide.md](../ops-guide.md) | [delivery-traceability.md](delivery-traceability.md)

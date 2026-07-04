@@ -123,16 +123,22 @@ RFQ 解析单次约 **30 秒–2 分钟**（视 GPU 与文档长度）。
 
 ---
 
-## 5. 启用真实 RAG（可选，节后）
+## 5. 启用真实 RAG（可选）
+
+**R1 目标：** 向量存 **PostgreSQL pgvector**，Embedding 经 Ollama `nomic-embed-text`（非 Chroma 默认模型）。Demo 过渡期仍可能使用 `chroma_store.py`，迁移后仅 pgvector。
 
 ```powershell
-# 1. 导入知识库
+# 1. 确保 Embedding 模型
+ollama pull nomic-embed-text
+
+# 2. 导入知识库（Demo 脚本；R1 走 POST /knowledge/import）
 python scripts/ingest_documents.py
 
-# 2. .env
+# 3. .env
 MOCK_RAG=false
+EMBEDDING_MODEL=nomic-embed-text
 
-# 3. 重启 backend
+# 4. 重启 backend（R1+ 另需 worker 服务）
 docker compose restart backend
 ```
 

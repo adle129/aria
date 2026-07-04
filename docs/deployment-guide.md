@@ -1,7 +1,8 @@
-# ARIA 智能报价辅助系统 — 部署方案
+# ARIA 智能应用平台 — 部署方案
 
-**版本：** v1.1  
-**日期：** 2026-06-20
+**首期应用：** ARIA 报价助手  
+**版本：** v1.3  
+**日期：** 2026-06-22
 
 ---
 
@@ -31,15 +32,14 @@
 ┌─────────────────────────────────────────────────────────┐
 │  Ubuntu Server 22.04 LTS                                 │
 │                                                          │
-│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │  Nginx   │  │ aria-frontend│  │ aria-backend │       │
-│  │  :80     │──│  :3000       │  │  :8000       │       │
-│  └──────────┘  └──────────────┘  └──────┬───────┘       │
-│                                          │               │
-│  ┌──────────────┐  ┌──────────────┐     │               │
-│  │ PostgreSQL   │  │ ChromaDB     │     │               │
-│  │  :5432       │  │ (文件存储)    │     │               │
-│  └──────────────┘  └──────────────┘     │               │
+│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │  Nginx   │  │ aria-frontend│  │ aria-backend │  │ aria-worker  │ │
+│  │  :80     │──│  :3000       │  │  :8000       │  │  (同镜像)     │ │
+│  └──────────┘  └──────────────┘  └──────┬───────┘  └──────┬───────┘ │
+│                                          │                  │         │
+│  ┌──────────────────────────────────────▼──────────────────▼───────┐ │
+│  │ PostgreSQL 16 + pgvector（业务表 + 向量索引 + 任务队列）          │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
 │                                          │               │
 │  ┌──────────────────────────────────────▼───────────┐   │
 │  │ Ollama (systemd, 非容器)                          │   │
@@ -47,16 +47,31 @@
 │  │ /data/ollama/models                               │   │
 │  └───────────────────────────────────────────────────┘   │
 │                                                          │
-│  /opt/aria/data/  ← Volume 挂载（不入镜像）              │
-│    uploads/ outputs/ knowledge_base/ chroma_db/ templates/│
+│  /opt/aria/deploy/  ← 应用交付（系统盘，可重装）            │
+│                                                          │
+│  /data/aria/       ← 独立数据盘（持久化，可整块迁移）       │
+│    app/            → 容器 /app/data                       │
+│      uploads/ outputs/ knowledge_base/ templates/          │
+│    postgres/       → PostgreSQL（含 pgvector 向量）         │
+│    backups/        → 每日备份                              │
+│                                                          │
+│  /data/ollama/models  ← 大模型文件（同数据盘挂载点 /data）   │
 └─────────────────────────────────────────────────────────┘
 ```
 
+**Deployment Profile（部署画像）：**
+
+| Profile | Compose 文件 | 数据盘 | 用途 |
+|---------|--------------|--------|------|
+| **dev** | `docker-compose.yml` | 否（`./backend/data`） | 本地开发、CI、`run_tests` |
+| **experience** | `docker-compose.aliyun-demo.yml` | 否 | 4C8G 远程 UI Mock |
+| **production** | `docker-compose.prod.yml` | **是**（`/data/aria`） | 内网 GPU 生产 |
+
 **设计原则：**
 
-- ARIA 应用容器化（Docker Compose）
-- Ollama 独立进程（GPU 直通、模型文件大）
-- 客户数据目录 Volume 挂载，容器重建不丢数据
+- ARIA 应用容器化（Docker Compose）；**生产**使用 `docker-compose.prod.yml` 将 PG 与业务数据 bind 到 `${ARIA_DATA_ROOT}`（默认 `/data/aria`）
+- Ollama 独立进程（GPU 直通、模型文件大）；模型目录 `/data/ollama/models`
+- **应用（/opt/aria/deploy）与数据（/data）分离**，换机时可 rsync `/data` 后重装应用
 - 源码不交付，镜像黑盒部署
 
 ---
@@ -74,7 +89,7 @@
 | 数据盘 | 4 TB HDD | 8 TB RAID1 + 2 TB SSD | 16 TB RAID5 |
 | 推理速度 | 5–10 tok/s | 30–50 tok/s | 80–120 tok/s |
 | 并发用户 | 3–5 | 10–15 | 20–30 |
-| 适用模型 | 7B/14B | 32B Q4 | 72B |
+| 适用模型 | 7B/14B | **32B Q4** ★ | 32B 全精度 / 多卡并行 |
 | 预算参考 | 2–4 万 | **6–10 万** | 20 万+ |
 
 ### 2.2 推荐版详细配置
@@ -93,14 +108,19 @@ UPS：     在线式 2 KVA
 
 ### 2.3 存储规划
 
+> **生产环境：** 建议配置 **独立数据盘**，挂载至 `/data`（见 [customer-it-infrastructure.md](customer-it-infrastructure.md)）。
+
 | 路径 | 预估大小 | 说明 |
 |------|---------|------|
-| `/data/ollama/models` | 20–80 GB | 模型文件（14B≈9G, 32B≈20G） |
-| `/opt/aria/data/chroma_db` | 5–50 GB | 向量库，随知识库增长 |
-| `/opt/aria/data/knowledge_base` | 10–500 GB | 历史项目原始文档 |
-| `/opt/aria/data/uploads` | 1–10 GB | 用户上传 RFQ |
-| `/opt/aria/data/outputs` | 1–10 GB | 生成文件 |
-| `/data/aria_backups` | 按保留策略 | 每日备份 |
+| `/data/ollama/models` | 20–80 GB | 模型文件（32B≈20G） |
+| `/data/aria/postgres` | 1–30 GB | PostgreSQL（**含 pgvector 向量索引**） |
+| `/data/aria/app/knowledge_base` | 10–500 GB | 历史项目原始文档 |
+| `/data/aria/app/uploads` | 1–10 GB | 用户上传 RFQ |
+| `/data/aria/app/outputs` | 1–10 GB | 生成文件 |
+| `/data/aria/app/templates` | &lt; 100 MB | Excel/QA 模板（首次部署从交付包复制） |
+| `/data/aria/postgres` | 1–20 GB | PostgreSQL 数据目录 |
+| `/data/aria/backups` | 按保留策略 | 每日备份（保留建议 ≥30 天） |
+| `/opt/aria/deploy` | &lt; 5 GB | 镜像包、compose、`.env`（系统盘） |
 
 ### 2.4 模型选型与扩展规划
 
@@ -220,7 +240,7 @@ curl -s -X POST http://localhost/api/v1/rfq/tasks/{task_id}/generate-qa
 |----------|------------------|
 | 新增 QA / PPT / 财务模块 | 通常 **14B → 32B** 即可 |
 | Excel 全 9 Function | **不需要** LLM |
-| 多模型路由（解析 32B + 摘要 14B，远期） | **两个中等模型**，非 72B |
+| 多模型路由（解析 32B + 摘要 14B，远期可选） | 两个中等模型并存；**首期生产 32B Q4 已足够** |
 | 多用户并发 | **加 GPU / 队列**，非单纯换最大模型 |
 
 **给客户的默认方案：**
@@ -263,7 +283,7 @@ MOCK_LLM=false
 docker compose up --build
 ```
 
-后端 `pip install` 若出现哈希校验失败，执行 `docker compose build --no-cache backend`；Phase 0 可用 `docker-compose.dev.yml` 跳过 LangChain/ChromaDB 以缩短构建时间。详见 [README.md](../README.md)。
+后端 `pip install` 若出现哈希校验失败，执行 `docker compose build --no-cache backend`；Phase 0 可用 `docker-compose.dev.yml` 跳过 AI 大包以缩短构建时间。详见 [README.md](../README.md)。
 
 ### 3.1 操作系统初始化
 
@@ -286,14 +306,25 @@ sudo systemctl enable docker
 # 参考 NVIDIA 官方文档安装驱动 + nvidia-container-toolkit
 ```
 
-### 3.2 目录创建
+### 3.2 目录创建（生产）
 
 ```bash
-sudo mkdir -p /opt/aria/{data/{uploads,outputs,knowledge_base,chroma_db,templates},deploy}
+# 数据盘挂载至 /data 后执行（fstab 由客户 IT 配置）
+export ARIA_DATA_ROOT=/data/aria
+
+sudo mkdir -p "$ARIA_DATA_ROOT"/app/{uploads,outputs,knowledge_base,templates}
+sudo mkdir -p "$ARIA_DATA_ROOT"/postgres
+sudo mkdir -p "$ARIA_DATA_ROOT"/backups
 sudo mkdir -p /data/ollama/models
-sudo mkdir -p /data/aria_backups
-sudo chown -R $USER:$USER /opt/aria /data/ollama /data/aria_backups
+sudo mkdir -p /opt/aria/deploy
+
+# 首次部署：从交付包复制 Excel/QA 模板（若 app/templates 为空）
+# cp -r /opt/aria/backend/data/templates/* "$ARIA_DATA_ROOT/app/templates/"
+
+sudo chown -R "$USER:$USER" "$ARIA_DATA_ROOT" /data/ollama /opt/aria/deploy
 ```
+
+**开发 / 远程体验环境** 无需上述目录，使用仓库内 `backend/data` 即可。
 
 ---
 
@@ -358,23 +389,38 @@ EMBEDDING_MODEL=nomic-embed-text
 
 ## 5. ARIA 应用部署
 
-### 5.1 导入镜像（生产）
+### 5.1 生产部署（GPU 服务器）
 
 ```bash
-# 收到交付包
-scp aria-v1.0.0.tar.gz user@server:/opt/aria/deploy/
-cd /opt/aria/deploy
-docker load < aria-v1.0.0.tar.gz
+# 代码或交付包置于 /opt/aria（含 docker-compose.prod.yml）
+cd /opt/aria
+cp .env.production.example .env
+nano .env   # POSTGRES_PASSWORD、MOCK_LLM=false、OLLAMA_MODEL 等
 
-# 配置
-cp .env.template .env
-nano .env   # 填写 POSTGRES_PASSWORD 等
+# 确认数据目录已创建（§3.2）
+export ARIA_DATA_ROOT=/data/aria
 
-# 启动
-./scripts/start.sh
+# 启动（脚本位于 deploy/scripts/）
+bash deploy/scripts/start.sh
+
+# 验证
+curl -s http://localhost/api/v1/health | python3 -m json.tool
 ```
 
-### 5.2 开发/Demo 环境
+Compose 文件：[docker-compose.prod.yml](../docker-compose.prod.yml)（`ARIA_DATA_ROOT` bind `app/` 与 `postgres/`）。
+
+### 5.2 导入镜像（黑盒交付，可选）
+
+```bash
+scp aria-v1.0.0.tar.gz user@server:/opt/aria/deploy/
+cd /opt/aria
+docker load < deploy/aria-v1.0.0.tar.gz
+cp .env.production.example .env
+nano .env
+bash deploy/scripts/start.sh
+```
+
+### 5.3 开发 / 本地 Demo 环境
 
 ```bash
 git clone <repo-url> aria
@@ -394,28 +440,25 @@ docker-compose up --build
 - API 文档：http://localhost:8000/docs
 - 健康检查：http://localhost:8000/api/v1/health
 
-### 5.3 导入知识库
+### 5.4 导入知识库
 
 ```bash
-# 将历史文档放入 knowledge_base/<项目名>/
-rsync -avz ./knowledge_base/ /opt/aria/data/knowledge_base/
+# 将历史文档放入数据盘知识库目录
+rsync -avz ./knowledge_base/ /data/aria/app/knowledge_base/
 
-# 批量导入
+# 批量导入（容器内路径仍为 /app/data/knowledge_base）
 docker exec aria-backend python scripts/ingest_documents.py
 
-# 增量更新（后续）
-docker exec aria-backend python scripts/incremental_update.py
+# 增量更新：Phase 2 提供 incremental_update；Demo 可重复执行 ingest
 ```
 
-### 5.4 版本更新
+### 5.5 版本更新
 
 ```bash
-# deploy/scripts/update.sh v1.1.0
-./scripts/stop.sh
-docker load < aria-v1.1.0.tar.gz
-# 更新 .env 中镜像 tag（如需要）
-./scripts/start.sh
-# 数据 Volume 完全不受影响
+bash deploy/scripts/stop.sh
+docker load < deploy/aria-v1.1.0.tar.gz   # 若使用镜像交付
+bash deploy/scripts/start.sh
+# ${ARIA_DATA_ROOT} 下数据不受影响
 ```
 
 ---
@@ -505,38 +548,47 @@ flowchart TD
 
 ### 9.1 自动备份
 
+使用仓库脚本 [deploy/scripts/backup.sh](../deploy/scripts/backup.sh)：
+
 ```bash
-#!/bin/bash
-# deploy/scripts/backup.sh
 # crontab: 0 2 * * * /opt/aria/deploy/scripts/backup.sh
-
-DATE=$(date +%Y%m%d)
-BACKUP_DIR="/data/aria_backups/$DATE"
-mkdir -p "$BACKUP_DIR"
-
-cp -r /opt/aria/data/chroma_db "$BACKUP_DIR/"
-docker exec postgres pg_dump -U aria_admin aria_db > "$BACKUP_DIR/aria_db.sql"
-rsync -a /opt/aria/data/uploads/ "$BACKUP_DIR/uploads/"
-
-find /data/aria_backups/ -maxdepth 1 -type d -mtime +30 -exec rm -rf {} \;
-echo "[$(date)] ARIA backup completed" >> /var/log/aria_backup.log
+bash /opt/aria/deploy/scripts/backup.sh
 ```
 
-### 9.2 恢复
+备份内容：
+
+- `pg_dump` → `${ARIA_DATA_ROOT}/backups/YYYYMMDD/aria_db.sql`
+- `rsync`：`app/` 下 `uploads`、`outputs`、`knowledge_base`、`templates` + `postgres/`（含 pgvector）
+- 默认保留 30 天（环境变量 `RETENTION_DAYS`）
+
+### 9.2 恢复（同机）
 
 ```bash
-# 停止服务
-./scripts/stop.sh
+bash deploy/scripts/stop.sh
 
-# 恢复数据库
-docker exec -i postgres psql -U aria_admin aria_db < /data/aria_backups/20260618/aria_db.sql
+BACKUP=/data/aria/backups/20260618
+APP=/data/aria/app
 
-# 恢复向量库
-cp -r /data/aria_backups/20260618/chroma_db /opt/aria/data/
+docker compose -f docker-compose.prod.yml up -d postgres
+sleep 5
+docker exec -i aria-postgres psql -U aria_admin -d aria_db < "$BACKUP/aria_db.sql"
 
-# 启动
-./scripts/start.sh
+for sub in uploads outputs knowledge_base templates; do
+  [[ -d "$BACKUP/$sub" ]] && rsync -a "$BACKUP/$sub/" "$APP/$sub/"
+done
+
+bash deploy/scripts/start.sh
 ```
+
+### 9.3 数据迁移（换服务器）
+
+1. **旧机：** 停止服务 `deploy/scripts/stop.sh`；确认 `${ARIA_DATA_ROOT}` 与 `/data/ollama` 完整。
+2. **传输：** `rsync -avz /data/ newhost:/data/`（或挂载磁盘至新机）。
+3. **新机：** 安装 OS、Docker、NVIDIA 驱动、Ollama（§3–§4）；**无需重下模型**（若 `/data/ollama/models` 已迁移）。
+4. **部署应用：** 放置交付包于 `/opt/aria`，`cp .env.production.example .env`，`deploy/scripts/start.sh`。
+5. **验证：** `GET /api/v1/health`；抽样 RFQ 上传与对标。
+
+**RPO / RTO 参考：** 日备 → RPO ≤ 24h；含硬件上架 RTO 约 4–8h（不含采购）。
 
 ---
 
@@ -556,5 +608,6 @@ cp -r /data/aria_backups/20260618/chroma_db /opt/aria/data/
 **关联文档：**
 
 - [ops-guide.md](ops-guide.md)
+- [customer-it-infrastructure.md](customer-it-infrastructure.md)
 - [prod.md](../prod.md)
 - [proposal.md](proposal.md)

@@ -1,10 +1,14 @@
-# ARIA 智能报价辅助系统 — 项目建议书
+# ARIA 智能应用平台 — 项目建议书
 
-**项目名称：** ARIA（Automated RFQ Intelligence Assistant）  
+**产品品牌：** ARIA（**A**ssisted **R**easoning & **I**ntelligence **A**pplications）  
+**首期应用：** ARIA 报价助手  
 **客户：** EDAG（爱达克）  
-**版本：** v1.0  
-**日期：** 2026-06-18  
+**版本：** v1.2  
+**日期：** 2026-06-29  
 **文档类型：** 项目建议书（含方案概述与费用估算）
+
+> 品牌与平台定位：[platform-brand.md](supplementary/platform-brand.md)  
+> **商务里程碑与固定价：** 以 [客户版 v3.7](ARIA-报价助手-正式版交付方案与报价（客户版）.md) / [客户易懂版 v1.3](ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md) 为准；本文 §5 套餐 A/B/C 为 **历史估算**，新签约请用 R1/M3–M6 里程碑。
 
 ---
 
@@ -26,22 +30,25 @@
 
 ### 1.1 项目目标
 
-为 EDAG 建设本地私有化 AI 报价辅助系统 ARIA，辅助 20–30 名研发工程师完成 RFQ 解析、历史项目对标、技术澄清、方案编写和人力报价核算，提升报价效率与一致性。
+为 EDAG 建设本地私有化 **ARIA 智能应用平台**，首期交付 **报价助手** 应用，辅助 20–30 名研发工程师完成 RFQ 解析、历史项目对标、技术澄清、方案编写和人力报价核算，提升报价效率与一致性。
+
+平台统一提供知识库、本地大模型与 RAG 能力；后续 **财务助手** 等内部 AI 工具可在同一平台上扩展，复用基础设施。
 
 ### 1.2 建设原则
 
 - **本地私有化：** 数据不出内网，禁止公有云 API
+- **平台 + 应用：** ARIA 为平台品牌；报价助手为首个应用；财务等为后续应用
 - **AI 辅助而非替代：** 工程师二次校验后定稿
-- **分阶段交付：** Demo 验证 → 正式版 → 远期财务模块
-- **可持续演进：** 知识库持续优化、模型可升级、架构预留扩展
+- **分阶段交付：** 报价 Demo → 报价正式版 → 平台第二应用（财务）
+- **可持续演进：** 知识库持续优化、模型可升级、架构预留多 App 扩展
 
 ### 1.3 建议路径
 
 | 阶段 | 周期 | 目标 |
 |------|------|------|
-| **Phase 1 Demo** | 4–6 周 | 验证 RFQ 解析 + 历史比对 + Excel 人力报价闭环 |
-| **Phase 2 正式版** | 10–12 周 | 四大模块全量 + 运维体系 + 生产上线 |
-| **Phase 3 财务 AI** | 6–8 周 | 财务 Sheet 核算（待 Phase 2 稳定后启动） |
+| **Phase 1 Demo** | 4–6 周 | **报价助手** Demo：RFQ 解析 + 历史比对 + Excel 人力报价闭环（**已完成演示**） |
+| **Phase 2 正式版** | **18–22 周** | 2A–2F 子阶段；知识库先行；见 [customer-delivery-roadmap.md](customer-delivery-roadmap.md) |
+| **Phase 3 财务助手** | 6–8 周 | 平台第二应用（待 Phase 2 稳定后启动） |
 
 ---
 
@@ -83,9 +90,17 @@ flowchart LR
 | 插件化架构 | Generator/Service 可扩展 | 财务模块无需重构 |
 | 运维 SOP | LLM 更新、版本测试、备份 | 长期可维护 |
 
----
+### 2.4 平台与应用（品牌架构）
 
-## 3. 技术架构
+| 层级 | 说明 | Phase 1 |
+|------|------|---------|
+| **ARIA Platform** | 知识库、LLM、RAG、部署 | 历史资料库轻量 + 叙事 |
+| **报价助手** | RFQ 五步、Excel、对标 | **Demo 交付范围** |
+| **财务助手** | 财务 Sheet AI | 规划（Phase 3） |
+
+详见 [platform-brand.md](supplementary/platform-brand.md)。
+
+---
 
 ### 3.1 总体架构
 
@@ -98,12 +113,13 @@ flowchart LR
 │  Nginx 反向代理 (:80)                                    │
 ├────────────────────┬────────────────────────────────────┤
 │  Next.js 前端       │  FastAPI 后端                       │
-│  Ant Design 5      │  LangChain RAG + 业务 Service       │
+│  Ant Design 5      │  RAGService + 业务 Service（pgvector）│
 └────────────────────┴──────────────┬─────────────────────┘
                                     │
          ┌──────────────────────────┼──────────────────────┐
          │                          │                      │
-    PostgreSQL 16              ChromaDB              本地文件系统
+    PostgreSQL 16 + pgvector        本地文件系统
+    （业务 + 向量 + 任务队列）       uploads / knowledge_base
     业务数据/基线库             向量检索               uploads/outputs/templates
                                     │
                          Ollama (独立进程, localhost:11434)
@@ -117,8 +133,8 @@ flowchart LR
 |------|------|------|
 | LLM | Ollama + Qwen2.5 | 中文理解强，完全离线 |
 | Embedding | nomic-embed-text | 本地向量化 |
-| 向量库 | ChromaDB | Demo 友好，可迁移 Milvus |
-| 后端 | Python FastAPI + LangChain + SQLAlchemy | AI 生态完整 |
+| 向量库 | PostgreSQL pgvector | 与业务同库，pg_dump 统一备份 |
+| 后端 | Python FastAPI + SQLAlchemy 2 | 不引入 LangChain；Ollama 直连 |
 | 前端 | Next.js 14 + TypeScript + Ant Design 5 | 企业级 UI |
 | 文档 | python-docx / openpyxl / python-pptx | Word/Excel/PPT |
 | 容器 | Docker Compose | 一键启动 |
@@ -155,14 +171,18 @@ flowchart LR
 4. 工程师编辑确认后，生成并下载 Excel 人力报价初稿
 5. 展示知识库管理面板
 
-### Phase 2 — 正式版（10–12 周）
+### Phase 2 — 正式版（18–22 周，子阶段）
 
-| 模块 | 内容 |
-|------|------|
-| 功能补全 | QA 清单、PPT 初稿、9 Function Sheet、PDF RFQ |
-| 人机协同 | 全状态机、audit trail、在线编辑 |
-| 知识库 | 反馈闭环、Re-index Dashboard |
-| 运维 | 生产部署、备份、版本 SOP、用户培训 |
+> Demo 反馈（2026-06）已纳入 prod v1.4。子阶段详解见 [customer-delivery-roadmap.md](customer-delivery-roadmap.md)。
+
+| 子阶段 | 内容 | 贵司可用成果 |
+|--------|------|-------------|
+| **2A 知识库** | Engagement、切块、baselines、KB UI | 历史项目检索 |
+| **2B RFQ** | F1.10 维度确认、对比矩阵、PDF | 对标两阶段流程 |
+| **2C Excel** | 9 Function、历史模块锚定 | 完整报价 xlsx |
+| **2D QA** | RAG+LLM、客户 Q_A 模板 | 澄清清单导出 |
+| **2E PPT** | 客户 pptx 模板填充 | 技术方案下载 |
+| **2F 上线** | 状态机、UAT、培训 | 生产运行 |
 
 ### Phase 3 — 财务 AI（远期，6–8 周）
 
@@ -194,20 +214,39 @@ flowchart LR
 | 联调 + Demo 彩排 | 3 | 7,500 |
 | **小计** | **58 人天** | **¥155,000** |
 
-### 5.2 Phase 2 — 正式版开发费
+### 5.2 Phase 2 — 正式版开发费（子阶段明细）
 
-| 工作项 | 人天 | 参考费用（¥） |
-|--------|------|-------------|
-| QA 澄清清单模块 | 14 | 35,000 |
-| PPT 方案初稿（EDAG 53 页结构） | 22 | 55,000 |
-| Excel 全 9 Function + 人天基线库 | 16 | 40,000 |
-| PDF/PPT RFQ 解析 | 8 | 20,000 |
-| 人机协同全闭环 | 10 | 25,000 |
-| 知识库飞轮 | 8 | 20,000 |
-| 运维文档 + 回归测试 + 版本 SOP | 6 | 15,000 |
-| 生产部署 + 安全加固 | 6 | 15,000 |
-| 培训 + 用户手册 | 4 | 10,000 |
-| **小计** | **88 人天** | **¥220,000** |
+> Demo 反馈后修订（2026-06-29）。原 88 人天拆为 2A–2F，合计 **112–135 人天**。
+
+| 子阶段 / 工作项 | 人天 | 参考费用（¥） |
+|----------------|------|-------------|
+| **2A 知识库底座** | 22–26 | 55,000 – 65,000 |
+| **2B RFQ 对标（含 F1.10 维度确认）** | 12–15 | 30,000 – 37,500 |
+| **2C Excel 全 9 Function + 历史锚定** | 16–18 | 40,000 – 45,000 |
+| **2D QA 清单（客户模板 + 双语）** | 14–16 | 35,000 – 40,000 |
+| **2E PPT 方案（客户 pptx）** | 22–28 | 55,000 – 70,000 |
+| **2F 运营上线（状态机 + UAT + 培训）** | 18–22 | 45,000 – 55,000 |
+| PM / 需求 / 架构协调 | 8–10 | 20,000 – 25,000 |
+| **小计** | **112–135** | **¥280,000 – ¥337,500** |
+
+#### 5.2.1 商务套餐（三选一）
+
+| 套餐 | 包含子阶段 | 参考人天 | 参考开发费 |
+|------|-----------|---------|-----------|
+| **A · MVP** | 2A + 2B + 2C + 精简 2F | ~85 | ~¥212,500 |
+| **B · 标准（推荐）** | 2A–2D + 2F + PPT 重点页（15–20 页） | ~115 | ~¥287,500 |
+| **C · 全量** | 2A–2F + 54 页 PPT 全填充 | ~130 | ~¥325,000 |
+
+*套餐 A 保留 QA/PPT 为 Demo 预览；套餐 B/C 按 [customer-feedback-baseline.md](customer-feedback-baseline.md) 落地客户模板。*
+
+#### 5.2.2 与原 Phase 2 估算差异说明
+
+| 增量来源 | 说明 |
+|---------|------|
+| 知识库底座独立加强 | 2A 单独验收；Engagement + baselines |
+| F1.10 维度确认 | 客户 RFQ 页核心反馈 |
+| PPT 按客户 54 页实模板 | slide mapping 工程量大 |
+| QA 客户模板对齐 | 双语 Question + 8 列导出 |
 
 ### 5.3 Phase 3 — 财务 AI（远期报价）
 
@@ -222,9 +261,10 @@ flowchart LR
 | 阶段 | 人天 | 参考开发费 |
 |------|------|-----------|
 | Phase 1 Demo | 58 | ¥155,000 |
-| Phase 2 正式版 | 88 | ¥220,000 |
+| Phase 2 正式版（套餐 B 参考） | 115 | ¥287,500 |
+| Phase 2 正式版（全量 C） | 130 | ¥325,000 |
 | Phase 3 财务 AI | 30 | ¥75,000 |
-| **合计（全量）** | **176** | **¥450,000** |
+| **合计（全量 C + Phase 1）** | **218** | **¥555,000** |
 
 ### 5.5 硬件费用（客户自购，参考）
 
@@ -232,7 +272,7 @@ flowchart LR
 |------|---------|------|
 | 基础版（无 GPU） | 2–4 万 | Demo 验证，推理慢 |
 | **推荐版（RTX 4090 24G）** | **6–10 万** | **生产推荐** |
-| 旗舰版（A100 40G） | 20 万+ | 高并发 / 72B 模型 |
+| 旗舰版（A100 40G） | 20 万+ | 高并发 / 多卡并行 / 32B 全精度 |
 
 > 详见 [部署方案](deployment-guide.md) 三档配置对比。
 
@@ -271,21 +311,25 @@ flowchart LR
 
 | 类别 | 交付物 |
 |------|--------|
-| 应用 | Docker 镜像（backend + frontend）+ docker-compose.yml |
-| 文档 | prod.md、proposal、implementation-plan、deployment-guide、ops-guide |
-| 脚本 | ingest_documents.py、incremental_update.py、run_tests.sh |
+| 应用 | Docker 镜像（backend + frontend）+ `docker-compose.yml`（开发/Demo）+ **`docker-compose.prod.yml`（生产数据盘 bind）** |
+| 文档 | prod.md、proposal、implementation-plan、deployment-guide、ops-guide、**customer-it-infrastructure.md** |
+| 脚本 | ingest_documents.py、run_tests.sh、**deploy/scripts/**（start/stop/backup/reindex） |
 | 测试 | unit_tests/ + API_tests/ |
 | 模板 | 归档客户 Excel/PPT/QA 模板至 data/templates/ |
 | 演示 | Demo 环境 + 操作演示 |
 
-### 7.2 Phase 2 增量交付
+### 7.2 Phase 2 增量交付（按子阶段）
 
-| 类别 | 交付物 |
-|------|--------|
-| 应用 | 全功能镜像 + docker-compose.prod.yml |
-| 文档 | user-manual.md、CHANGELOG.md |
-| 脚本 | start/stop/update/backup/reindex |
-| 培训 | 工程师培训（1 场）+ 管理员培训（1 场） |
+| 子阶段 | 交付物 |
+|--------|--------|
+| 2A | Engagement 入库规范、KB 运营 UI、检索评测报告 |
+| 2B | F1.10 维度确认流程、PDF RFQ 支持 |
+| 2C | 9 Function 报价 Excel、历史锚定逻辑 |
+| 2D | 客户 Q_A 模板导出、QA Prompt v1 |
+| 2E | PPT Generator + slide_mapping、proposal 下载 |
+| 2F | 生产镜像、UAT 报告、培训记录 |
+
+**对客户一页纸：** [customer-delivery-roadmap.md](customer-delivery-roadmap.md)
 
 ### 7.3 不包含
 
@@ -300,10 +344,11 @@ flowchart LR
 
 | 节点 | 比例 | 条件 |
 |------|------|------|
-| 合同签订 | 30% | 项目启动 |
-| Demo 验收通过 | 30% | Phase 1 验收清单全通过 |
-| 正式版 UAT 通过 | 30% | Phase 2 验收 |
-| 质保期满（3 个月） | 10% | 无 P0/P1 遗留问题 |
+| 合同签订 | 30% | Phase 2 启动（建议自 2A 起签） |
+| 2A 知识库验收 | 15% | Engagement 入库 + 检索达标 |
+| 2B+2C 核心链路验收 | 25% | 对标 + 报价 Excel 可用 |
+| 正式版 UAT（2F） | 20% | 所选套餐全项通过 |
+| 质保期满（3 个月） | 10% | 无 P0/P1 遗留 |
 
 > Phase 3 财务模块独立合同，建议 40/40/20 分期。
 

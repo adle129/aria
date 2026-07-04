@@ -1,13 +1,12 @@
-# ARIA — 开发上下文文档
+# ARIA 智能应用平台 — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.4  
-**日期：** 2026-06-20  
+**版本：** v1.10 · 2026-07-04  
 **受众：** 工程师、Cursor Agent  
-**产品基线：** [prod.md](prod.md)
+**产品基线：** [prod.md](prod.md) v1.5 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
 
-> 本文档描述**如何实现** ARIA，供日常编码与 AI 辅助开发使用。  
-> 产品需求、验收标准、商务报价请分别参阅 `prod.md`、`docs/proposal.md`。
+> 本文档描述**如何实现** ARIA 平台及首期 **报价助手** 应用，供日常编码与 AI 辅助开发使用。  
+> **当前代码范围：** Demo（Phase 1）已实现并 **冻结于 `main`**，仅供体验与流程参考；**正式版** 在 `release/r1` 基于 Demo **框架与 UI 壳** 按 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) v1.1 逐步实施（多数 R1 API **设计已定 · 未实现**）。
 
 ---
 
@@ -15,11 +14,20 @@
 
 | 文档 | 用途 |
 |------|------|
-| [prod.md](prod.md) | 产品需求与验收基线 |
+| [prod.md](prod.md) | 产品需求与验收基线（v1.5） |
+| [docs/supplementary/delivery-traceability.md](docs/supplementary/delivery-traceability.md) | 客户能力 ↔ prod ↔ API ↔ 验收 |
+| [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md) | 品牌定义、平台 vs 应用、**当前开发范围** |
 | **dev-context.md**（本文） | 技术栈、目录、API、模型、编码规范 |
+| [customer-it-infrastructure.md](docs/customer-it-infrastructure.md) | 生产 IT：数据盘、大模型、备份迁移（对客户） |
 | [.cursor/rules/](.cursor/rules/) | **Cursor Agent 规则**（开发前读文档、测试门禁、提交规范） |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | 里程碑与日级开发任务 |
-| [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 详细契约 |
+| [docs/customer-delivery-quote.md](docs/customer-delivery-quote.md) | **全量交付清单、工时、里程碑报价（solo+AI）** |
+| [docs/customer-delivery-roadmap.md](docs/customer-delivery-roadmap.md) | 对客户一页纸路线图 |
+| [docs/customer-feedback-baseline.md](docs/customer-feedback-baseline.md) | Demo 反馈 → 需求对照 |
+| [docs/supplementary/pre-development-open-items.md](docs/supplementary/pre-development-open-items.md) | **开发前开放项登记**（写代码 / 开里程碑前必读） |
+| [docs/supplementary/formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) | **正式版交付实施方案**（Demo 演进 · Profile · R1 Gate） |
+| [docs/supplementary/rfq-dimension-baseline-spec.md](docs/supplementary/rfq-dimension-baseline-spec.md) | **F1.10a–d 全维度基准库 + RFQ 勾选 UI**（Q8） |
+| [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 详细契约（含 §4 部署与数据持久化） |
 | [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md) | RAG 架构、统一检索契约、Demo P0 / Phase 2 计划 |
 | [docs/supplementary/template-mapping.md](docs/supplementary/template-mapping.md) | EDAG Excel/QA/PPT 模板映射 |
 
@@ -27,21 +35,25 @@
 
 ## 项目身份
 
-- **项目名：** ARIA（Automated RFQ Intelligence Assistant）
-- **定位：** 本地私有化 AI 报价辅助系统
+- **品牌：** ARIA（**A**ssisted **R**easoning & **I**ntelligence **A**pplications）— 本地私有化 **AI 智能应用平台**
+- **首期应用：** ARIA 报价助手（App `quoting`）
 - **当前阶段：** 框架可认知 Demo（五步 UI + RFQ/对标/Excel 真实能力；方案/QA Stub）
-- **根目录：** `aria/`
+- **当前代码范围：** **仅报价助手 + 历史资料库（平台能力轻量实现）**；财务助手等为文档/占位
+- **根目录：** `aria/`（工程标识不变）
 
 ---
 
 ## 技术栈
 
+> **代码 vs 目标：** Demo 代码仍含 `chroma_store.py`（ChromaDB 嵌入式）；**正式版 R1 目标**为 PostgreSQL **pgvector** + Ollama Embedding，**不引入 LangChain**（代码未使用，依赖将移除）。下文以 **R1 目标栈** 为准。
+
 ### 后端
 
-- Python 3.11、FastAPI 0.111.x、SQLAlchemy 2.x + Alembic、Pydantic v2
-- LangChain 0.2.x、ChromaDB 0.5.x、PostgreSQL 16
-- python-docx、openpyxl、python-pptx
-- Ollama（本地 LLM，**非容器**，独立进程）
+- Python 3.11、FastAPI 0.111.x、SQLAlchemy 2.x（同步 engine）+ Alembic、Pydantic v2
+- PostgreSQL 16 + **pgvector**（业务数据 + 向量索引，统一 `pg_dump` 备份）
+- python-docx、openpyxl、python-pptx（文档结构化解析）
+- Ollama（本地 LLM + Embedding，**非容器**，独立进程）
+- **不采用：** LangChain、ChromaDB（R1 迁移后）、asyncpg（DB 非瓶颈）
 
 ### 前端
 
@@ -49,9 +61,15 @@
 
 ### 基础设施
 
-- Docker Compose、Nginx
-- Ollama + Qwen2.5:14b（Demo）/ 32b（生产）
-- nomic-embed-text（Embedding）
+- Docker Compose（`web` + **`worker`** 同镜像独立进程 + Postgres + Nginx）、Nginx
+- Ollama + Qwen2.5：**14b**（Demo）/ **32b Q4**（生产主模型，4090 推荐）
+- **nomic-embed-text**（RAG Embedding，经 Ollama `/api/embeddings` 写入 pgvector）
+
+### 长任务与并发（正式版 R1+）
+
+- RFQ 解析等长任务：**PostgreSQL 任务表 + 独立 worker**（`SKIP LOCKED` 认领），**不用** Redis/Celery
+- Ollama **并发闸**（worker 内信号量，同时 1–2 个 generate）+ 前端排队位置/ETA
+- 团队规模 20–30 人；高峰同时长任务人数与排队 SLA **待客户确认（TBD）**
 
 ---
 
@@ -59,14 +77,17 @@
 
 ```
 aria/
-├── docker-compose.yml
-├── docker-compose.prod.yml
+├── docker-compose.yml          # 本地开发 / CI
+├── docker-compose.prod.yml     # 生产：bind ${ARIA_DATA_ROOT}/app + postgres
+├── docker-compose.aliyun-demo.yml  # 4C8G 远程 UI Mock
 ├── .env.example
+├── .env.production.example
+├── deploy/scripts/             # start.sh stop.sh backup.sh reindex.sh（生产）
 ├── run_tests.sh
 ├── README.md
 ├── backend/
 │   ├── requirements.txt       # FastAPI、SQLAlchemy、openpyxl、pytest 等
-│   ├── requirements-ai.txt    # LangChain、ChromaDB
+│   ├── requirements-ai.txt    # pgvector 相关（R1；Demo 过渡期或仍含 chromadb，迁移后移除）
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── config.py
@@ -93,7 +114,7 @@ aria/
 │   │   ├── qa_generate.txt      # Phase 2
 │   │   └── excel_manpower.txt   # Phase 2 可选
 │   └── data/                  # Volume 挂载，不入镜像
-│       ├── uploads/ outputs/ knowledge_base/ chroma_db/
+│       ├── uploads/ outputs/ knowledge_base/   # 向量在 PG pgvector；chroma_db/ 仅 Demo 遗留
 │       └── templates/
 │           ├── quote_template.xlsx    # EDAG 12 Sheet
 │           ├── qa_template.xlsx
@@ -117,17 +138,36 @@ EMBEDDING_MODEL=nomic-embed-text
 MOCK_LLM=true                    # true=规则 Mock；false=真实 Ollama
 MOCK_RAG=true                    # true=固定 Mock 检索结果
 PROMPT_VERSION=v1
+# Demo 遗留；R1 后向量存 PostgreSQL pgvector
 CHROMA_PATH=/app/data/chroma_db
 UPLOAD_PATH=/app/data/uploads
-OUTPUT_PATH=/app/data/outputs
+OLLAMA_MAX_CONCURRENT=1          # worker 内 LLM 并发闸（正式版，TBD 1 或 2）
+KNOWLEDGE_BASE_PATH=/app/data/knowledge_base
+TEMPLATE_PATH=/app/data/templates
 ```
+
+**生产宿主机额外变量（`.env.production.example`）：**
+
+```bash
+ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
+```
+
+### Deployment Profile（Compose 选型）
+
+| Profile | Compose | 数据持久化 | 场景 |
+|---------|---------|------------|------|
+| dev | `docker-compose.yml` | `./backend/data` + 匿名 PG 卷 | 开发、CI、`run_tests` |
+| experience | `docker-compose.aliyun-demo.yml` | 同上 | 4C8G 远程 UI Mock |
+| production | `docker-compose.prod.yml` | `${ARIA_DATA_ROOT}/app` + `postgres` | 内网 GPU；**须独立数据盘** |
+
+生产启停：`bash deploy/scripts/start.sh`（见 [deployment-guide.md](docs/deployment-guide.md)）。
 
 **依赖文件：**
 
 | 文件 | 用途 |
 |------|------|
 | `requirements.txt` | Web、DB、python-docx、openpyxl、pytest |
-| `requirements-ai.txt` | langchain、chromadb（Docker 构建时安装） |
+| `requirements-ai.txt` | pgvector 客户端等（R1；迁移完成前 Demo 或仍装 chromadb） |
 
 ---
 
@@ -142,18 +182,21 @@ OUTPUT_PATH=/app/data/outputs
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
 | GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`） |
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
-| GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（parsing/retrieving/generating） |
-| PUT | `/api/v1/rfq/tasks/{id}` | 编辑/确认（review_status） |
-| POST | `/api/v1/rfq/tasks/{id}/generate-excel` | 生成 Excel |
+| GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（含 `dimension_review`） |
+| PUT | `/api/v1/rfq/tasks/{id}` | 编辑/确认（含 `dimension_draft`） |
+| POST | `/api/v1/rfq/tasks/{id}/confirm-dimensions` | **F1.10** 确认维度并生成矩阵（R1 · 未实现） |
+| POST | `/api/v1/rfq/tasks/{id}/generate-excel` | 生成 Excel（M3 含 `quote_fill_report`） |
 | POST | `/api/v1/rfq/tasks/{id}/generate-proposal` | Demo Stub：Mock 方案草案 |
 | POST | `/api/v1/rfq/tasks/{id}/generate-qa` | Demo Stub：Mock QA 清单 |
 | GET | `/api/v1/rfq/tasks/{id}/download/excel` | 下载 Excel |
 | GET | `/api/v1/knowledge/stats` | 知识库统计 |
-| POST | `/api/v1/knowledge/search` | 向量检索 |
-| GET | `/api/v1/projects` | 历史项目列表 |
-| GET | `/api/v1/projects/{id}` | 项目详情 |
+| POST | `/api/v1/knowledge/search` | 向量检索（Top-K） |
+| POST | `/api/v1/knowledge/import` | 触发索引 |
+| GET | `/api/v1/knowledge/baselines` | 人天基线预览（R1） |
+| POST | `/api/v1/knowledge/engagements/upload` | R1 轻量 Web 上传 ≤5 套（未实现） |
+| POST | `/api/v1/knowledge/feedback` | F5.6 L1（合同外 · 未实现） |
 
-Phase 2 全量：`generate-ppt`、真实 QA/方案 Generator 替换 Stub；`download/qa`、`download/ppt`。
+**正式版（R1/M3–M6）：** M4/M5 替换 Stub；`download/qa`、`download/ppt`；详见 [delivery-traceability.md](docs/supplementary/delivery-traceability.md)。
 
 ---
 
@@ -172,7 +215,7 @@ class RFQTask(Base):
 
     # 系统处理状态
     processing_status = Column(String, default="pending")
-    # pending → parsing → retrieving → generating → completed / failed
+    # pending → parsing → dimension_review → retrieving → generating → completed / failed
 
     # 人机协同状态（见 prod.md §5）
     review_status     = Column(String, default="draft")
@@ -241,8 +284,15 @@ generator.generate(context, template_path, output_path)
 
 ### RFQParser（`services/rfq_parser.py`）
 
-- `extract_text_from_docx(file_path) → str`
-- `parse_rfq_modules(text) → dict` — LLM JSON，失败降级 `{"raw_output": ..., "parse_error": true}`
+- **Demo 现状：** `extract_text_from_docx` 仅读段落，**不读 Word 表格**
+- **R1 目标：** 结构化预解析（Heading 章节 + `doc.tables` → IR）→ LLM 填 [`rfq_parse.txt`](backend/prompts/v1/rfq_parse.txt) JSON；不确定填「未知」，禁止编造
+- 失败降级：`{"raw_output": ..., "parse_error": true}`
+
+### 任务队列（正式版 R1+ · 设计已定 · 未实现）
+
+- 替换 `BackgroundTasks`：任务写入 PG 表，**独立 worker** 进程消费（compose 同镜像、不同 CMD）
+- `TaskQueue` 接口封装；认领用 `SELECT … FOR UPDATE SKIP LOCKED`
+- 详见 [production-deploy-artifacts.md](docs/supplementary/production-deploy-artifacts.md)、[api-design.md §3](docs/supplementary/api-design.md)
 
 ### RAGService（`services/rag_service.py`）
 
@@ -341,7 +391,7 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 
 - `frontend/src/theme/edagTheme.ts`：集中定义 `colorPrimary`、中性色、圆角（偏小，4–6px）
 - `Layout`：顶栏左侧 EDAG/爱达克 Logo（客户提供 PNG/SVG 优先；Demo 可用文字 Logo 占位）
-- 产品名展示：**「ARIA · 智能报价辅助系统」**，副标题可带「EDAG 内部工具」
+- 产品名展示：**「ARIA · 智能应用平台」** + Tag **「报价助手」**；副标题可带「EDAG 内部工具」
 - 页面级：RFQ/对比表/Excel 沿用 Ant Design Table、Form、Steps，仅换 Token，不重写组件库
 - **不做的（Demo）：** 完全定制设计系统、暗色主题、多语言切换
 
@@ -372,6 +422,8 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 - **单元测试：** 测 `services/`，LLM 全部 Mock
 - **API 测试：** httpx + SQLite 独立库
 - **一键执行：** `./run_tests.sh`；可选 `--regression`
+- **regression：** 只验结构（Top-K 数量、Excel Sheet、QA 列数等），**不**比对 LLM 生成文本
+- R1 检索评测：≥15 query 人工判相关，≥12/15 通过（见 [R1 验收说明](docs/R1-知识库验收与检索评测说明（客户版）.md)）
 - 详见 [test-plan.md](docs/supplementary/test-plan.md)
 
 ---
@@ -405,7 +457,7 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 4. Excel 报价（已有）+ 人天构成明细 Mock 表
 5. 知识库 P0：stats 增强 + 检索实验室 UI + import 按钮 + RFQ Function Alert（见 [rag-design.md](docs/supplementary/rag-design.md)）
 
-**prod Phase 2 正式版（替换 Stub）：** 真实原子化 RAG、QA LLM、PPT、全 9 Function、交付物级人天 — 见 [prod.md §9](prod.md)。
+**正式版（R1/M3–M6 · 替换 Stub）：** R1 对标 + Engagement；M3 ScopeMatch Excel；M4 Q_A merge；M5 **34 页模板预填**（不用 Proposal RAG）— 见 [prod.md §9.2](prod.md)。
 
 ### 数据库 Schema 变更（Demo Sprint）
 
@@ -458,4 +510,4 @@ test: 知识库搜索异常路径
 
 ---
 
-**关联文档：** [prod.md](prod.md) | [implementation-plan.md](docs/implementation-plan.md) | [api-design.md](docs/supplementary/api-design.md) | [rag-design.md](docs/supplementary/rag-design.md)
+**关联文档：** [prod.md](prod.md) v1.5 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) | [implementation-plan.md](docs/implementation-plan.md) | [api-design.md](docs/supplementary/api-design.md) | [rag-design.md](docs/supplementary/rag-design.md)

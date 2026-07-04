@@ -1,6 +1,10 @@
-# ARIA — 智能报价辅助系统
+# ARIA 智能应用平台
 
-本地私有化 AI 报价辅助工具，面向 EDAG 车辆工程服务场景。
+**Assisted Reasoning & Intelligence Applications** — 本地私有化 AI 应用平台，面向 EDAG 内网部署。
+
+**首期应用：** [ARIA 报价助手](prod.md)（RFQ 解析、历史对标、人力 Excel；框架可认知 Demo）
+
+**当前开发范围：** 仅 **报价助手 Demo** + 平台级 **知识库**（轻量）。平台扩展理念见 [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md)。
 
 **当前阶段：** 框架可认知 Demo（五步 UI + RFQ/对标/Excel；远程体验环境可用 Mock 模式）
 
@@ -10,10 +14,24 @@
 |------|------|
 | 框架档：五步导航、TaskContextBar、/proposal、/qa、Stub API | ✅ 已实现 |
 | 能力档：RFQ 解析、对标表、Excel PM+Chassis | ✅ 已实现（本地可开真实 LLM） |
-| 能力档：相似项目 Expand、任务历史、历史资料库 P0 | ✅ 已实现 |
+| 能力档：相似项目 Expand、任务历史、知识库 P0 | ✅ 已实现 |
 | 远程 UI 体验（阿里云 4C8G Mock） | ✅ 见 [aliyun-demo-deploy.md](docs/aliyun-demo-deploy.md) |
 
-详见 [implementation-plan.md §3.1.1](docs/implementation-plan.md)。对外 Demo 范围见 [demo-scope-brief.md](docs/demo-scope-brief.md)。
+```powershell
+# 预检 + 一键部署（Windows）
+.\scripts\preflight-aliyun.ps1 -TargetHost <公网IP> -KeyPath <密钥.pem>
+.\scripts\push-and-deploy-aliyun.ps1 -TargetHost <公网IP> -KeyPath <密钥.pem>
+
+# 仅打包（SSH 不通时用 Workbench 上传）
+.\scripts\package-aliyun-deploy.ps1
+```
+
+```bash
+# ECS 上（或 Workbench 解压后）
+bash scripts/deploy-aliyun-demo.sh
+```
+
+详见 [implementation-plan.md §3.1.1](docs/implementation-plan.md)。对外 Demo：[demo-scope-brief.md](docs/demo-scope-brief.md) · 彩排：[demo-rehearsal-guide.md](docs/demo-rehearsal-guide.md)。
 
 ### 阿里云远程体验（仅 UI/流程，非真实 LLM）
 
@@ -23,7 +41,18 @@ cp .env.aliyun-demo.example .env && nano .env
 bash scripts/deploy-aliyun-demo.sh
 ```
 
-Windows 推送：`.\scripts\push-and-deploy-aliyun.ps1 -Host <公网IP> -User root -KeyPath <密钥>`
+Windows 推送：`.\scripts\push-and-deploy-aliyun.ps1 -TargetHost <公网IP> -User root -KeyPath <密钥>`
+
+### 生产部署（内网 GPU + 独立数据盘）
+
+```bash
+# 数据盘挂载 /data 后，见 docs/deployment-guide.md §3.2
+cp .env.production.example .env && nano .env
+bash deploy/scripts/start.sh
+```
+
+- Compose：`docker-compose.prod.yml`（`ARIA_DATA_ROOT` 默认 `/data/aria`）
+- 客户 IT 说明：[docs/customer-it-infrastructure.md](docs/customer-it-infrastructure.md)
 
 ## 快速启动
 
@@ -98,7 +127,7 @@ docker compose up --build
 | 阶段 | 耗时（参考） | 说明 |
 |------|-------------|------|
 | 拉取基础镜像 | 5～15 分钟 | postgres、nginx、python、node（国内网络可能更慢） |
-| 后端构建 | 5～15 分钟 | `pip install`（含 LangChain、ChromaDB 等，体积较大） |
+| 后端构建 | 5～15 分钟 | `pip install`（含 pgvector 等 AI 依赖，体积较大） |
 | 前端构建 | 3～10 分钟 | `npm install` + `next build` |
 | 启动容器 | 1～2 分钟 | 等待 postgres 健康检查通过 |
 | **合计** | **约 10～30 分钟** | 网络慢或首次构建可能更久 |
@@ -215,7 +244,7 @@ docker compose up --build
 依赖已拆为：
 
 - `backend/requirements.txt` — 核心（FastAPI、DB、文档 I/O）
-- `backend/requirements-ai.txt` — LangChain / ChromaDB（RAG 阶段需要）
+- `backend/requirements-ai.txt` — pgvector 等（R1 向量检索；Demo 过渡期或仍含 chromadb）
 
 Phase 0 若只需 health + 前端，可用 `docker-compose.dev.yml` 跳过 AI 包安装。
 

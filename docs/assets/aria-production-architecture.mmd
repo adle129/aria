@@ -1,0 +1,53 @@
+flowchart TB
+    subgraph users["用户访问"]
+        U1["办公室员工"]
+        U2["远程员工（VPN）"]
+    end
+
+    U1 -->|"内网 HTTP/HTTPS"| NGINX
+    U2 -->|"VPN → 内网"| NGINX
+
+    subgraph host["贵司 GPU 服务器 · Ubuntu 22.04 · 生产环境"]
+        subgraph sysDisk["系统盘（可重装）"]
+            DEPLOY["/opt/aria/deploy<br/>Compose · 镜像 · .env"]
+        end
+
+        subgraph docker["Docker Compose"]
+            NGINX["Nginx 反向代理<br/>:80"]
+            FE["ARIA 前端"]
+            BE["ARIA 后端<br/>API + 业务逻辑<br/>含 ChromaDB 嵌入式向量库"]
+            PG[("PostgreSQL<br/>容器")]
+        end
+
+        subgraph dataDisk["独立数据盘 /data（可迁移）"]
+            subgraph ariaData["/data/aria"]
+                APP["app/ → 容器 /app/data"]
+                D1["uploads/"]
+                D2["outputs/"]
+                D3["knowledge_base/"]
+                D4["chroma_db/"]
+                D5["templates/"]
+                PGDATA["postgres/"]
+                BK["backups/"]
+            end
+            OLLAMA_DATA["/data/ollama/models/"]
+        end
+
+        subgraph ollama["Ollama · 宿主机独立进程"]
+            LLM["主大模型<br/>Qwen2.5 32B"]
+            EMB["Embedding<br/>nomic-embed-text"]
+        end
+
+        NGINX --> FE
+        NGINX --> BE
+        BE -->|"Docker 内网 :5432"| PG
+        BE -->|"127.0.0.1:11434"| ollama
+        BE --> APP
+        PG --> PGDATA
+        APP --- D1
+        APP --- D2
+        APP --- D3
+        APP --- D4
+        APP --- D5
+        ollama --- OLLAMA_DATA
+    end

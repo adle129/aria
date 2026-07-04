@@ -1,8 +1,7 @@
 # ARIA — 模板映射规范
 
-**版本：** v1.0  
-**日期：** 2026-06-18  
-**基线模板：** 客户提供的 EDAG 标准模板
+**版本：** v1.2 · 2026-06-29  
+**基线模板：** 客户提供的 EDAG 标准模板（Demo 反馈签收版）
 
 ---
 
@@ -85,19 +84,26 @@
 
 汇总各 Function 的 Headcount 合计，Demo 阶段填充 PM + Chassis 两行。
 
-### 1.5 填充逻辑（Generator 插件）
+### 1.5 填充逻辑（M3 · v3.5）
+
+**非整表粘贴。** 见 [m3-scope-match-spec.md](m3-scope-match-spec.md)。
 
 ```python
 # 伪代码
-class ExcelManpowerGenerator(BaseGenerator):
-    def generate(self, task, template_path, output_path):
-        shutil.copy(template_path, output_path)
-        wb = openpyxl.load_workbook(output_path)
-        self._fill_project_info(wb["Project information"], task.rfq_data)
-        self._fill_function_sheet(wb["PM"], task.manpower_plan["PM"])
-        self._fill_function_sheet(wb["Chassis"], task.manpower_plan["Chassis"])
-        self._fill_manpower_summary(wb["Manpower"], task.manpower_plan)
-        wb.save(output_path)
+def generate_quote_excel(task, template_path, output_path):
+    best = scope_match_service.pick(task.rfq, task.top3_rfqs)
+    baselines = load_baselines(best.engagement_id)
+    sheets = map_scope_to_function_sheets(task.rfq.development_scope)
+    plan = {}
+    for fn in sheets:
+        positions = extract_positions(baselines, fn)
+        positions = maybe_llm_filter_rows(positions, task.rfq.scope)  # manpower_row_map
+        plan[fn] = remap_timeline(positions, task.rfq.milestones)
+    fill_project_info(wb, task.rfq)  # 100% 当前 RFQ
+    for fn, rows in plan.items():
+        fill_function_sheet(wb[fn], rows)
+    fill_manpower_summary(wb)
+    attach_quote_fill_report(...)
 ```
 
 ---
@@ -107,29 +113,41 @@ class ExcelManpowerGenerator(BaseGenerator):
 **文件：** `Q_A_模板.xlsx`  
 **归档路径：** `backend/data/templates/qa_template.xlsx`
 
-### 2.1 列结构
+### 2.1 列结构（客户 `Q_A_模板.xlsx` 签收版）
 
-| 列 | 字段名 | 宽度 | AI 填充 | 人工填充 |
-|----|--------|------|---------|---------|
-| A | No. | 序号 | ✓ 自动编号 | — |
-| B | Area | 领域 | ✓ | 可编辑 |
-| C | Author | 提问人 | ✓ 默认 "AI" | 可编辑 |
-| D | Question | 澄清问题（中英文） | ✓ | 可编辑 |
-| E | Assumption 我司 | 我方假设 | ✓ 可选 | 可编辑 |
-| F | Answer by customer | 客户答复 | — | 工程师后续填写 |
-| G | Impact | 影响程度（高/中/低） | ✓ Phase 2 | 可编辑 |
-| H | History Reference | 历史依据 | ✓ Phase 2 | 可编辑 |
+| 列 | 字段名 | AI 生成 | 人工填充 | 说明 |
+|----|--------|---------|---------|------|
+| A | No. | ✓ 自动编号 | — | |
+| B | Area | ✓ | 可编辑 | Packaging / GD&T / Chassis 等 |
+| C | Author | **留空** | 工程师填写 | Demo 反馈：生成时不填 |
+| D | Question | ✓ | 可编辑 | **双语**：`英文句\n中文句`（与模板样例一致） |
+| E | Assumption 我司 | **留空** | 可编辑 | 生成时不填 |
+| F | Ans我司r by customer | **留空** | 客户答复 | 模板原文列名保留 |
+| G | Impact / 影响程度 | ✓ | 可编辑 | 高 / 中 / 低 |
+| H | History Reference / 历史依据 | ✓ | 可编辑 | 须含 `project_name` + `source_doc` |
+
+**合并规则：** 以列 A–F 与客户模板一致；G/H 为原设计字段合并入模板（原模板第 7 列为空，正式版扩展）。
+
+**Demo 临时 schema（待 2D 替换）：** 5 列中文表头 — 仅 Demo 占位。
 
 ### 2.2 Area 枚举（来自样本）
 
 `Packaging` | `GD&T` | `Data Management` | `Change Management` | `BE` | `ALL` | `Chassis` | `EE` | `CAE`
 
+### 2.3 R1 按行入库与 M4 导出（v3.5）
+
+- 每行 → 1 chunk + 全 8 列 metadata（见 [m4-qa-merge-spec.md](m4-qa-merge-spec.md) §2）
+- M4 导出 G/H 规则见同文档 §4
+
 ---
 
 ## 3. 技术方案 PPT 模板
 
-**参考文件：** `Technical Proposal_template.pdf`（53 页）  
-**Phase 2 产出：** `backend/data/templates/proposal_template.pptx`（基于 python-pptx 预置骨架）
+> **M5 验收模板（34 页）：** 见 **§3.5 Content Template** 与 [m5-proposal-fill-spec.md](m5-proposal-fill-spec.md)。  
+> **本节 §3.1–3.4（54 页 Full Proposal）** 为历史参考 / 全量品牌模板，**非 M5 首期验收范围**。
+
+**参考文件（54 页）：** `Technical Proposal_template.pptx` · `Technical Proposal_template.pdf`  
+**归档路径（参考）：** `backend/data/templates/proposal_template.pptx`
 
 ### 3.1 章节结构
 
@@ -172,12 +190,42 @@ Part 3: Project Scenario（页 23–53）
 | CAE 仿真 | 50–51 |
 | Project Management | 52–53 |
 
-### 3.3 Phase 2 生成策略
+### 3.3 54 页 Full Proposal 生成策略（参考 · 非 M5 首期）
 
-- 预置 `.pptx` 骨架含全部章节占位 slide
-- AI 根据 RFQ 匹配模块，**删除/保留**对应章节
-- 每个模块 slide 填充四段式文本
+- 复制客户 `Technical Proposal_template.pptx` 为输出基底
+- AI 根据 RFQ `functions_in_scope` **保留/删除** Part3 模块幻灯片组
+- 每个动态页填充四段式文本 — **客户 v3.3 已明确 M5 不采用此路径**
 - 页 17 架构图：**保留模板占位图**，不 AI 生成
+
+**首期 M5 以 §3.5 Content Template（34 页）为准。**
+
+### 3.4 重点动态页（待客户圈定，示例）
+
+| 模块 | 参考页 | 填充内容 |
+|------|--------|---------|
+| Product Definition | ~12 | RFQ 产品定义摘要 |
+| General / Technical Assumption | 14–15 | RFQ + 历史假设 |
+| Project Milestones | ~16 | P1–SOP |
+| Packaging / GI | 24–25 | 四段式 |
+| BIW & Closure | 30–34 | 四段式 + 交付物表 |
+| Chassis | 40–44 | 四段式 |
+| EE / CAE | 45–51 | 四段式 |
+
+### 3.5 Content Template（34 页 · M5 验收）
+
+**文件：** `Technical Proposal_Content_Template.pptx`  
+**归档路径：** `backend/data/templates/proposal_content_template.pptx`  
+**规格：** [m5-proposal-fill-spec.md](m5-proposal-fill-spec.md)
+
+| 项 | 说明 |
+|----|------|
+| 总页数 | **34 slides**（无 Part1 品牌章节） |
+| 自动填 | Slide **2** 里程碑；Slide **1** scope 模块列表；按 `development_scope[]` **保留/删除** 模块 slide 组 |
+| 不自动填 | Assumptions / Work Content / Deliverables 正文；Deliverables 表格 |
+| 缺口报告 | `proposal_fill_report` — scope 无映射、字段缺失、里程碑部分缺失等；UI + 可下载 |
+| 配置 | `slide_mapping.yaml`（`development_scope` 关键词 → slide 组）；初版映射见 M5 规格 §2 |
+
+**与 54 页模板关系：** Content Template 为 **工程交付物**；54 页 Full Proposal 仍可作品牌/完整方案参考，两者 **页码与结构不可混用**。
 
 ---
 

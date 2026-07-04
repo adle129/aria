@@ -1,8 +1,11 @@
-# ARIA 智能报价辅助系统 — 项目实施计划
+# ARIA 智能应用平台 — 项目实施计划
 
-**版本：** v1.1  
-**日期：** 2026-06-20  
-**状态：** 执行中（框架可认知 Demo）
+**首期应用：** ARIA 报价助手  
+**版本：** v1.4  
+**日期：** 2026-07-04  
+**状态：** Demo 完成 · **正式版方案已定 v1.2**（见 [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md)）· Q2/Q3 已确认 · 基于 Demo 框架按 R1→M6 逐步开发
+
+> 品牌与范围：[platform-brand.md](supplementary/platform-brand.md) — **当前 WBS 仅覆盖报价助手 Demo，不含财务助手实现。**
 
 ---
 
@@ -25,17 +28,18 @@
 
 | 项 | 内容 |
 |----|------|
-| 项目名称 | ARIA 智能报价辅助系统 |
+| 产品品牌 | ARIA 智能应用平台（Assisted Reasoning & Intelligence Applications） |
+| 首期应用 | ARIA 报价助手 |
 | 客户 | EDAG（爱达克） |
 | 开发方 | [开发团队名称] |
-| 计划周期 | Phase 1: 4–6 周；Phase 2: 10–12 周 |
-| 需求基线 | [prod.md](../prod.md) v1.0 |
+| 计划周期 | Phase 1: 4–6 周（Demo · 已完成）；**正式版：R1/M3–M6 约 20 周** |
+| 需求基线 | [prod.md](../prod.md) v1.5 · [customer-delivery-roadmap.md](customer-delivery-roadmap.md) v1.9 |
 
 ### 1.2 项目目标
 
-1. **Phase 1：** 交付可演示 Demo，验证 RFQ 解析 + 历史比对 + Excel 人力报价技术可行性
-2. **Phase 2：** 交付生产级系统，覆盖四大模块全量功能
-3. **Phase 3：** （远期）财务 AI 模块
+1. **Phase 1：** 交付 **报价助手** 可演示 Demo（**已完成 / 反馈收集中**）
+2. **正式版：** 按 **R1 → M3 → M4 → M5 → M6** 交付（与客户 v3.7 一致）；详见 [prod.md §9.2](../prod.md)
+3. **Phase 3：** 平台第二应用 — **财务助手**（远期）
 
 ---
 
@@ -69,18 +73,26 @@ gantt
 | M3b 五步框架 UI | D+38 | TaskContextBar + /proposal + /qa Stub | [prod.md §10.1.1](../prod.md) 框架档 | **前端 R** / 后端 Stub **R** / PM **A** |
 | M4 Demo 验收 | D+42 | 完整 Demo | 框架档 + 能力档全通过 |
 
-### 2.2 Phase 2 — 正式版（10–12 周）
+### 2.2 正式版 — R1 / M3 / M4 / M5 / M6（约 20 周）
+
+> 路线图：[customer-delivery-roadmap.md](customer-delivery-roadmap.md) v1.9 · 追溯：[delivery-traceability.md](supplementary/delivery-traceability.md) · WBS 见 §3.2
+
+| 里程碑 | 日历周 | 核心交付 | 验收标准 |
+|--------|--------|---------|---------|
+| **R1** | 1–8 | Engagement 入库、baselines、Top-3、**F1.10**、检索评测、Web ≤5 套 | ≥12/15 检索 Pass；3 份 RFQ 维度+矩阵流程 |
+| **M3** | 9–11 | ScopeMatch、9 Function Excel、`quote_fill_report` | ≥3 RFQ best_match 书面确认 |
+| **M4** | 12–13 | Q_A 合并 dedupe、模板导出 | 列结构 + G/H 符合 m4 规格 |
+| **M5** | 14–17 | 34 页 Content Template、`proposal_fill_report` | **不验收** LLM 正文 |
+| **M6** | 18–20 | UAT、培训、运维脚本、备份演练 | 3–5 工程师试用通过 |
+
+*内部历史编号 2A–2F 对照见 [prod.md §13.3](../prod.md)。*
+
+### 2.3 Phase 3 — 财务助手（远期）
 
 | 里程碑 | 周期 | 交付物 |
 |--------|------|--------|
-| M5 QA 模块 | W1–W3 | Q_A 模板导出 |
-| M6 PPT 模块 | W2–W6 | EDAG 结构 .pptx |
-| M7 Excel 全量 | W3–W5 | 9 Function Sheet |
-| M8 人机协同 | W4–W6 | 状态机 + audit trail |
-| M9 知识库飞轮 | W5–W7 | 反馈 + Re-index |
-| M10 生产部署 | W8–W9 | prod compose + 脚本 |
-| M11 UAT | W10 | 3–5 工程师试用 |
-| M12 正式上线 | W11–W12 | 培训 + 运维移交 |
+| M11 财务模块 | 6–8 周 | ARIA 财务助手 App、财务 Sheet 填充 |
+| 前置 | — | Phase 2 稳定 3 个月 + 财务规则文档 |
 
 ---
 
@@ -154,17 +166,47 @@ gantt
 
 > 彩排前 PM 按本表更新「代码状态」列；框架档不得仅文档验收。
 
-### 3.2 Phase 2 增量 WBS
+### 3.2 正式版增量 WBS（内部 2A–2F ↔ 合同 R1/M3–M6）
+
+> **R1 开发任务明细（可勾选）：** [docs/R1/README.md](R1/README.md) · [dev-tasks.md](R1/dev-tasks.md)  
+> **实施方案（Demo 定位 · 复用壳层 · 里程碑逐步交付）：** [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md) v1.2  
+> **对照：** [prod.md §13.3](../prod.md) · [delivery-traceability.md](supplementary/delivery-traceability.md)
 
 ```
-10. QA 模块（QAGenerator + Q_A 模板导出）
-11. PPT 模块（PPTGenerator + EDAG 章节骨架）
-12. Excel 全 9 Function Sheet
-13. PDF RFQ 解析
-14. 人机协同全闭环（状态机 + audit trail + 在线编辑）
-15. 知识库飞轮（Engagement + manifest + feedback 表 + Re-index UI + upload）
-16. 生产部署（prod compose + 运维脚本）
-17. 运维文档 + 用户手册 + 培训
+2A 知识库底座（优先）
+   2A.1 manifest.json + Engagement 目录规范
+   2A.2 分类型切块（RFQ 章节 / QA 行 / 报价 Sheet / 方案段）
+   2A.3 metadata 增强 + manpower_baselines 结构化表
+   2A.4 KB 运营 UI（upload、导入进度、Re-index）
+   2A.5 检索评测集（3–5 RFQ 人工标注应命中项目）
+
+2B RFQ 对标增强
+   2B.1 rfq_baseline_match.txt + 基准库加载（F1.10a–b）
+   2B.2 dimension_review + DimensionBaselineReview 勾选 UI（F1.10c）
+   2B.3 confirm-dimensions + 矩阵仅 in_scope 行（F1.10d）
+   2B.4 PDF RFQ 文本提取
+
+2C Excel 报价全量（**M3**）
+   2C.1 excel_manpower 扩展 9 Function Sheet
+   2C.2 **ScopeMatchService** + baselines 抽取 + 时间轴 remap
+   2C.3 `quote_fill_report`（F4.11）
+
+2D QA 澄清清单（**M4**）
+   2D.1 Top-3 Q_A **全表 Area 合并**（非向量主路径）
+   2D.2 qa_dedupe + ExcelQAGenerator（客户 Q_A_模板.xlsx）
+   2D.3 双语 Question、Author/Assumption/Answer 留空
+   2D.4 /qa 导出列对齐 Q_A 模板（Q3 已确认：仅生成/下载，无 Web 在线编辑）
+
+2E PPT 技术方案
+   2E.1 slide_mapping.yaml（客户 pptx 摸底）
+   2E.2 PPTGenerator（python-pptx）
+   2E.3 按 functions_in_scope 选页 + 四段式填充
+   2E.4 重点页 Scope 验收（套餐 B/C）
+
+2F 运营上线
+   2F.1 review_status 全状态机 + audit trail
+   2F.2 引用反馈 + Re-index 飞轮
+   2F.3 生产部署 UAT、培训、运维移交
 ```
 
 ---
@@ -197,7 +239,9 @@ gantt
 
 ## 5. 依赖与前置条件
 
-### 5.1 Demo 启动前（必须）
+> **开放项与 Gate 汇总（写代码前必读）：** [pre-development-open-items.md](supplementary/pre-development-open-items.md)
+
+### 5.1 Demo 启动前（必须 · 历史参考）
 
 | # | 依赖项 | 责任方 | 状态 |
 |---|--------|--------|------|
@@ -211,10 +255,12 @@ gantt
 
 | # | 依赖项 | 责任方 |
 |---|--------|--------|
-| D6 | Demo 验收通过 | 客户 |
-| D7 | 生产服务器到位（推荐 4090） | 客户 IT |
-| D8 | 历史 Q_A + Proposal .pptx 样本 | 客户 |
-| D9 | 内网域名/DNS 配置 | 客户 IT |
+| D6 | Demo 验收通过 + 反馈基线确认 | 客户 |
+| D7 | 生产服务器到位（推荐 4090 + 独立数据盘） | 客户 IT |
+| D8 | **3–5 个完整脱敏 Engagement**（RFQ+Q_A+报价+方案） | 客户 |
+| D9 | 四套模板书面签收（Q_A / 报价 / PPT / RFQ 样例） | 双方 |
+| D10 | 商务套餐选型（A/B/C）+ PPT 重点页清单（套餐 B） | 双方 |
+| D11 | 内网域名/DNS 配置 | 客户 IT |
 
 ---
 

@@ -14,11 +14,12 @@ alwaysApply: false
 
 ## UI / UX
 
-- 布局：顶栏 EDAG +「ARIA · 智能报价辅助系统」+ 左侧五步导航
-- **TaskContextBar + WorkflowSteps**：业务页（`/rfq` `/proposal` `/qa` `/quote`）顶部展示当前 `task_id` 与五步进度
+- 布局：顶栏 EDAG + **「ARIA · 智能应用平台」** + Tag **「报价助手」** + 左侧分组导航
+- 侧栏分组：**应用 · 报价流程**（`/rfq` `/proposal` `/qa` `/quote`）· **平台 · 知识库**（`/knowledge`）
+- **TaskContextBar + WorkflowSteps**：报价业务页顶部展示当前 `task_id` 与五步进度；`/knowledge` 不展示任务栏
 - 所有 API 调用须有 **loading**；错误走 `api/client.ts` 统一 `message.error()`
 - LLM 任务 30s–2min：轮询 `/tasks/{id}/status`，禁止空白等待
-- AI 草稿与人工编辑视觉区分；Mock/Stub 内容须标 **「Demo 预览」** Tag
+- AI 草稿与人工编辑视觉区分；Mock/Stub 内容须标 **「Demo 预览」** Tag（prod §10.1.1）
 - **导出前必须确认 checkbox**；下载按钮在生成完成前 **disabled**
 
 ## 路由（框架可认知 Demo）
@@ -29,14 +30,15 @@ alwaysApply: false
 | `/proposal` | 技术方案草案 | Mock + Stub API |
 | `/qa` | 澄清问题清单 | Mock + Stub API |
 | `/quote` | Excel 人力报价 | Excel 真实；构成明细 Mock |
-| `/knowledge` | 知识库（信任后台） | 统计 + 检索实验室 + 触发导入；原子目录占位 |
+| `/knowledge` | **平台**知识库 | 统计 + 检索 + 触发导入；平台说明折叠区 + 原子模块 Phase 2 占位 |
 
 - 任务 ID：`sessionStorage` 键 `aria_last_task_id`（`LAST_TASK_ID_KEY`）
-- Phase 3 预留：`/finance`
+- Phase 3 预留：`/finance`（平台第二应用，Demo 不实现）
 
 ## 新增页面检查清单
 
 - [ ] 符合 EDAG 品牌主题，不引入额外 UI 库
 - [ ] loading / error / empty 三态完整
-- [ ] 挂载 `TaskContextBar`；无 task 时引导回 `/rfq`
+- [ ] 挂载 `TaskContextBar`（报价页）；无 task 时引导回 `/rfq`
+- [ ] Mock 区域可见「Demo 预览」Tag
 - [ ] 与 [api-design.md](docs/supplementary/api-design.md) 字段一致
