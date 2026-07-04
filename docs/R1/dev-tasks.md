@@ -16,7 +16,7 @@
 | R1-E01 | P0-0 | 从 `main` 创建 `release/r1` | 分支存在；README 注明 Demo 冻结 | I-04 | | 已完成 |
 | R1-E02 | P0-0 | 同步 `.cursor/rules` + `dev-context.md`（pgvector、无 LangChain、R1 Profile） | 规则与 prod v1.6 一致 | I-05 | | 待开始 |
 | R1-E03 | P0-0 | 实现 `ARIA_UI_PROFILE=r1` | 侧栏仅 RFQ + 知识库；proposal/qa/quote 不可误触 Mock | api-design | | 待开始 |
-| R1-E04 | P0-0 | R1 PR 检查项：traceability 行号 + 测试路径 | PR 模板或 CONTRIBUTING 片段 | delivery-traceability | | 待开始 |
+| R1-E04 | P0-0 | R1 PR 检查项：traceability 行号 + 测试路径 | `.github/pull_request_template.md` | delivery-traceability | | 已完成 |
 | R1-E05 | P0-0 | 生产 Compose 验证：`MOCK_LLM`/`MOCK_RAG`=false 门禁 | `.env.production.example` 注释对齐 | deployment-guide | | 待开始 |
 | R1-E06 | P0-0 | Git 流程文档 + 团队对齐 | [git-workflow.md](git-workflow.md)；PR 模板 | R1-E01 | | 已完成 |
 
