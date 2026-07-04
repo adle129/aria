@@ -1,5 +1,5 @@
 ---
-description: ARIA 前端 Next.js + Ant Design + EDAG 品牌 UI 规范
+description: ARIA 前端 Next.js + Ant Design + EDAG 品牌与 Profile 规范
 globs: frontend/**/*
 alwaysApply: false
 ---
@@ -9,36 +9,52 @@ alwaysApply: false
 ## 技术栈
 
 - Next.js 14 App Router、TypeScript、Ant Design 5.x、axios
-- 主题：`frontend/src/theme/edagTheme.ts`（白/灰 + 信号红 `#E30613`）
-- API 基址：`NEXT_PUBLIC_API_BASE_URL`（Docker 经 Nginx 为 `/api/v1`）
+- 主题：`frontend/src/theme/edagTheme.ts`（白/浅灰 + 信号红 `#E30613`；圆角 4–6px；表格/表单为主，避免花哨渐变）
+- API：`NEXT_PUBLIC_API_BASE_URL`（Docker 经 Nginx 为 `/api/v1`）
+
+## UI Profile（`ARIA_UI_PROFILE`）
+
+| Profile | 侧栏 | 用途 |
+|---------|------|------|
+| `experience` | 五步全开 + Demo 标识 | 阿里云 Demo（`main`） |
+| **`r1`** | **仅 `/rfq` + `/knowledge`** | R1 客户验收 |
+| `full` | 五步、无 Stub | M6 终态 |
+
+- R1 生产：**未购里程碑路由隐藏或锁定**，避免误触 Mock
+- 开发 R1 时在 `release/r1` 实现 Profile；详见 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) §5.2
 
 ## UI / UX
 
-- 布局：顶栏 EDAG + **「ARIA · 智能应用平台」** + Tag **「报价助手」** + 左侧分组导航
-- 侧栏分组：**应用 · 报价流程**（`/rfq` `/proposal` `/qa` `/quote`）· **平台 · 知识库**（`/knowledge`）
-- **TaskContextBar + WorkflowSteps**：报价业务页顶部展示当前 `task_id` 与五步进度；`/knowledge` 不展示任务栏
-- 所有 API 调用须有 **loading**；错误走 `api/client.ts` 统一 `message.error()`
-- LLM 任务 30s–2min：轮询 `/tasks/{id}/status`，禁止空白等待
-- AI 草稿与人工编辑视觉区分；Mock/Stub 内容须标 **「Demo 预览」** Tag（prod §10.1.1）
-- **导出前必须确认 checkbox**；下载按钮在生成完成前 **disabled**
+- 顶栏：EDAG + **「ARIA · 智能应用平台」** + Tag **「报价助手」**
+- 侧栏：**应用 · 报价流程**（四步）· **平台 · 知识库**
+- **TaskContextBar + WorkflowSteps：** 仅在报价四步（`/rfq` `/proposal` `/qa` `/quote`）展示；**`/knowledge` 不展示任务栏**（平台页无 task 上下文）
+- Demo 代码 [AppLayout.tsx](frontend/src/components/AppLayout.tsx) 可能仍全局渲染 TaskContextBar — **R1/Profile 联调须对齐规格**
+- 所有 API：**loading**；错误经 `api/client.ts` → `message.error()`
+- LLM 任务 30s–2min：**轮询** `/tasks/{id}/status` 或 SSE；禁止空白等待
+- AI 草稿与人工编辑视觉区分；Stub/Mock 须 **「Demo 预览」** Tag + API `demo_preview`
+- **导出前确认 checkbox**；下载按钮生成完成前 **disabled**
 
-## 路由（框架可认知 Demo）
+## R1 `/rfq` 两阶段（F1.10）
 
-| 路由 | 说明 | Demo 深度 |
-|------|------|-----------|
-| `/rfq` | RFQ 上传、解析、历史对标 | 真实 AI |
-| `/proposal` | 技术方案草案 | Mock + Stub API |
-| `/qa` | 澄清问题清单 | Mock + Stub API |
-| `/quote` | Excel 人力报价 | Excel 真实；构成明细 Mock |
-| `/knowledge` | **平台**知识库 | 统计 + 检索 + 触发导入；平台说明折叠区 + 原子模块 Phase 2 占位 |
+1. **`dimension_review`：** `DimensionBaselineReview` — 全量基准表勾选、模块摘要（见 [rfq-dimension-baseline-spec.md](docs/supplementary/rfq-dimension-baseline-spec.md)）
+2. **矩阵页：** 仅 `in_scope` 行 + Top-3 历史列（复用 `ComparisonMatrix`）
 
-- 任务 ID：`sessionStorage` 键 `aria_last_task_id`（`LAST_TASK_ID_KEY`）
-- Phase 3 预留：`/finance`（平台第二应用，Demo 不实现）
+## 路由
+
+| 路由 | Demo | R1 交付 |
+|------|------|---------|
+| `/rfq` | 真实 AI | **F1.10a–d** |
+| `/knowledge` | 统计+检索+导入 | Engagement、upload ≤5 |
+| `/proposal` `/qa` `/quote` | Stub/Mock | **不交付**（Profile=r1 锁定） |
+
+- 任务 ID：`sessionStorage` `aria_last_task_id`
+- `/finance`：Phase 3 占位，不实现
 
 ## 新增页面检查清单
 
-- [ ] 符合 EDAG 品牌主题，不引入额外 UI 库
-- [ ] loading / error / empty 三态完整
-- [ ] 挂载 `TaskContextBar`（报价页）；无 task 时引导回 `/rfq`
-- [ ] Mock 区域可见「Demo 预览」Tag
-- [ ] 与 [api-design.md](docs/supplementary/api-design.md) 字段一致
+- [ ] EDAG 主题；不引入额外 UI 库
+- [ ] loading / error / empty 三态
+- [ ] 报价页：TaskContextBar + WorkflowSteps；无 task 引导回 `/rfq`
+- [ ] 知识库页：**无** TaskContextBar
+- [ ] Mock 区域「Demo 预览」Tag
+- [ ] 字段与 [api-design.md](docs/supplementary/api-design.md) 一致

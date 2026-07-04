@@ -41,6 +41,8 @@ $env:PYTHONPATH="<项目根>/backend"
 
 **全部通过后方可 `git commit`。** 若有失败，先修复再提交，禁止 `--no-verify` 跳过 hooks。
 
+**详细策略：** [docs/supplementary/test-plan.md](docs/supplementary/test-plan.md) · **R1 检索评测**（≥15 query，≥12/15 Pass）：[docs/R1-知识库验收与检索评测说明（客户版）.md](docs/R1-知识库验收与检索评测说明（客户版）.md)
+
 ## 功能完成定义（DoD）
 
 - [ ] 已对照 prod.md §9/§10 确认在 Demo 范围（框架档和/或能力档）

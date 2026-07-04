@@ -1,0 +1,52 @@
+---
+description: R1 正式版交付门禁（release/r1 · F1.10 · worker · KB 优先）
+alwaysApply: false
+---
+
+# ARIA R1 正式版交付（release/r1）
+
+> 在 `release/r1` 或 `feat/r1-*` 上开发时启用本规则（或 @ 引用）。  
+> 任务清单：[docs/R1/dev-tasks.md](docs/R1/dev-tasks.md) · Git：[docs/R1/git-workflow.md](docs/R1/git-workflow.md)
+
+## 分支与环境
+
+- 代码 merge 目标：**`release/r1`**（非 `main`）
+- 客户内网验收：`ARIA_UI_PROFILE=r1`，`MOCK_LLM=false`，`MOCK_RAG=false`
+- Compose：`docker-compose.prod.yml`，`ARIA_DATA_ROOT=/data/aria`
+
+## 开发顺序（P0）
+
+```
+P0-0 工程准备 → P0-1 队列+pgvector → P0-2 知识库2A → P0-3 RFQ/F1.10
+```
+
+- **知识库先于 RFQ 全链路：** `confirm-dimensions` / Top-3 矩阵须 KB ingest + seed Engagement 就绪
+- F1.10a seed 可与 KB 末期并行，但不先于 pgvector/worker
+
+## R1 必做（P0）
+
+| 块 | 内容 |
+|----|------|
+| 基础设施 | PG 任务表 + worker（`SKIP LOCKED`）；替换 `BackgroundTasks` |
+| 向量 | pgvector + Ollama `nomic-embed-text`；移除 Chroma |
+| 知识库 | manifest · Engagement ingest · baselines · Web ≤5 套/次 |
+| RFQ | **F1.10a–d** · `dimension_review` UI · 矩阵仅 in_scope |
+| RAG | `insufficient_evidence` 拒答；禁止 Mock 兜底 |
+| 前端 | Profile=`r1`；仅 RFQ + 知识库可达 |
+
+## R1 不做
+
+- M3/M4/M5 业务 · Hybrid/Rerank · 运营级 upload 门户 · Web QA 在线编辑（Q3→M4）
+
+## 开工前 Checklist
+
+- [ ] 已读 [pre-development-open-items.md](docs/supplementary/pre-development-open-items.md) §1 Gate
+- [ ] 当前分支为 `release/r1` 或 `feat/r1-*`
+- [ ] PR 对应 dev-tasks ID + [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
+- [ ] `.\run_tests.ps1` 全绿；RAG/解析变更 + `--regression`
+- [ ] 生产路径无 Mock 欺骗
+
+## 验收标签
+
+- `r1-alpha-*`：内部 seed 基准库演示
+- `r1-beta-*`：客户正式基准 + 3 RFQ + ≥12/15 检索（**签字**）
