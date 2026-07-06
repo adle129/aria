@@ -2,7 +2,7 @@
 
 **来源：** [rfq-parse-spike-closure.md](rfq-parse-spike-closure.md) · [rag-compare-spike-closure.md](rag-compare-spike-closure.md)  
 **主清单映射：** [dev-tasks.md](dev-tasks.md) § R1-SPK  
-**执行顺序（唯一）：** [r1-execution-plan.md](r1-execution-plan.md)  
+**执行顺序（唯一）：** [r1-execution-plan.md](r1-execution-plan.md) · **错误总结：** [dev-error-retrospective.md](dev-error-retrospective.md)  
 **机器可读报告：**
 
 | Spike | 报告 |

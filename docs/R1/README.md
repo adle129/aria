@@ -13,6 +13,7 @@
 |------|------|
 | [dev-tasks.md](dev-tasks.md) | **开发任务主清单**（含 **R1-SPK** spike 后续 · **R1-OPS**） |
 | [r1-execution-plan.md](r1-execution-plan.md) | **Wave 1–6 执行顺序**（Spike 后正式实施） |
+| [dev-error-retrospective.md](dev-error-retrospective.md) | **错误总结与提效指南**（Spike/测试/架构教训） |
 | [spike-follow-up-tasks.md](spike-follow-up-tasks.md) | **Spike 结案 → R1 正式实施任务**（RFQ + RAG） |
 | [validation-corpus.md](validation-corpus.md) | **客户模板语料** + spike 复现命令 |
 | [rfq-parse-spike-closure.md](rfq-parse-spike-closure.md) | **RFQ 解析 spike 结案**（rules_first · 0 LLM） |
