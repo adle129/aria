@@ -12,6 +12,7 @@ alwaysApply: false
 
 - 代码 merge 目标：**`release/r1`**（非 `main`）
 - 客户内网验收：`ARIA_UI_PROFILE=r1`，`MOCK_LLM=false`，`MOCK_RAG=false`
+- **知识库 Debug UI（`/knowledge/debug`）仅 DEV：** `ARIA_UI_PROFILE=dev` + `KB_DEBUG_ENABLED=true`；**禁止** 写入 `docker-compose.prod.yml` / 阿里云 Demo。见 [kb-debug-ui-spec.md](docs/R1/kb-debug-ui-spec.md)
 - Compose：`docker-compose.prod.yml`，`ARIA_DATA_ROOT=/data/aria`
 
 ## 开发顺序（P0）

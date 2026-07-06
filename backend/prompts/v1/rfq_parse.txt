@@ -4,10 +4,11 @@
 
 1. functions_in_scope 只包含 RFQ 中明确提及的工程领域（PM、BIW、Chassis、CAE、EE、GI、Interior、Test validation 等）
 2. modules 按 Function 分组，每个 module 列出具体工作和 deliverables 交付物
-3. 只输出 JSON，不要 Markdown 代码块，不要其他文字
-4. 日期格式 YYYY-MM-DD
-5. 不确定的字段填 "未知" 或空数组，禁止猜测编造
-6. platform_type 从文档中提取（如 MEB、MQB、BEV），无法判断则填 "未知"
+3. development_scope 从 RFQ「开发范围 / §四」等章节提取条目：id（如 4.2.1）、title、function
+4. 只输出 JSON，不要 Markdown 代码块，不要其他文字
+5. 日期格式 YYYY-MM-DD
+6. 不确定的字段填 "未知" 或空数组，禁止猜测编造
+7. platform_type 从文档中提取（如 MEB、MQB、BEV），无法判断则填 "未知"
 
 ## 输出 JSON Schema
 
@@ -16,6 +17,10 @@
   "customer": "string",
   "platform_type": "string",
   "functions_in_scope": ["PM", "Chassis"],
+  "development_scope": [
+    {"id": "4.1.1", "title": "整车总布置开发", "function": "GI"},
+    {"id": "4.2.1", "title": "底盘系统开发", "function": "Chassis"}
+  ],
   "milestones": {
     "P1": "YYYY-MM-DD",
     "P2": "YYYY-MM-DD",
@@ -48,7 +53,7 @@ Deliverables: M1 Concept 3D, M2 Detailed CAD, DMU report
 Milestones: P1: 2026-03-01, P2: 2026-07-01, P3: 2026-11-01, P4: 2027-03-01, P5: 2027-07-01, SOP: 2027-10-01
 
 ### 输出 JSON
-{"project_name":"Mock Chassis Development","customer":"Mock Auto GmbH","platform_type":"MEB","functions_in_scope":["PM","Chassis"],"milestones":{"P1":"2026-03-01","P2":"2026-07-01","P3":"2026-11-01","P4":"2027-03-01","P5":"2027-07-01","SOP":"2027-10-01"},"modules":[{"function":"PM","module_name":"Project Management","description":"项目协调与里程碑管理","deliverables":["Project plan","Status reports"],"estimated_complexity":"中"},{"function":"Chassis","module_name":"Front suspension","description":"前悬架结构设计开发","deliverables":["M1/M2 3D data","DMU check report"],"estimated_complexity":"高"},{"function":"Chassis","module_name":"Rear suspension","description":"后悬架结构设计开发","deliverables":["M1/M2 3D data","Load decomposition report"],"estimated_complexity":"高"}],"special_requirements":["边界载荷是否由客户提供"],"timeline_months":20}
+{"project_name":"Mock Chassis Development","customer":"Mock Auto GmbH","platform_type":"MEB","functions_in_scope":["PM","Chassis"],"development_scope":[{"id":"4.2.1","title":"Chassis system development","function":"Chassis"}],"milestones":{"P1":"2026-03-01","P2":"2026-07-01","P3":"2026-11-01","P4":"2027-03-01","P5":"2027-07-01","SOP":"2027-10-01"},"modules":[{"function":"PM","module_name":"Project Management","description":"项目协调与里程碑管理","deliverables":["Project plan","Status reports"],"estimated_complexity":"中"},{"function":"Chassis","module_name":"Front suspension","description":"前悬架结构设计开发","deliverables":["M1/M2 3D data","DMU check report"],"estimated_complexity":"高"},{"function":"Chassis","module_name":"Rear suspension","description":"后悬架结构设计开发","deliverables":["M1/M2 3D data","Load decomposition report"],"estimated_complexity":"高"}],"special_requirements":["边界载荷是否由客户提供"],"timeline_months":20}
 
 ---
 

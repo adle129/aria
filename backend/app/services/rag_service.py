@@ -136,10 +136,19 @@ class RAGService:
             hits = _filter_hits_by_doc_type(hits, doc_type_filter)
             return hits[:top_k]
 
-        hits = self._get_chroma().search(query, top_k=top_k)
-        hits = _filter_hits_by_functions(hits, function_filter)
-        hits = _filter_hits_by_doc_type(hits, doc_type_filter)
-        return hits[:top_k]
+        from app.services.knowledge_index_service import KnowledgeIndexService
+
+        index = KnowledgeIndexService(self.settings)
+        try:
+            hits = index.search(
+                query,
+                top_k=top_k,
+                function_filter=function_filter,
+                doc_type_filter=doc_type_filter,
+            )
+        except Exception:
+            return []
+        return hits
 
     def build_comparison_table(
         self, rfq_data: dict[str, Any], similar_docs: list[dict[str, Any]]
@@ -216,7 +225,9 @@ class RAGService:
         project_dirs = [p for p in kb.iterdir() if p.is_dir()] if kb.exists() else []
         chunk_count = len(docx_files) * 10 if docx_files else 0
         try:
-            chunk_count = self._get_chroma().count()
+            from app.services.knowledge_index_service import KnowledgeIndexService
+
+            chunk_count = KnowledgeIndexService(self.settings).indexed_count()
         except Exception:
             pass
         import_state = self._read_import_state()

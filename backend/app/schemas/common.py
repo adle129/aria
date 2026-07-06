@@ -22,3 +22,5 @@ class HealthResponse(BaseModel):
     ollama_model_ready: bool = False
     embedding_model_ready: bool = False
     ollama_error: str | None = None
+    kb_debug_enabled: bool = False
+    aria_ui_profile: str = "experience"

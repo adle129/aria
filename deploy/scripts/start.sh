@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Production one-click start (bootstrap .env + data dirs + compose up)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,11 +11,16 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "ERROR: compose file not found: $COMPOSE_FILE" >&2
   exit 1
 fi
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "ERROR: .env not found: $ENV_FILE (copy from .env.production.example)" >&2
-  exit 1
+
+bash "$ARIA_ROOT/scripts/ensure-env.sh" prod
+
+DATA_ROOT="/data/aria"
+if [[ -f "$ENV_FILE" ]]; then
+  line="$(grep -E '^ARIA_DATA_ROOT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r" ' || true)"
+  [[ -n "$line" ]] && DATA_ROOT="$line"
 fi
+mkdir -p "$DATA_ROOT/postgres" "$DATA_ROOT/app"/{uploads,outputs,knowledge_base,chroma_db,templates,app/feedback}
 
 cd "$ARIA_ROOT"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build
-echo "ARIA started. Check: curl -s http://localhost/api/v1/health"
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build "$@"
+echo "ARIA started (profile=${ARIA_UI_PROFILE:-r1}). Check: curl -s http://localhost/api/v1/health"

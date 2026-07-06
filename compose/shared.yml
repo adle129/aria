@@ -1,0 +1,22 @@
+# Canonical copy — keep in sync with x-backend-environment in docker-compose*.yml
+
+x-backend-environment: &backend-environment
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+  MOCK_LLM: ${MOCK_LLM:-true}
+  MOCK_RAG: ${MOCK_RAG:-true}
+  ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
+  KB_DEBUG_ENABLED: ${KB_DEBUG_ENABLED:-false}
+  PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+  CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
+  UPLOAD_PATH: ${UPLOAD_PATH:-/app/data/uploads}
+  OUTPUT_PATH: ${OUTPUT_PATH:-/app/data/outputs}
+  KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH:-/app/data/knowledge_base}
+  TEMPLATE_PATH: ${TEMPLATE_PATH:-/app/data/templates}
+  APP_VERSION: ${APP_VERSION:-1.0.0}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-frontend-build-args: &frontend-build-args
+  NEXT_PUBLIC_API_BASE_URL: /api/v1
+  NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}

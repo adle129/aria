@@ -74,17 +74,20 @@ def test_real_search_empty_returns_no_mock_fallback(monkeypatch, tmp_path):
         Settings(mock_rag=False, knowledge_base_path=str(kb), chroma_path=str(chroma))
     )
 
-    class FakeChroma:
-        def search(self, query: str, top_k: int = 5):
+    class FakeIndex:
+        def search(
+            self,
+            query: str,
+            top_k: int = 5,
+            function_filter: list[str] | None = None,
+            doc_type_filter: list[str] | None = None,
+        ):
             return []
 
-        def count(self):
-            return 0
-
-        def get_metadata(self, doc_id: str):
-            return None
-
-    monkeypatch.setattr(rag, "_get_chroma", lambda: FakeChroma())
+    monkeypatch.setattr(
+        "app.services.knowledge_index_service.KnowledgeIndexService",
+        lambda _settings: FakeIndex(),
+    )
     assert rag.search_similar_projects("MEB chassis", top_k=3) == []
 
 

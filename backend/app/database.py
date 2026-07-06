@@ -31,10 +31,20 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import project, rfq_task  # noqa: F401
+    from app.models.project import Project
+    from app.models.rfq_task import RFQTask
 
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine, tables=[Project.__table__, RFQTask.__table__])
     _ensure_rfq_task_columns()
+    _ensure_pgvector()
+
+
+def _ensure_pgvector() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    from app.services.pgvector_store import PgVectorStore
+
+    PgVectorStore.ensure_schema()
 
 
 def _ensure_rfq_task_columns() -> None:

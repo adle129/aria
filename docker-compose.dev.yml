@@ -1,6 +1,25 @@
-# Phase 0 快速启动：跳过后端 AI 大包（LangChain/ChromaDB），构建更快
-# 用法: docker compose -f docker-compose.dev.yml up --build
-# RAG 模块开发前可先用此配置；需要 ingest/search 时改回 docker-compose.yml
+# Phase 0 fast start: skip heavy backend AI packages for quicker builds
+# Usage: scripts/up.sh --dev-fast
+x-backend-environment: &backend-environment
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+  MOCK_LLM: ${MOCK_LLM:-true}
+  MOCK_RAG: ${MOCK_RAG:-true}
+  ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
+  KB_DEBUG_ENABLED: ${KB_DEBUG_ENABLED:-false}
+  PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+  CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
+  UPLOAD_PATH: ${UPLOAD_PATH:-/app/data/uploads}
+  OUTPUT_PATH: ${OUTPUT_PATH:-/app/data/outputs}
+  KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH:-/app/data/knowledge_base}
+  TEMPLATE_PATH: ${TEMPLATE_PATH:-/app/data/templates}
+  APP_VERSION: ${APP_VERSION:-1.0.0}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-frontend-build-args: &frontend-build-args
+  NEXT_PUBLIC_API_BASE_URL: /api/v1
+  NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
 
 services:
   postgres:
@@ -25,10 +44,11 @@ services:
       context: ./backend
       args:
         INSTALL_AI: "false"
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     container_name: aria-backend
-    env_file:
-      - .env
     environment:
+      <<: *backend-environment
       DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
     volumes:
       - ./backend/data:/app/data
@@ -44,7 +64,7 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_BASE_URL: /api/v1
+        <<: *frontend-build-args
     container_name: aria-frontend
     depends_on:
       - backend

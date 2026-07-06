@@ -1,9 +1,13 @@
-FROM docker.m.daocloud.io/library/python:3.11-slim
+# Use standard image name; Docker Engine registry-mirrors handles CN acceleration.
+# Override: docker build --build-arg BASE_IMAGE=python:3.11-slim ...
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    libreoffice-writer-nogui \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-ai.txt ./
@@ -13,13 +17,25 @@ ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ARG PIP_TRUSTED_HOST=mirrors.aliyun.com
 
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir --default-timeout=300 --retries 5 \
-       -i ${PIP_INDEX_URL} --trusted-host ${PIP_TRUSTED_HOST} \
-       -r requirements.txt \
-    && if [ "$INSTALL_AI" = "true" ]; then \
+    && for attempt in 1 2 3; do \
          pip install --no-cache-dir --default-timeout=300 --retries 5 \
            -i ${PIP_INDEX_URL} --trusted-host ${PIP_TRUSTED_HOST} \
-           -r requirements-ai.txt; \
+           -r requirements.txt \
+           && break \
+         || { if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+              echo "pip install requirements.txt failed (attempt $attempt), retrying in 15s..."; \
+              sleep 15; }; \
+       done \
+    && if [ "$INSTALL_AI" = "true" ]; then \
+         for attempt in 1 2 3; do \
+           pip install --no-cache-dir --default-timeout=300 --retries 5 \
+             -i ${PIP_INDEX_URL} --trusted-host ${PIP_TRUSTED_HOST} \
+             -r requirements-ai.txt \
+             && break \
+           || { if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+                echo "pip install requirements-ai.txt failed (attempt $attempt), retrying in 15s..."; \
+                sleep 15; }; \
+         done; \
        fi
 
 COPY app ./app

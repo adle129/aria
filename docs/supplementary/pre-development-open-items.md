@@ -28,7 +28,7 @@
 | 里程碑 | 可开工 / 可验收条件（摘要） | 仍缺则 |
 |--------|---------------------------|--------|
 | **R1 编码启动** | 已读 [formal-delivery-strategy.md](formal-delivery-strategy.md) · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)；计划从 Demo 壳 + `release/r1` 演进；**不强制**客户 ~100 项基准清单（R1-α 可用内部 seed） | — |
-| **R1 客户验收签字** | O-01～O-05 关闭；3 份 RFQ 基准勾选 + 矩阵；≥12/15 检索评测 | **不可签字** |
+| **R1 客户验收签字** | O-01～O-05 及 **O-02a/c/d** 关闭；内网 **≥15** indexed RFQ（推荐）；3 份 RFQ 基准勾选 + 矩阵；≥12/15 检索评测 | **不可签字** |
 | **M3** | O-08、O-09 关闭；ScopeMatch + 9 Function Excel | 顺延 |
 | **M4** | Q3 已确认（仅生成/下载 Excel） | — |
 | **M5** | O-10、O-11 关闭；34 页 PPT 预填验收 | 顺延 |
@@ -61,7 +61,10 @@
 | ID | 项 | 责任 | 建议截止 | 阻塞 | 状态 | 来源 |
 |----|-----|------|----------|------|------|------|
 | **O-01** | **工作维度基准清单（~100 项，Excel）** | 客户 | R1 第 7–8 周前 | **R1 验收** | 待客户提供 | Q8 · [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md) |
-| **O-02** | **3–5 套 Engagement 金标准三件套**（脱敏 RFQ+Q_A+报价） | 客户 | 启动前定计划；第 7–8 周验收 | **R1 验收** | 待客户提供 | customer-feedback §7 · [R1 验收说明 §4.1](../R1-知识库验收与检索评测说明（客户版）.md) |
+| **O-02a** | **≥5 套 Engagement 金标准三件套**（脱敏 RFQ+Q_A+填好数报价） | 客户 | 1 周内 ≥3 套；第 6 周前 ≥5 套 | **R1 验收 §4.1** · **P1** | 待客户提供 | [R1 验收说明 §4.1](../R1-知识库验收与检索评测说明（客户版）.md) |
+| **O-02b** | **10–20 套结构试点**（脱敏，**可缺件**） | 客户 | 签约前或 **第 1 周** | 档位决策 · **P1** | 待客户提供 | [bulk-import-workload-assessment.md](../R1/bulk-import-workload-assessment.md) §5 |
+| **O-02c** | **内网 bulk 首次导入**（贵司现有历史项目库；IT 目录 + 导入报告；档位 A ≥90%） | 客户 IT + 乙方 | 第 5–8 周 import；**第 7–8 周内网验收** · **P2** | **R1 验收 §4.1b** | 待客户提供 | bulk-import §4 |
+| **O-02d** | **《历史项目清点表》**（计划入库数 N、三件套齐全率、缺件说明） | 双方 | **签约后 2 周内** | bulk 验收范围 | 待双方确认 | [customer-dependencies.md](../R1/customer-dependencies.md) |
 | **O-03** | **≥15 条检索评测题集**（期望命中项目/文档） | 双方 | R1 **第 4 周前**共同确认 | **R1 验收** | 待双方确认 | R1 验收说明 §4.4 |
 | **O-04** | **3 份代表性 RFQ**（基准勾选 + 对比矩阵验收） | 客户 | R1 第 7–8 周 | **R1 验收** | 待客户提供 | R1 验收说明 §4.3 |
 | **O-05** | **M0：GPU / 独立数据盘 / Ollama / Docker** | 客户 IT | R1 验收前（可与 R1 开发并行） | **R1 验收** | 待客户提供 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) |
@@ -93,6 +96,9 @@
 | **I-05** | `.cursor/rules` 与 pgvector / 无 LangChain 口径同步 | 已同步 v1.0 · 2026-07-04 | R1 前 | **已关闭** | formal-delivery-strategy §9 · aria-r1-delivery.mdc |
 | **I-06** | R1 验收彩排脚本（15–20 min，仅 RFQ+知识库） | 待编写 | R1 第 6 周前 | 内部待定 | formal-delivery-strategy §9.2 |
 | **I-07** | R1 检索评测 JSON 快照 / 自动化程度 | 手工表为主 | R1 第 4 周 | 内部待定 | test-plan §7 |
+| **I-08** | **F5.6 引用反馈 L1**（一键反馈 + CSV 导出） | **内部运维增强 · 可选做**；**不进客户合同** | R1～M6 视进度 | 内部待定 | dev-tasks **R1-OPS** · 2026-07-06 决策 |
+
+**I-08 说明：** 便于乙方 R1 末～M6 联调期收集 Top-3/检索问题；客户验收仍用试搜表 + 例会。若实施，**不**写入 [acceptance-checklist.md](../R1/acceptance-checklist.md) 与客户彩排。
 
 ---
 
@@ -113,16 +119,19 @@
 | F1.10c 勾选复核 UI（`DimensionBaselineReview`） | rfq-dimension-baseline-spec §6 |
 | F1.10d `confirm-dimensions` + 矩阵（仅 in_scope） | prompt-spec §3 · api-design |
 | Engagement manifest + Web ≤5 套/次 | rag-design §11.4.1 |
-| `manpower_baselines` ingest + `GET /knowledge/baselines` | rag-design |
+| `manpower_baselines` ingest + `GET /knowledge/baselines` | [manpower-baselines-spec.md](manpower-baselines-spec.md) · rag-design §11.3 |
+| `/knowledge` 基线预览 Tab + Top-3 联动 | manpower-baselines-spec §3.5 · dev-tasks R1-K08b/c |
 | `insufficient_evidence` 拒答（禁止 Mock 欺骗） | rag-design |
 | `ARIA_UI_PROFILE=r1` | formal-delivery-strategy §5.2 |
 | RFQ Word 表格解析 | prod F1.x |
+
+**可选 · 非合同（I-08）：** F5.6 引用反馈 L1 — [dev-tasks R1-OPS](../R1/dev-tasks.md)；**不**绑里程碑验收。
 
 ### 5.2 M3 / M4 / M5 / M6
 
 | 里程碑 | 主要未实现项 |
 |--------|-------------|
-| M3 | ScopeMatchService · 9 Function Excel · `quote_fill_report` |
+| M3 | ScopeMatchService · 9 Function Excel · `quote_fill_report` · 接 Layer 1 baselines JSON | [manpower-baselines-spec.md §4](manpower-baselines-spec.md) |
 | M4 | Q_A Area 合并 · dedupe · 8 列导出（无 Web 编辑） |
 | M5 | 34 页 PPT 预填 · `proposal_fill_report` |
 | M6 | Profile=`full` 联调 · 培训 · 运维脚本 · 体验优化 |
@@ -179,7 +188,7 @@
 | [formal-delivery-strategy.md](formal-delivery-strategy.md) | 分支 · Profile · R1 范围 |
 | [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) | Q8 / F1.10a–d |
 | [delivery-traceability.md](delivery-traceability.md) | 能力 ↔ API ↔ 验收 |
-| [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) | O-02～O-05 验收细则 |
+| [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) | O-02a/c/d + O-03～O-05 验收细则 |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | O-05、O-06 |
 | [implementation-plan.md](../implementation-plan.md) | WBS · 依赖 D1–D11 |
 

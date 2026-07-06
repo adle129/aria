@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BugOutlined,
   BulbOutlined,
   DatabaseOutlined,
   FileSearchOutlined,
@@ -17,31 +18,29 @@ import { TaskProvider } from "@/context/TaskContext";
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems = [
-  {
-    type: "group" as const,
-    label: "应用 · 报价流程",
-    children: [
-      { key: "/rfq", icon: <FileSearchOutlined />, label: <Link href="/rfq">RFQ 分析</Link> },
-      { key: "/proposal", icon: <BulbOutlined />, label: <Link href="/proposal">方案草案</Link> },
-      { key: "/qa", icon: <QuestionCircleOutlined />, label: <Link href="/qa">QA 清单</Link> },
-      { key: "/quote", icon: <FileTextOutlined />, label: <Link href="/quote">人力报价</Link> },
-    ],
-  },
-  {
-    type: "group" as const,
-    label: "平台 · 知识库",
-    children: [
-      {
-        key: "/knowledge",
-        icon: <DatabaseOutlined />,
-        label: <Link href="/knowledge">知识库</Link>,
-      },
-    ],
-  },
-];
+const UI_PROFILE = process.env.NEXT_PUBLIC_ARIA_UI_PROFILE || "experience";
+
+function buildPlatformKnowledgeChildren(health: HealthData | null) {
+  const items = [
+    {
+      key: "/knowledge",
+      icon: <DatabaseOutlined />,
+      label: <Link href="/knowledge">知识库</Link>,
+    },
+  ];
+  const profile = health?.aria_ui_profile || UI_PROFILE;
+  if (profile === "dev" && health?.kb_debug_enabled) {
+    items.push({
+      key: "/knowledge/debug",
+      icon: <BugOutlined />,
+      label: <Link href="/knowledge/debug">知识库 · Debug</Link>,
+    });
+  }
+  return items;
+}
 
 function selectedKey(pathname: string): string {
+  if (pathname.startsWith("/knowledge/debug")) return "/knowledge/debug";
   if (pathname.startsWith("/proposal")) return "/proposal";
   if (pathname.startsWith("/qa")) return "/qa";
   if (pathname.startsWith("/rfq")) return "/rfq";
@@ -73,6 +72,24 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
       .then(setHealth)
       .catch(() => setHealth(null));
   }, []);
+
+  const menuItems = [
+    {
+      type: "group" as const,
+      label: "应用 · 报价流程",
+      children: [
+        { key: "/rfq", icon: <FileSearchOutlined />, label: <Link href="/rfq">RFQ 分析</Link> },
+        { key: "/proposal", icon: <BulbOutlined />, label: <Link href="/proposal">方案草案</Link> },
+        { key: "/qa", icon: <QuestionCircleOutlined />, label: <Link href="/qa">QA 清单</Link> },
+        { key: "/quote", icon: <FileTextOutlined />, label: <Link href="/quote">人力报价</Link> },
+      ],
+    },
+    {
+      type: "group" as const,
+      label: "平台 · 知识库",
+      children: buildPlatformKnowledgeChildren(health),
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: "100vh" }}>

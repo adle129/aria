@@ -33,6 +33,8 @@ export interface HealthData {
   ollama_model_ready: boolean;
   embedding_model_ready: boolean;
   ollama_error?: string | null;
+  kb_debug_enabled?: boolean;
+  aria_ui_profile?: string;
 }
 
 export async function fetchHealth(): Promise<HealthData> {

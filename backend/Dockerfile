@@ -4,6 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    libreoffice-writer-nogui \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements-ai.txt ./
@@ -19,9 +20,21 @@ RUN pip install --upgrade pip setuptools wheel \
        else \
          PIP_OPTS=""; \
        fi \
-    && pip install --no-cache-dir --default-timeout=300 --retries 5 $PIP_OPTS -r requirements.txt \
+    && for attempt in 1 2 3; do \
+         pip install --no-cache-dir --default-timeout=300 --retries 5 $PIP_OPTS -r requirements.txt \
+           && break \
+         || { if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+              echo "pip install requirements.txt failed (attempt $attempt), retrying in 15s..."; \
+              sleep 15; }; \
+       done \
     && if [ "$INSTALL_AI" = "true" ]; then \
-         pip install --no-cache-dir --default-timeout=300 --retries 5 $PIP_OPTS -r requirements-ai.txt; \
+         for attempt in 1 2 3; do \
+           pip install --no-cache-dir --default-timeout=300 --retries 5 $PIP_OPTS -r requirements-ai.txt \
+             && break \
+           || { if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+                echo "pip install requirements-ai.txt failed (attempt $attempt), retrying in 15s..."; \
+                sleep 15; }; \
+         done; \
        fi
 
 COPY app ./app

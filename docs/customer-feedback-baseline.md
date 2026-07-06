@@ -138,7 +138,7 @@
 | ~~Q2 流程顺序~~ | — | **已确认 2026-07-04** |
 | ~~Q3 QA 编辑方式~~ | — | **已确认 2026-07-04** |
 | **工作维度基准清单（~100 项）** | 贵司 | **R1 第 7–8 周前**（见 [rfq-dimension-baseline-spec §6](supplementary/rfq-dimension-baseline-spec.md)） |
-| 3–5 Engagement 脱敏三件套 | 贵司 + 我方 | **R1 启动前** |
+| ≥5 套金标准 + 内网 bulk 落盘计划（清点表 O-02d） | 贵司 + 我方 | **R1 启动前 / 并行** |
 | Content Template 34 页签收 | 贵司 | **M5 启动前** |
 | scope↔slide 映射表 | 贵司 | **M5 启动前** |
 

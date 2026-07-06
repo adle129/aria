@@ -46,22 +46,50 @@ Windows 推送：`.\scripts\push-and-deploy-aliyun.ps1 -TargetHost <公网IP> -U
 ### 生产部署（内网 GPU + 独立数据盘）
 
 ```bash
-# 数据盘挂载 /data 后，见 docs/deployment-guide.md §3.2
-cp .env.production.example .env && nano .env
+# 一键启动（无 .env 时自动从 .env.production.example 生成）
 bash deploy/scripts/start.sh
+# 或手动：cp .env.production.example .env && docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-- Compose：`docker-compose.prod.yml`（`ARIA_DATA_ROOT` 默认 `/data/aria`）
+- Compose：`docker-compose.prod.yml`（`ARIA_UI_PROFILE=r1`，`ARIA_DATA_ROOT` 默认 `/data/aria`）
 - 客户 IT 说明：[docs/customer-it-infrastructure.md](docs/customer-it-infrastructure.md)
 
 ## 快速启动
 
+### 一键启动（推荐）
+
+```powershell
+# Windows 开发 / Demo（自动创建 .env）
+.\scripts\up.ps1
+
+# 后台启动
+.\scripts\up.ps1 -Detached
+
+# 国内镜像
+.\scripts\up.ps1 -Cn
+```
+
+```bash
+# Linux / macOS / Git Bash
+./scripts/up.sh
+./scripts/up.sh --cn
+bash deploy/scripts/start.sh   # 生产 / R1 客户版
+```
+
+仍可直接使用 `docker compose up --build`；若存在 `.env` 会参与变量替换，**不再强制** `env_file`（无 `.env` 也能启动，使用 compose 内默认值）。
+
+### 手动步骤（等价）
+
+```bash
+cp .env.example .env   # 可选
+docker compose up --build
+```
+
 ### 前置条件
 
 - Docker Desktop（Windows / macOS）或 Docker Engine + Compose（Linux）
-- **国内网络：先配置 Docker 镜像加速**（见下方，首次启动前完成，可避免 90% 拉取失败）
-- Git Bash 或 WSL（用于运行 `run_tests.sh`）
-- （可选）Ollama + Qwen2.5 14B，用于真实 LLM 调用
+- **国内网络：先配置 Docker 镜像加速**（见下方）
+- （可选）宿主机 Ollama — 生产/R1 须 `MOCK_LLM=false`；开发默认可 Mock
 
 ### 国内网络：Docker Desktop 推荐配置（首次启动前）
 
@@ -95,28 +123,11 @@ docker pull nginx:alpine
 
 完整示例文件：[docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)
 
-### 一键启动（Docker）
+访问地址（容器全部 Up 后）：
 
-```bash
-# 1. 复制环境变量
-cp .env.example .env
-
-# 2. 构建并启动全部服务（首次约 10～30 分钟，见下方「首次构建须知」）
-docker compose up --build
-
-# Phase 0 仅需验证页面/health、暂不做 RAG 时，可用精简版（跳过后端 AI 大包，构建更快）：
-# docker compose -f docker-compose.dev.yml up --build
-
-# 后台启动（推荐熟悉流程后使用，不占用当前终端）
-# docker compose up --build -d
-# docker compose ps
-# docker compose logs -f
-
-# 3. 等终端出现各容器 Started 后再访问（构建完成前 localhost 无法打开）
-# 前端（经 Nginx）：http://localhost
-# 后端 API：       http://localhost:8000/api/v1/health
-# 前端直连：       http://localhost:3000
-```
+- 经 Nginx：**http://localhost**
+- Health：**http://localhost/api/v1/health**
+- 前端直连：http://localhost:3000
 
 ### 首次 `docker compose up --build` 须知
 

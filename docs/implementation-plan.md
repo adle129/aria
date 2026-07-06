@@ -79,7 +79,7 @@ gantt
 
 | 里程碑 | 日历周 | 核心交付 | 验收标准 |
 |--------|--------|---------|---------|
-| **R1** | 1–8 | Engagement 入库、baselines、Top-3、**F1.10**、检索评测、Web ≤5 套 | ≥12/15 检索 Pass；3 份 RFQ 维度+矩阵流程 |
+| **R1** | 1–8 | **签完即用**：≥5 金标准 + bulk、baselines、Top-3、**F1.10**、检索评测 | ≥12/15 Pass；3 份 RFQ 流程；bulk ≥90% 或书面例外 |
 | **M3** | 9–11 | ScopeMatch、9 Function Excel、`quote_fill_report` | ≥3 RFQ best_match 书面确认 |
 | **M4** | 12–13 | Q_A 合并 dedupe、模板导出 | 列结构 + G/H 符合 m4 规格 |
 | **M5** | 14–17 | 34 页 Content Template、`proposal_fill_report` | **不验收** LLM 正文 |
@@ -175,8 +175,8 @@ gantt
 ```
 2A 知识库底座（优先）
    2A.1 manifest.json + Engagement 目录规范
-   2A.2 分类型切块（RFQ 章节 / QA 行 / 报价 Sheet / 方案段）
-   2A.3 metadata 增强 + manpower_baselines 结构化表
+   2A.2 分类型切块（RFQ/Q_A → pgvector；报价 → baselines JSON，**不向量化**）
+   2A.3 metadata 增强 + manpower_baselines（见 [manpower-baselines-spec.md](supplementary/manpower-baselines-spec.md)）
    2A.4 KB 运营 UI（upload、导入进度、Re-index）
    2A.5 检索评测集（3–5 RFQ 人工标注应命中项目）
 
@@ -205,7 +205,7 @@ gantt
 
 2F 运营上线
    2F.1 review_status 全状态机 + audit trail
-   2F.2 引用反馈 + Re-index 飞轮
+   2F.2 引用反馈 + Re-index 飞轮（**F5.6 L1 为内部可选 · 非合同**；见 dev-tasks R1-OPS）
    2F.3 生产部署 UAT、培训、运维移交
 ```
 
@@ -257,7 +257,7 @@ gantt
 |---|--------|--------|
 | D6 | Demo 验收通过 + 反馈基线确认 | 客户 |
 | D7 | 生产服务器到位（推荐 4090 + 独立数据盘） | 客户 IT |
-| D8 | **3–5 个完整脱敏 Engagement**（RFQ+Q_A+报价+方案） | 客户 |
+| D8 | **≥5 套金标准 + 内网 bulk 落盘计划**（清点表 O-02d；不要求每套三件套齐全） | 客户 |
 | D9 | 四套模板书面签收（Q_A / 报价 / PPT / RFQ 样例） | 双方 |
 | D10 | 商务套餐选型（A/B/C）+ PPT 重点页清单（套餐 B） | 双方 |
 | D11 | 内网域名/DNS 配置 | 客户 IT |

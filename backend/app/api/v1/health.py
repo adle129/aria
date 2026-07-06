@@ -26,4 +26,6 @@ def health_check() -> HealthResponse:
         ollama_model_ready=probe["ollama_model_ready"],
         embedding_model_ready=probe["embedding_model_ready"],
         ollama_error=probe["ollama_error"],
+        kb_debug_enabled=settings.kb_debug_enabled,
+        aria_ui_profile=settings.aria_ui_profile,
     )

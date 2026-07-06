@@ -335,12 +335,24 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 
 ### 11.3 manpower_baselines（R1 硬交付）
 
+> **完整规格：** [manpower-baselines-spec.md](manpower-baselines-spec.md)（2026-07-06 定稿）
+
 | 项 | 决策 |
 |----|------|
 | 存储 | `${ARIA_DATA_ROOT}/app/manpower_baselines.json` |
 | 写入 | 与 import 同批；原子 rename |
 | 读取 | `GET /knowledge/baselines`；M3 替换 `MOCK_MANPOWER_BASELINES` |
 | 验收 | `/knowledge` **基线预览** Tab + 数字对照表签字 |
+| **向量** | **报价 Excel 不进 pgvector 主路径**；客户「查历史人力」= baselines 结构化查询 + RFQ Top-3 联动 |
+| Phase 2 可选 | Engagement **摘要** chunk（`quote_summary`）；见 manpower-baselines-spec §5 · dev-tasks R1-P2-01 |
+
+**客户场景映射：**
+
+| 诉求 | R1/M3 路径 |
+|------|------------|
+| 类似需求人天参考 | RFQ Top-3 → 展示对应 engagement baselines |
+| 浏览历史项目各 Function 人天 | `GET /knowledge/baselines` + 基线预览 Tab |
+| 生成新报价 Excel | M3：ScopeMatch + baselines 抽取 + **当前 RFQ** 时间轴 remap |
 
 ### 11.4 `/knowledge` 验收台（R1  reposition）
 
@@ -355,17 +367,19 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 | **小批量** | ✓ | 同一操作内 **≤5 套** 项目包（逐套 ZIP 或多组文件）；上传后展示 **成功/失败/缺件** 清单 |
 | **缺件提示** | ✓ | 缺 Q&A 或报价时 **仍可入库**（银/铜），UI 标明 **哪些自动流程不可用** |
 | **上传后索引** | ✓ | 上传完成可 **一键触发** 本次包的 import（或并入「更新知识库索引」） |
-| **大批量 100+** | 仍推荐 | **IT 目录落盘 + 触发全量索引**；不以浏览器一次传 100 套为 R1 目标 |
+| **大批量历史库** | 仍推荐 | **内网 IT 目录落盘 + 触发全量索引**；不以浏览器一次传数十套为 R1 目标 |
 
-**R1 不含（后续变更单 / 扩展）：** 拖拽整目录、断点续传、upload AI 预识别 preview、RBAC、反馈 F5.6（L1/L2）、归档一键入库、过期提醒、检索热力看板、**运营级上传门户**。
+**R1 客户合同不含（可选内部实现见 §11.4.2）：** 拖拽整目录、断点续传、upload AI 预识别 preview、RBAC、**F5.6 客户交付**、归档一键入库、过期提醒、检索热力看板、**运营级上传门户**。
 
-#### 11.4.2 引用反馈 L1（F5.6 · 设计规格 · M6 后可选 · **未实现**）
+#### 11.4.2 引用反馈 L1（F5.6 · 内部运维增强 · 可选 · **未实现**）
+
+> **2026-07-06：** **不进客户合同**；R1～M6 视进度可选（[dev-tasks R1-OPS](../R1/dev-tasks.md)）。对客户仍用试搜表 + 例会；商用立项见 [feedback-ops-pack（客户版）](../supplementary/feedback-ops-pack（客户版）.md)。
 
 | 项 | L1 规格 | 说明 |
 |----|---------|------|
 | **提交反馈** | 计划 | `POST /knowledge/feedback`；知识库检索 + RFQ 相似项目行 |
 | **类型** | 计划 | `wrong_project` / `irrelevant` / `wrong_snippet` |
-| **列表/导出** | 计划 | `GET /feedback`、`GET /feedback/export` — 供管理员/乙方审查 |
+| **列表/导出** | 计划 | `GET /feedback`、`GET /feedback/export` — **乙方**双周复盘（CSV） |
 | **存储** | 计划 | `${ARIA_DATA_ROOT}/app/feedback/feedback.jsonl` |
 | **自动变准** | 不含 | **不** 微调 LLM；审查后人工：改 metadata、补评测题、Re-index |
 | **L2 闭环** | 不含 | 审查 UI、看板、评测集自动合并 — 变更单 |
@@ -376,7 +390,9 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 工程师点「引用不准」 → 反馈库 → 管理员/乙方审查 → 修正数据或评测集 → Re-index → 下次检索更准
 ```
 
-L1 目标为 **前两步（点选 + 存储）**；与 [feedback-ops-pack（客户版）](../supplementary/feedback-ops-pack（客户版）.md) 一致。**当前代码 Gate 未开。**
+L1 目标为 **点选 + 存储 + CSV 导出**。**当前代码 Gate 未开**；实施后 **不**写入 R1 acceptance-checklist。
+
+---
 
 ### 11.5 入库方式（R1 双路径）
 

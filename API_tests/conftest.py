@@ -11,6 +11,8 @@ DEMO_MULTIFUNCTION_RFQ = Path(__file__).resolve().parents[1] / "samples" / "rfq"
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["MOCK_LLM"] = "true"
 os.environ["MOCK_RAG"] = "true"
+os.environ["ARIA_UI_PROFILE"] = "experience"
+os.environ["KB_DEBUG_ENABLED"] = "false"
 os.environ["OLLAMA_MODEL"] = "qwen2.5:14b"
 os.environ["EMBEDDING_MODEL"] = "nomic-embed-text"
 
@@ -52,7 +54,10 @@ def client(upload_dir, monkeypatch):
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine)
+    from app.models.project import Project
+    from app.models.rfq_task import RFQTask
+
+    Base.metadata.create_all(bind=engine, tables=[Project.__table__, RFQTask.__table__])
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     def override_get_db():

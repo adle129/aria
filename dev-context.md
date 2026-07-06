@@ -138,6 +138,9 @@ EMBEDDING_MODEL=nomic-embed-text
 MOCK_LLM=true                    # true=规则 Mock；false=真实 Ollama
 MOCK_RAG=true                    # true=固定 Mock 检索结果
 PROMPT_VERSION=v1
+# 知识库 Debug UI：仅本地 dev（见 docs/R1/kb-debug-ui-spec.md）
+# ARIA_UI_PROFILE=dev
+# KB_DEBUG_ENABLED=true
 # Demo 遗留；R1 后向量存 PostgreSQL pgvector
 CHROMA_PATH=/app/data/chroma_db
 UPLOAD_PATH=/app/data/uploads
@@ -192,9 +195,9 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | GET | `/api/v1/knowledge/stats` | 知识库统计 |
 | POST | `/api/v1/knowledge/search` | 向量检索（Top-K） |
 | POST | `/api/v1/knowledge/import` | 触发索引 |
-| GET | `/api/v1/knowledge/baselines` | 人天基线预览（R1） |
+| GET | `/api/v1/knowledge/baselines` | 人天基线预览（R1 · **规则 JSON，非向量**；见 [manpower-baselines-spec.md](docs/supplementary/manpower-baselines-spec.md)） |
 | POST | `/api/v1/knowledge/engagements/upload` | R1 轻量 Web 上传 ≤5 套（未实现） |
-| POST | `/api/v1/knowledge/feedback` | F5.6 L1（合同外 · 未实现） |
+| POST | `/api/v1/knowledge/feedback` | F5.6 L1（**内部运维增强 · 可选** · 非合同 · 未实现） |
 
 **正式版（R1/M3–M6）：** M4/M5 替换 Stub；`download/qa`、`download/ppt`；详见 [delivery-traceability.md](docs/supplementary/delivery-traceability.md)。
 

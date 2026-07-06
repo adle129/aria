@@ -201,7 +201,7 @@ Service → unit test → API → API test → 前端 → 联调
 
 ### 9.1 客户配合（业务 · 非开发方案确认）
 
-- [ ] 3–5 套脱敏 Engagement 三件套提供计划（R1 第 7–8 周需用）  
+- [ ] **≥5 套**金标准 + **内网 bulk** 提供计划（清点表 O-02d；R1 第 7–8 周内网验收；见 [bulk-import-workload-assessment.md](../R1/bulk-import-workload-assessment.md)）  
 - [ ] **工作维度基准表（~100 项）** — 见 [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md)（**R1-β 验收前**）  
 - [ ] R1 验收方式双方已知悉（检索评测表 + 3 RFQ 基准勾选流程 — 合同附件已有）  
 - [ ] IT：M0 数据盘 / GPU / Ollama（与 R1 并行）  
@@ -215,6 +215,7 @@ Service → unit test → API → API test → 前端 → 联调
 - [ ] R1 PR 模板：traceability 行号 + 测试路径  
 - [ ] 编写 **R1 验收彩排脚本**（仅 RFQ + 知识库；与 [demo-rehearsal-guide.md](../demo-rehearsal-guide.md) 分离）  
 - [ ] `.cursor/rules` 与 dev-context 同步 pgvector / 无 LangChain  
+- [ ] **F5.6 L1** 仅作内部运维增强（**R1-OPS · 可选**）；**不**对客户承诺、**不**写入 R1 验收 DoD  
 
 ### 9.3 R1 交付 DoD
 
@@ -223,6 +224,7 @@ Service → unit test → API → API test → 前端 → 联调
 - [ ] F1.10a–d + Engagement + ≥12/15 检索评测  
 - [ ] 客户正式基准库已导入并完成 3 份 RFQ 对标签字  
 - [ ] `run_tests.ps1` 全绿；涉及 RAG/解析则 `--regression` 结构通过  
+- [ ] **不含** F5.6 一键反馈作为客户交付或验收项
 
 ---
 

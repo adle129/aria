@@ -85,18 +85,6 @@ def test_knowledge_mock_real_schema_parity(monkeypatch):
     mock_rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
     real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
 
-    class FakeChroma:
-        def search(self, query: str, top_k: int = 5):
-            return []
-
-        def count(self):
-            return 0
-
-        def get_metadata(self, doc_id: str):
-            return None
-
-    monkeypatch.setattr(real_rag, "_get_chroma", lambda: FakeChroma())
-
     query = "MEB chassis"
     mock_hits = mock_rag.search_similar_projects(query, top_k=3)
     real_hits = real_rag.search_similar_projects(query, top_k=3)

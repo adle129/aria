@@ -167,7 +167,20 @@ docker exec aria-backend python scripts/ingest_documents.py
 | 文档数 | 随项目增长 | 长期不增长 |
 | chunk 数 | 与文档数成正比 | 异常下降 |
 | 最近导入时间 | < 30 天 | > 90 天无更新 |
-| 反馈待处理（Phase 2） | < 10 条 | > 50 条积压 |
+| 反馈待处理（若已实施 R1-OPS L1） | < 10 条 | > 50 条积压 |
+
+### 3.6 引用反馈 L1（F5.6 · 内部可选 · 非合同）
+
+> **2026-07-06 决策：** 一键反馈 + CSV 导出为 **乙方内部运维增强**（[dev-tasks R1-OPS](../R1/dev-tasks.md)），**不写入客户合同**。未实施时，用检索试搜表 + 双周例会。
+
+**若已实施（乙方运维）：**
+
+1. 双周：知识库页 **导出 CSV**（或 `GET /api/v1/knowledge/feedback/export`）
+2. 分类：`wrong_project` / `irrelevant` / `wrong_snippet`
+3. 动作：补 metadata、补评测 JSON、Re-index — **不**微调 LLM
+4. 下例会关闭项
+
+**对客户：** 不承诺为本期交付；商用见 [feedback-ops-pack（客户版）](supplementary/feedback-ops-pack（客户版）.md)。
 
 ---
 
@@ -338,7 +351,7 @@ docker exec -it postgres psql -U aria_admin -d aria_db -c "SELECT count(*) FROM 
 | 4 | 清理过期 outputs | 删除 > 90 天的生成文件 |
 | 5 | 回归测试 | `./run_tests.sh --regression` |
 | 6 | 检查 Ollama 模型 | `ollama list`，确认版本正确 |
-| 7 | 审查反馈（Phase 2） | 处理「引用不准确」反馈 |
+| 7 | 审查反馈（若 R1-OPS L1 已实施） | 导出 CSV · 见 §3.6 |
 | 8 | 更新 CHANGELOG | 记录本月变更 |
 
 ---

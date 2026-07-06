@@ -1,11 +1,28 @@
-# Docker Compose — 国内镜像源版本
-# 用法: docker compose -f docker-compose.cn.yml up --build
-#
-# 若仍失败，先运行: .\scripts\pull-images-cn.ps1
+# China mirror registry — usage: scripts/up.sh --cn
+x-backend-environment: &backend-environment
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+  MOCK_LLM: ${MOCK_LLM:-true}
+  MOCK_RAG: ${MOCK_RAG:-true}
+  ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
+  KB_DEBUG_ENABLED: ${KB_DEBUG_ENABLED:-false}
+  PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+  CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
+  UPLOAD_PATH: ${UPLOAD_PATH:-/app/data/uploads}
+  OUTPUT_PATH: ${OUTPUT_PATH:-/app/data/outputs}
+  KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH:-/app/data/knowledge_base}
+  TEMPLATE_PATH: ${TEMPLATE_PATH:-/app/data/templates}
+  APP_VERSION: ${APP_VERSION:-1.0.0}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-frontend-build-args: &frontend-build-args
+  NEXT_PUBLIC_API_BASE_URL: /api/v1
+  NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
 
 services:
   postgres:
-    image: docker.m.daocloud.io/library/postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: aria-postgres
     environment:
       POSTGRES_DB: aria_db
@@ -26,14 +43,17 @@ services:
       context: ./backend
       dockerfile: Dockerfile.cn
     container_name: aria-backend
-    env_file:
-      - .env
     environment:
+      <<: *backend-environment
       DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
       SAMPLES_RFQ_PATH: /app/samples/rfq
+      # Docker: reach host Ollama; override localhost from .env.local
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      VALIDATION_CORPUS_PATH: /app/data/validation_corpus
     volumes:
       - ./backend/data:/app/data
       - ./samples:/app/samples:ro
+      - ${VALIDATION_CORPUS_HOST:-E:/AI文档项目/RE_ 报价AI需求沟通}:/app/data/validation_corpus:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +67,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.cn
       args:
-        NEXT_PUBLIC_API_BASE_URL: /api/v1
+        <<: *frontend-build-args
     container_name: aria-frontend
     depends_on:
       - backend
@@ -55,7 +75,7 @@ services:
       - "3000:3000"
 
   nginx:
-    image: docker.m.daocloud.io/library/nginx:alpine
+    image: nginx:alpine
     container_name: aria-nginx
     ports:
       - "80:80"

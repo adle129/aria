@@ -1,5 +1,5 @@
-# 本地开发（无需 Docker）
-# Phase 0 健康检查与前端页面验证
+# Local dev without Docker
+# Phase 0 health check and frontend page verification
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path

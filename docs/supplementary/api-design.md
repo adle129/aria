@@ -364,15 +364,26 @@ GET /api/v1/knowledge/stats
 
 #### 人天基线（R1 · v3.3 规格）
 
+> **架构定稿：** [manpower-baselines-spec.md](manpower-baselines-spec.md) — 报价 Excel **规则解析、不向量化**；客户查历史人力 = 本 API + RFQ Top-3 联动。
+
 ```
 GET /api/v1/knowledge/baselines
+  ?engagement_id=2023_chassis
+  &function=PM,Chassis
 ```
 
-**用途：** R1 验收台预览；M3 校验/追溯（主路径为复制源 Excel Sheet）。
+**用途：** R1 验收台 **基线预览 Tab**；管理员/工程师查历史 Function 人天；M3 `load_baselines(engagement_id)`。
 
 **存储（R1）：** `${ARIA_DATA_ROOT}/app/manpower_baselines.json`（dev：`backend/data/manpower_baselines.json`）  
 **写入时机：** 与 `POST /knowledge/import` **同一批次**；报价 Excel 解析成功则 upsert；失败写入 `failed_files`  
-**原子性：** 先写临时文件 → 校验 → rename；失败不覆盖旧 baselines
+**原子性：** 先写临时文件 → 校验 → rename；失败不覆盖旧 baselines  
+
+**与向量检索分工：**
+
+| 资料 | 入库 |
+|------|------|
+| RFQ / Q_A | pgvector |
+| 报价 Excel | **仅** `manpower_baselines.json`（不进 pgvector 主路径） |
 
 **响应：**
 
@@ -409,7 +420,8 @@ POST /api/v1/knowledge/search
 |------|------|------|------|
 | query | string | 是 | 2–500 字符 |
 | top_k | int | 否 | 默认 5，最大 20 |
-| function_filter | string[] | 否 | P1；按 `metadata.functions` 过滤 |
+| function_filter | string[] | 否 | P1；按 `metadata.functions` / Q_A **Area** 过滤 |
+| doc_type_filter | string[] | 否 | `rfq` / `qa`；**检索实验室应先选类型再输入 query**；报价 Excel 不进向量 |
 
 **响应（RAGHit 契约 — RFQ 内部分析共用）：**
 
@@ -495,11 +507,30 @@ POST /api/v1/knowledge/engagements/upload
 
 上传完成后调用 `POST /knowledge/import`（全量）或 `POST /knowledge/import?since=<batch_id>`（仅本批，实现可选）。
 
-#### 2.3.6 引用反馈（F5.6 · L1 MVP · 设计已定 · **未实现**）
+#### 2.3.6a 知识库 Debug API（DEV 专用 · **已实现**）
 
-工程师标记检索/对标引用不准；**写入反馈库，不训练 LLM**。首期合同 **不含**；M6 后可选 L1。详见 [feedback-ops-pack（客户版）](feedback-ops-pack（客户版）.md)。
+门禁：`ARIA_UI_PROFILE=dev` + `KB_DEBUG_ENABLED=true`；否则 **404**。详见 [kb-debug-ui-spec.md](../R1/kb-debug-ui-spec.md)。
 
 ```
+GET  /api/v1/knowledge/debug/status
+POST /api/v1/knowledge/debug/preview-ingest
+GET  /api/v1/knowledge/debug/chunks
+GET  /api/v1/knowledge/debug/chunks/{chunk_id}
+POST /api/v1/knowledge/debug/index          # Ollama nomic-embed-text → Chroma debug 集合
+POST /api/v1/knowledge/debug/search
+POST /api/v1/knowledge/debug/feedback         # audience=internal
+POST /api/v1/knowledge/debug/eval/run
+```
+
+CLI 验证：`python scripts/run_kb_debug_validation.py --eval`（须 `MOCK_RAG=false` + Ollama）。
+
+#### 2.3.6 引用反馈（F5.6 · L1 MVP · 设计已定 · **未实现**）
+
+工程师标记检索/对标引用不准；**写入反馈库，不训练 LLM**。
+
+> **内部决策（2026-07-06）：** L1 为 **乙方内部运维增强**，R1～M6 **视进度可选实现**；**不写入客户合同**，**不绑** R1～M6 验收与付款。客户侧仍用检索试搜表 + 双周例会。若将来客户单独立项，见 [feedback-ops-pack（客户版）](feedback-ops-pack（客户版）.md) · [dev-tasks R1-OPS](../R1/dev-tasks.md)。
+
+**路由（实施后 · 与 debug 分存储）：**
 POST /api/v1/knowledge/feedback
 GET  /api/v1/knowledge/feedback?limit=50&offset=0
 GET  /api/v1/knowledge/feedback/export
