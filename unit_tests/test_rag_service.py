@@ -58,6 +58,27 @@ def test_build_comparison_table_has_confidence_and_coverage():
     assert len(table["matrix_rows"]) >= 5
     assert "function_coverage" in table
     assert "BIW" in table["function_coverage"]["uncovered"]
+    assert table["insufficient_evidence"] is False
+
+
+def test_insufficient_evidence_when_empty_or_low_score():
+    rag = RAGService(
+        Settings(mock_rag=False, rag_similarity_threshold=0.65, knowledge_base_path="./data/knowledge_base")
+    )
+    assert rag.is_insufficient_evidence([]) is True
+    assert rag.is_insufficient_evidence([{"similarity_score": 0.5}]) is True
+    assert rag.is_insufficient_evidence([{"similarity_score": 0.8}]) is False
+
+
+def test_build_comparison_table_insufficient_evidence_no_mock_projects():
+    rag = RAGService(
+        Settings(mock_rag=False, rag_similarity_threshold=0.65, knowledge_base_path="./data/knowledge_base")
+    )
+    rfq_data = {"project_name": "test", "functions_in_scope": ["PM"]}
+    table = rag.build_comparison_table(rfq_data, [])
+    assert table["insufficient_evidence"] is True
+    assert table["projects"] == []
+    assert "暂无足够历史项目" in table["recommendation"]
 
 
 def test_search_doc_type_filter():
@@ -86,7 +107,7 @@ def test_real_search_empty_returns_no_mock_fallback(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         "app.services.knowledge_index_service.KnowledgeIndexService",
-        lambda _settings: FakeIndex(),
+        lambda _settings, namespace=None: FakeIndex(),
     )
     assert rag.search_similar_projects("MEB chassis", top_k=3) == []
 

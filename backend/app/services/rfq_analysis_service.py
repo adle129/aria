@@ -7,10 +7,12 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.models.rfq_task import RFQTask
 from app.repositories.rfq_task_repository import RFQTaskRepository
-from app.services.llm_service import LLMService
-from app.services.rfq_parser import RFQParser
+from app.repositories.task_job_repository import TaskJobRepository
 from app.services.artifact_service import compute_artifacts_status
+from app.services.llm_service import LLMService
 from app.services.rag_service import RAGService
+from app.services.rfq_parser import RFQParser
+from app.services.task_job_service import TaskJobService
 
 
 class RFQAnalysisService:
@@ -19,6 +21,7 @@ class RFQAnalysisService:
         self.parser = RFQParser()
         self.llm = LLMService(self.settings)
         self.rag = RAGService(self.settings)
+        self.job_service = TaskJobService(self.settings)
 
     def save_upload(self, filename: str, content: bytes) -> tuple[str, str]:
         if not filename.lower().endswith(".docx"):
@@ -39,12 +42,24 @@ class RFQAnalysisService:
         task = RFQTask(
             file_name=filename,
             file_path=stored_path,
-            processing_status="pending",
+            processing_status="queued",
             review_status="draft",
             progress="0",
-            status_message="等待处理",
+            status_message="排队等待处理",
         )
         return repo.create(task)
+
+    def enqueue_analysis(self, db: Session, task: RFQTask) -> None:
+        job = self.job_service.enqueue(
+            db,
+            job_type=TaskJobService.JOB_RFQ_ANALYSIS,
+            ref_id=task.id,
+        )
+        if self.job_service.uses_inline_worker():
+            from app.services.worker_service import run_inline_job
+
+            run_inline_job(db, job, self.settings)
+            db.refresh(task)
 
     def analyze_task(self, db: Session, task_id: str) -> None:
         repo = RFQTaskRepository(db)
@@ -89,6 +104,7 @@ class RFQAnalysisService:
             task.error_msg = str(exc)
             task.status_message = "分析失败"
             repo.update(task)
+            raise
 
     def get_task_payload(self, task: RFQTask) -> dict[str, Any]:
         return {
@@ -111,12 +127,19 @@ class RFQAnalysisService:
             "updated_at": task.updated_at.isoformat() if task.updated_at else None,
         }
 
-    def get_status_payload(self, task: RFQTask) -> dict[str, Any]:
-        return {
+    def get_status_payload(self, task: RFQTask, db: Session | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "status": task.processing_status,
             "progress": int(task.progress or "0"),
             "message": task.status_message or "",
         }
+        if db is not None:
+            job = TaskJobRepository(db).get_active_by_ref(
+                TaskJobService.JOB_RFQ_ANALYSIS,
+                task.id,
+            )
+            payload.update(self.job_service.get_queue_info(db, job))
+        return payload
 
     def update_task_review(
         self,

@@ -7,7 +7,10 @@ x-backend-environment: &backend-environment
   MOCK_RAG: ${MOCK_RAG:-true}
   ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
   KB_DEBUG_ENABLED: ${KB_DEBUG_ENABLED:-false}
-  PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+  OLLAMA_MAX_CONCURRENT: ${OLLAMA_MAX_CONCURRENT:-1}
+  TASK_WORKER_POLL_SECONDS: ${TASK_WORKER_POLL_SECONDS:-2}
+  TASK_JOB_AVG_SECONDS: ${TASK_JOB_AVG_SECONDS:-120}
+  RAG_SIMILARITY_THRESHOLD: ${RAG_SIMILARITY_THRESHOLD:-0.65}
   CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
   UPLOAD_PATH: ${UPLOAD_PATH:-/app/data/uploads}
   OUTPUT_PATH: ${OUTPUT_PATH:-/app/data/outputs}
@@ -63,6 +66,30 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+
+  worker:
+    build:
+      context: ./backend
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+    container_name: aria-worker
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *backend-environment
+      DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
+      SAMPLES_RFQ_PATH: /app/samples/rfq
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      VALIDATION_CORPUS_PATH: /app/data/validation_corpus
+    volumes:
+      - ./backend/data:/app/data
+      - ./samples:/app/samples:ro
+      - ${VALIDATION_CORPUS_HOST:-E:/AI文档项目/RE_ 报价AI需求沟通}:/app/data/validation_corpus:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   frontend:
     build:

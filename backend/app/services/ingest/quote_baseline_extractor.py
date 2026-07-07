@@ -38,7 +38,14 @@ def _should_skip_position_label(label: str) -> bool:
     return False
 
 
-def extract_manpower_baselines(path: Path) -> dict[str, Any]:
+def _position_total(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def extract_manpower_baselines(path: Path, *, include_all_positions: bool = False) -> dict[str, Any]:
     path = Path(path)
     # read_only=False: required to read row_dimensions.hidden (template placeholder rows)
     wb = load_workbook(path, read_only=False, data_only=True)
@@ -63,6 +70,7 @@ def extract_manpower_baselines(path: Path) -> dict[str, Any]:
         ws = wb[sheet_name]
         positions: list[dict[str, Any]] = []
         skipped_hidden = 0
+        total_man_days = 0.0
         for row in range(FUNCTION_DATA_START_ROW, (ws.max_row or 0) + 1):
             if _is_row_hidden(ws, row):
                 skipped_hidden += 1
@@ -88,11 +96,14 @@ def extract_manpower_baselines(path: Path) -> dict[str, Any]:
                     "nonzero_month_cells": len(month_values),
                 }
             )
+            total_man_days += _position_total(total)
         if positions:
+            stored_positions = positions if include_all_positions else positions[:20]
             result["functions"][sheet_name] = {
+                "total_man_days": round(total_man_days, 2),
                 "position_count": len(positions),
-                "positions": positions[:20],
-                "positions_truncated": len(positions) > 20,
+                "positions": stored_positions,
+                "positions_truncated": (not include_all_positions) and len(positions) > 20,
                 "skipped_hidden_rows": skipped_hidden,
             }
 

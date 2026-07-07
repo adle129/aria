@@ -54,10 +54,20 @@ def client(upload_dir, monkeypatch):
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    from app.models.engagement import Engagement
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
+    from app.models.task_job import TaskJob
 
-    Base.metadata.create_all(bind=engine, tables=[Project.__table__, RFQTask.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Project.__table__,
+            RFQTask.__table__,
+            TaskJob.__table__,
+            Engagement.__table__,
+        ],
+    )
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
     def override_get_db():
@@ -77,7 +87,6 @@ def client(upload_dir, monkeypatch):
 
     monkeypatch.setattr(database_module, "engine", engine)
     monkeypatch.setattr(database_module, "SessionLocal", session_factory)
-    monkeypatch.setattr(rfq_module, "SessionLocal", session_factory)
 
     app.dependency_overrides[get_db] = override_get_db
     get_settings.cache_clear()

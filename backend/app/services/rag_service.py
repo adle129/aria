@@ -98,6 +98,14 @@ class RAGService:
         self._chroma: ChromaStore | None = None
         self._parser = RFQParser()
 
+    def is_insufficient_evidence(self, hits: list[dict[str, Any]]) -> bool:
+        if self.settings.mock_rag:
+            return False
+        if not hits:
+            return True
+        max_score = max(float(h.get("similarity_score") or 0.0) for h in hits)
+        return max_score < float(self.settings.rag_similarity_threshold)
+
     def _get_chroma(self) -> ChromaStore:
         if self._chroma is None:
             self._chroma = ChromaStore(self.settings.chroma_path)
@@ -138,7 +146,10 @@ class RAGService:
 
         from app.services.knowledge_index_service import KnowledgeIndexService
 
-        index = KnowledgeIndexService(self.settings)
+        index = KnowledgeIndexService(
+            self.settings,
+            namespace=self.settings.knowledge_vector_namespace,
+        )
         try:
             hits = index.search(
                 query,
@@ -155,17 +166,28 @@ class RAGService:
     ) -> dict[str, Any]:
         scores = [doc.get("similarity_score", 0.0) for doc in similar_docs]
         confidence = calculate_overall_confidence(scores)
+        insufficient = self.is_insufficient_evidence(similar_docs)
 
         if self.settings.mock_rag:
             table = dict(MOCK_COMPARISON_TABLE)
             table["overall_confidence"] = confidence
+            table["insufficient_evidence"] = False
+        elif insufficient:
+            table = {
+                "comparison_dimensions": MOCK_COMPARISON_TABLE["comparison_dimensions"],
+                "projects": [],
+                "recommendation": "暂无足够历史项目依据，请补充知识库或人工核对",
+                "overall_confidence": "低",
+                "insufficient_evidence": True,
+            }
         else:
             table = {
                 "comparison_dimensions": MOCK_COMPARISON_TABLE["comparison_dimensions"],
                 "projects": self._projects_from_hits(similar_docs),
                 "recommendation": self._build_recommendation(similar_docs),
+                "overall_confidence": confidence,
+                "insufficient_evidence": False,
             }
-            table["overall_confidence"] = confidence
 
         matrix = build_comparison_matrix(
             rfq_data,
@@ -202,7 +224,9 @@ class RAGService:
                     "summary": (hit.get("content") or "")[:120],
                 }
             projects.append(project)
-        return projects or list(MOCK_COMPARISON_TABLE["projects"])
+        if self.settings.mock_rag:
+            return projects or list(MOCK_COMPARISON_TABLE["projects"])
+        return projects
 
     def _build_recommendation(self, hits: list[dict[str, Any]]) -> str:
         if not hits:

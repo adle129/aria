@@ -14,6 +14,7 @@ from app.services.pgvector_store import PgVectorStore, PgVectorUnavailableError
 from app.services.rag_service import _filter_hits_by_doc_type, _filter_hits_by_functions
 
 VALIDATION_NAMESPACE = "validation_corpus"
+PRODUCTION_NAMESPACE = "production"
 INDEX_STATE_FILE = "pgvector_index_state.json"
 
 
@@ -73,6 +74,76 @@ def flatten_preview_chunks(report: dict[str, Any]) -> list[dict[str, Any]]:
                 chunks.append(
                     {
                         "chunk_id": item["chunk_id"],
+                        "content": _chunk_content(item),
+                        "chunk_type": item.get("chunk_type"),
+                        "chunk_chapter": meta.get("area") or f"row_{item.get('row_number')}",
+                        "metadata": meta,
+                    }
+                )
+    return chunks
+
+
+def flatten_engagement_chunks(
+    report: dict[str, Any],
+    manifest: Any,
+    kb_root: Path,
+    folder: Path,
+) -> list[dict[str, Any]]:
+    """Production ingest chunks with engagement metadata (R1-K02)."""
+    from app.schemas.engagement import EngagementManifest
+
+    if not isinstance(manifest, EngagementManifest):
+        manifest = EngagementManifest.model_validate(manifest)
+
+    rel_folder = str(folder.relative_to(kb_root)).replace("\\", "/")
+    engagement_id = manifest.engagement_id
+    base_meta = {
+        "engagement_id": engagement_id,
+        "project_name": manifest.project_name,
+        "customer": manifest.customer,
+        "year": manifest.year,
+        "functions": list(manifest.functions or []),
+    }
+
+    chunks: list[dict[str, Any]] = []
+    rfq = report.get("rfq") or {}
+    for item in rfq.get("chunks") or []:
+        meta = dict(item.get("metadata") or {})
+        meta.update(base_meta)
+        meta.setdefault("doc_type", "rfq")
+        meta.setdefault("chunk_id", item.get("chunk_id"))
+        source = rfq.get("path") or "rfq.docx"
+        meta.setdefault("source_doc", f"knowledge_base/{rel_folder}/{source}".replace("\\", "/"))
+        cid = f"{engagement_id}::{item['chunk_id']}"
+        chunks.append(
+            {
+                "chunk_id": cid,
+                "content": _chunk_content(item),
+                "chunk_type": item.get("chunk_type"),
+                "chunk_chapter": item.get("chunk_chapter"),
+                "metadata": meta,
+            }
+        )
+
+    qa = report.get("qa") or {}
+    qa_path = qa.get("path")
+    if qa_path:
+        from app.services.ingest.qa_row_loader import load_qa_rows
+
+        qa_file = folder / qa_path
+        if qa_file.exists():
+            for item in load_qa_rows(qa_file):
+                meta = dict(item.get("metadata") or {})
+                meta.update(base_meta)
+                meta.setdefault("doc_type", "qa")
+                meta.setdefault("chunk_id", item.get("chunk_id"))
+                meta.setdefault("source_doc", f"knowledge_base/{rel_folder}/{qa_path}".replace("\\", "/"))
+                if meta.get("area"):
+                    meta["functions"] = [meta["area"]]
+                cid = f"{engagement_id}::{item['chunk_id']}"
+                chunks.append(
+                    {
+                        "chunk_id": cid,
                         "content": _chunk_content(item),
                         "chunk_type": item.get("chunk_type"),
                         "chunk_chapter": meta.get("area") or f"row_{item.get('row_number')}",

@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     mock_llm: bool = True
     mock_rag: bool = True
 
+    ollama_max_concurrent: int = 1
+    rag_similarity_threshold: float = 0.65
+    task_worker_inline: bool = False
+    task_worker_poll_seconds: float = 2.0
+    task_job_avg_seconds: int = 120
+
     # UI / deployment (see docs/R1/kb-debug-ui-spec.md)
     aria_ui_profile: str = "experience"  # dev | experience | r1 | full
     kb_debug_enabled: bool = False  # true only when aria_ui_profile=dev
@@ -32,6 +38,8 @@ class Settings(BaseSettings):
     upload_path: str = "./data/uploads"
     output_path: str = "./data/outputs"
     knowledge_base_path: str = "./data/knowledge_base"
+    manpower_baselines_path: str = "./data/manpower_baselines.json"
+    knowledge_vector_namespace: str = "production"
     template_path: str = "./data/templates"
     samples_rfq_path: str = "/app/samples/rfq"
 

@@ -31,10 +31,20 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
+    from app.models.engagement import Engagement
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
+    from app.models.task_job import TaskJob
 
-    Base.metadata.create_all(bind=engine, tables=[Project.__table__, RFQTask.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Project.__table__,
+            RFQTask.__table__,
+            TaskJob.__table__,
+            Engagement.__table__,
+        ],
+    )
     _ensure_rfq_task_columns()
     _ensure_pgvector()
 

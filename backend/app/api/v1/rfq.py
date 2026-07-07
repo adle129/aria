@@ -1,8 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
+from fastapi import APIRouter, Depends, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal, get_db
+from app.database import get_db
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.schemas.rfq import RFQTaskUpdateRequest
 from app.services import generators  # noqa: F401 — register GeneratorRegistry
@@ -16,17 +16,8 @@ quote_service = QuoteService()
 artifact_service = ArtifactService()
 
 
-def _run_analysis(task_id: str) -> None:
-    db = SessionLocal()
-    try:
-        analysis_service.analyze_task(db, task_id)
-    finally:
-        db.close()
-
-
 @router.post("/upload")
 async def upload_rfq(
-    background_tasks: BackgroundTasks,
     file: UploadFile,
     db: Session = Depends(get_db),
 ):
@@ -43,7 +34,7 @@ async def upload_rfq(
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
 
     task = analysis_service.create_task(db, file.filename, stored_path)
-    background_tasks.add_task(_run_analysis, task.id)
+    analysis_service.enqueue_analysis(db, task)
 
     return {
         "code": 200,
@@ -87,7 +78,7 @@ def get_task_status(task_id: str, db: Session = Depends(get_db)):
     task = RFQTaskRepository(db).get_by_id(task_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
-    return analysis_service.get_status_payload(task)
+    return analysis_service.get_status_payload(task, db)
 
 
 @router.put("/tasks/{task_id}")
