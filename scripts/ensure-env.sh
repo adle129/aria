@@ -16,7 +16,11 @@ case "$PROFILE" in
     SRC="$ROOT/.env.production.example"
     ;;
   *)
-    SRC="$ROOT/.env.example"
+    if [[ -f "$ROOT/.env.docker.example" ]]; then
+      SRC="$ROOT/.env.docker.example"
+    else
+      SRC="$ROOT/.env.example"
+    fi
     ;;
 esac
 

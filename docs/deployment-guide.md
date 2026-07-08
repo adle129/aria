@@ -1,8 +1,7 @@
 # ARIA 智能应用平台 — 部署方案
 
 **首期应用：** ARIA 报价助手  
-**版本：** v1.3  
-**日期：** 2026-06-22
+**版本：** v1.4 · 2026-07-07  
 
 ---
 
@@ -91,6 +90,19 @@
 | 并发用户 | 3–5 | 10–15 | 20–30 |
 | 适用模型 | 7B/14B | **32B Q4** ★ | 32B 全精度 / 多卡并行 |
 | 预算参考 | 2–4 万 | **6–10 万** | 20 万+ |
+
+### 2.1.1 客户容量建议（问卷 2026-07-07）
+
+| 问卷项 | 客户答案 | 部署建议 |
+|--------|----------|----------|
+| 使用人数 | 10–20 人 | **推荐版**（10–15 并发浏览） |
+| 忙时同时干活 | 3–5 人 | 单 `aria-worker` + `OLLAMA_MAX_CONCURRENT=1` |
+| 集中使用 | 很少错开 | 不必多 worker 副本 |
+| 排队容忍 | 可等几分钟 | SLA：5 人连排 **≤10 分钟** |
+
+**环境变量（生产 `.env` 须含）：** `JWT_SECRET`、`AUTH_ENABLED=true`、`OLLAMA_MAX_CONCURRENT=1`、`TASK_JOB_AVG_SECONDS=120`
+
+**首次部署：** 运行 `deploy/scripts/create_admin.py` 创建 `kb_admin`；IT 预置工程师账号（10–20 个）。
 
 ### 2.2 推荐版详细配置
 
@@ -601,6 +613,9 @@ bash deploy/scripts/start.sh
 | 防火墙 | 仅 80/443 + SSH |
 | 密码 | `.env` 强密码，不入 Git |
 | HTTPS | 生产建议内网 CA 证书 |
+| 登录 | 生产 `AUTH_ENABLED=true`；JWT 签发于 `JWT_SECRET`（`openssl rand -hex 32`） |
+| 角色 | `kb_admin` 与 `quote_engineer` 两角色；账号由 IT 预置，不开放自助注册 |
+| 密码 | 初始密码由 IT 分发；首次登录后建议修改；密码 hash 存 PostgreSQL（bcrypt） |
 | 日志 | 不记录 RFQ 全文到外部 |
 
 ---

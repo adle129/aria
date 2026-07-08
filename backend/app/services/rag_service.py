@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from app.config import Settings
-from app.services.comparison_service import build_comparison_matrix
+from app.services.comparison_service import (
+    build_comparison_matrix,
+    build_matrix_from_dimension_draft,
+)
 from app.services.mock_data import (
     MOCK_COMPARISON_TABLE,
     MOCK_KNOWLEDGE_DOCUMENTS,
@@ -182,6 +185,67 @@ class RAGService:
             table["projects"],
             dimensions=table.get("comparison_dimensions"),
         )
+        table.update(matrix)
+        table["function_coverage"] = compute_function_coverage(
+            rfq_data.get("functions_in_scope"),
+            similar_docs,
+        )
+        return table
+
+    def build_comparison_table_from_draft(
+        self,
+        rfq_data: dict[str, Any],
+        similar_docs: list[dict[str, Any]],
+        dimension_draft: dict[str, Any],
+    ) -> dict[str, Any]:
+        items = list(dimension_draft.get("items") or [])
+        custom = list(dimension_draft.get("custom_items") or [])
+        in_scope_items = [i for i in items + custom if i.get("in_scope") is True]
+        if not in_scope_items:
+            raise ValueError("至少选择一项 in_scope 维度")
+
+        scores = [doc.get("similarity_score", 0.0) for doc in similar_docs]
+        confidence = calculate_overall_confidence(scores)
+        insufficient = self.is_insufficient_evidence(similar_docs)
+        comparison_dimensions = [str(i.get("name", "")) for i in in_scope_items if i.get("name")]
+
+        if self.settings.mock_rag:
+            table = dict(MOCK_COMPARISON_TABLE)
+            table["comparison_dimensions"] = comparison_dimensions
+            table["overall_confidence"] = confidence
+            table["insufficient_evidence"] = False
+            hit_engagement = {
+                (h.get("metadata") or {}).get("project_name"): (h.get("metadata") or {}).get(
+                    "engagement_id"
+                )
+                for h in similar_docs
+            }
+            enriched_projects: list[dict[str, Any]] = []
+            for project in MOCK_COMPARISON_TABLE["projects"]:
+                proj = dict(project)
+                eid = hit_engagement.get(project["project_name"]) or project.get("engagement_id")
+                if eid:
+                    proj["engagement_id"] = eid
+                enriched_projects.append(proj)
+            table["projects"] = enriched_projects[:3]
+        elif insufficient:
+            table = {
+                "comparison_dimensions": comparison_dimensions,
+                "projects": [],
+                "recommendation": "暂无足够历史项目依据，请补充知识库或人工核对",
+                "overall_confidence": "低",
+                "insufficient_evidence": True,
+            }
+        else:
+            table = {
+                "comparison_dimensions": comparison_dimensions,
+                "projects": self._projects_from_hits(similar_docs[:3]),
+                "recommendation": self._build_recommendation(similar_docs),
+                "overall_confidence": confidence,
+                "insufficient_evidence": False,
+            }
+
+        matrix = build_matrix_from_dimension_draft(in_scope_items, table["projects"])
         table.update(matrix)
         table["function_coverage"] = compute_function_coverage(
             rfq_data.get("functions_in_scope"),

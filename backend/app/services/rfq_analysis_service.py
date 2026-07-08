@@ -1,4 +1,5 @@
 import uuid
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from app.models.rfq_task import RFQTask
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.artifact_service import compute_artifacts_status
+from app.services.dimension_match_service import DimensionMatchService
 from app.services.llm_service import LLMService
 from app.services.rag_service import RAGService
 from app.services.rfq_parse_service import RFQParseService
@@ -25,6 +27,7 @@ class RFQAnalysisService:
         self.parse_service = RFQParseService(self.settings)
         self.llm = LLMService(self.settings)
         self.rag = RAGService(self.settings)
+        self.dimension_match = DimensionMatchService(self.settings)
         self.job_service = TaskJobService(self.settings)
 
     def save_upload(self, filename: str, content: bytes) -> tuple[str, str]:
@@ -85,28 +88,17 @@ class RFQAnalysisService:
 
             rfq_path = resolve_task_file_path(task.file_path, upload_dir=self.settings.upload_path)
             rfq_modules = self.parse_service.parse_rules_first(rfq_path)
-            rfq_text = self.parser.extract_rfq_text(rfq_path)
-
-            task.processing_status = "retrieving"
-            task.progress = "50"
-            task.status_message = "正在检索相似历史项目..."
-            repo.update(task)
-
-            query = rfq_modules.get("project_name") or rfq_text[:500]
-            similar_docs = self.rag.search_similar_projects(query, top_k=5)
-            comparison_table = self.rag.build_comparison_table(rfq_modules, similar_docs)
-
-            task.processing_status = "generating"
-            task.progress = "80"
-            task.status_message = "正在生成技术维度对比表..."
-            repo.update(task)
-
             task.rfq_modules = rfq_modules
-            task.similar_projects = similar_docs
-            task.comparison_table = comparison_table
-            task.processing_status = "completed"
-            task.progress = "100"
-            task.status_message = "分析完成"
+
+            task.progress = "35"
+            task.status_message = "正在匹配基准维度库..."
+            repo.update(task)
+
+            dimension_draft = self.dimension_match.match_rfq_to_baseline(rfq_modules)
+            task.dimension_draft = dimension_draft
+            task.processing_status = "dimension_review"
+            task.progress = "40"
+            task.status_message = "等待工程师确认基准维度清单"
             repo.update(task)
         except Exception as exc:
             task.processing_status = "failed"
@@ -115,6 +107,99 @@ class RFQAnalysisService:
             repo.update(task)
             raise
 
+    def _merge_confirm_body(
+        self,
+        stored_draft: dict[str, Any] | None,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        draft = deepcopy(stored_draft or {})
+        if body.get("items") is not None:
+            by_id = {str(i.get("dimension_id")): i for i in body["items"] if i.get("dimension_id")}
+            merged_items: list[dict[str, Any]] = []
+            for item in draft.get("items") or []:
+                dim_id = str(item.get("dimension_id", ""))
+                patch = by_id.get(dim_id)
+                if not patch:
+                    merged_items.append(item)
+                    continue
+                merged = dict(item)
+                for key in ("in_scope", "work_content", "manually_adjusted"):
+                    if key in patch and patch[key] is not None:
+                        merged[key] = patch[key]
+                if merged.get("in_scope") is False:
+                    merged["work_content"] = "—"
+                elif merged.get("in_scope") is True and merged.get("work_content") in {None, "—", ""}:
+                    merged["work_content"] = item.get("name") or "—"
+                if patch.get("manually_adjusted"):
+                    merged["manually_adjusted"] = True
+                merged_items.append(merged)
+            draft["items"] = merged_items
+        if body.get("custom_items") is not None:
+            draft["custom_items"] = body["custom_items"]
+        if body.get("baseline_version"):
+            draft["baseline_version"] = body["baseline_version"]
+        if body.get("comparison_dimensions") and not draft.get("items"):
+            draft["items"] = [
+                {
+                    "dimension_id": row.get("dimension_id") or f"custom_{idx}",
+                    "name": row.get("name", ""),
+                    "in_scope": True,
+                    "work_content": row.get("new_project_value") or row.get("name") or "—",
+                    "custom": True,
+                    "manually_adjusted": True,
+                }
+                for idx, row in enumerate(body["comparison_dimensions"])
+            ]
+        draft["module_summary"] = self.dimension_match._module_summary(draft.get("items") or [])
+        return draft
+
+    def _in_scope_items(self, draft: dict[str, Any]) -> list[dict[str, Any]]:
+        items = list(draft.get("items") or [])
+        custom = list(draft.get("custom_items") or [])
+        return [i for i in items + custom if i.get("in_scope") is True]
+
+    def confirm_dimensions(
+        self,
+        db: Session,
+        task: RFQTask,
+        body: dict[str, Any],
+    ) -> RFQTask:
+        if task.processing_status != "dimension_review":
+            raise ValueError("当前状态不可确认维度，请等待解析完成")
+        if not task.rfq_modules:
+            raise ValueError("RFQ 解析结果为空，无法确认维度")
+
+        repo = RFQTaskRepository(db)
+        draft = self._merge_confirm_body(task.dimension_draft, body)
+        if not self._in_scope_items(draft):
+            raise ValueError("至少选择一项 in_scope 维度")
+
+        task.dimension_draft = draft
+        task.processing_status = "retrieving"
+        task.progress = "55"
+        task.status_message = "正在检索相似历史项目..."
+        repo.update(task)
+
+        query = task.rfq_modules.get("project_name") or str(task.file_name)
+        similar_docs = self.rag.search_similar_projects(query, top_k=3)
+
+        task.processing_status = "generating"
+        task.progress = "80"
+        task.status_message = "正在生成技术维度对比表..."
+        task.similar_projects = similar_docs
+        repo.update(task)
+
+        comparison_table = self.rag.build_comparison_table_from_draft(
+            task.rfq_modules,
+            similar_docs,
+            draft,
+        )
+        task.comparison_table = comparison_table
+        task.processing_status = "completed"
+        task.progress = "100"
+        task.status_message = "分析完成"
+        return repo.update(task)
+
     def get_task_payload(self, task: RFQTask) -> dict[str, Any]:
         return {
             "task_id": task.id,
@@ -122,6 +207,7 @@ class RFQAnalysisService:
             "processing_status": task.processing_status,
             "status": task.review_status,
             "rfq_modules": task.rfq_modules,
+            "dimension_draft": task.dimension_draft,
             "similar_projects": task.similar_projects,
             "comparison_table": task.comparison_table,
             "solution_draft": task.solution_draft,
@@ -156,13 +242,21 @@ class RFQAnalysisService:
         task: RFQTask,
         review_status: str | None = None,
         comparison_table: dict | None = None,
+        dimension_draft: dict | None = None,
         confirmed: bool | None = None,
     ) -> RFQTask:
         repo = RFQTaskRepository(db)
         if review_status:
             task.review_status = review_status
         if comparison_table is not None:
+            if task.processing_status != "completed":
+                raise ValueError("对比矩阵尚未生成，无法编辑")
             task.comparison_table = comparison_table
+        if dimension_draft is not None:
+            if task.processing_status != "dimension_review":
+                raise ValueError("当前状态不可编辑 dimension_draft")
+            merged = self._merge_confirm_body(task.dimension_draft, dimension_draft)
+            task.dimension_draft = merged
         if confirmed and task.review_status == "draft":
             task.review_status = "in_review"
         return repo.update(task)

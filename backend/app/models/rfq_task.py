@@ -26,6 +26,7 @@ class RFQTask(Base):
     status_message = Column(String, nullable=True)
 
     rfq_modules = Column(JSON, nullable=True)
+    dimension_draft = Column(JSON, nullable=True)
     similar_projects = Column(JSON, nullable=True)
     comparison_table = Column(JSON, nullable=True)
     solution_draft = Column(JSON, nullable=True)

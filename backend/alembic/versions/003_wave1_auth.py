@@ -12,33 +12,40 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "users",
-        sa.Column("id", sa.String(), nullable=False),
-        sa.Column("username", sa.String(), nullable=False),
-        sa.Column("password_hash", sa.String(), nullable=False),
-        sa.Column("display_name", sa.String(), nullable=False),
-        sa.Column("role", sa.String(), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("username"),
-    )
-    op.create_index("ix_users_username", "users", ["username"], unique=True)
-
-    op.add_column("rfq_tasks", sa.Column("owner_id", sa.String(), nullable=True))
-    op.create_index("ix_rfq_tasks_owner_id", "rfq_tasks", ["owner_id"])
     bind = op.get_bind()
-    if bind.dialect.name == "postgresql":
-        op.create_foreign_key(
-            "fk_rfq_tasks_owner_id_users",
-            "rfq_tasks",
+    inspector = sa.inspect(bind)
+    tables = set(inspector.get_table_names())
+
+    if "users" not in tables:
+        op.create_table(
             "users",
-            ["owner_id"],
-            ["id"],
-            ondelete="SET NULL",
+            sa.Column("id", sa.String(), nullable=False),
+            sa.Column("username", sa.String(), nullable=False),
+            sa.Column("password_hash", sa.String(), nullable=False),
+            sa.Column("display_name", sa.String(), nullable=False),
+            sa.Column("role", sa.String(), nullable=False),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("username"),
         )
+        op.create_index("ix_users_username", "users", ["username"], unique=True)
+
+    if "rfq_tasks" in tables:
+        cols = {c["name"] for c in inspector.get_columns("rfq_tasks")}
+        if "owner_id" not in cols:
+            op.add_column("rfq_tasks", sa.Column("owner_id", sa.String(), nullable=True))
+            op.create_index("ix_rfq_tasks_owner_id", "rfq_tasks", ["owner_id"])
+            if bind.dialect.name == "postgresql":
+                op.create_foreign_key(
+                    "fk_rfq_tasks_owner_id_users",
+                    "rfq_tasks",
+                    "users",
+                    ["owner_id"],
+                    ["id"],
+                    ondelete="SET NULL",
+                )
 
 
 def downgrade() -> None:

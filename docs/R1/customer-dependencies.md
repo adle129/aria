@@ -1,6 +1,6 @@
 # R1 客户与 IT 配合项
 
-**版本：** v1.3 · 2026-07-06  
+**版本：** v1.4 · 2026-07-07  
 **索引：** [README.md](README.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md)  
 **完整登记：** [pre-development-open-items.md §3](../supplementary/pre-development-open-items.md)
 
@@ -71,16 +71,16 @@
 
 ### O-01 / O-03 / O-04 / O-05
 
-见 [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) 与 v1.2 版说明。
+见 [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) v1.6。
 
 ---
 
-## 不阻塞 R1 编码
+## 已关闭（2026-07-07 问卷确认）
 
-| ID | 项 |
-|----|-----|
-| O-06 | 高峰 RFQ 并发 |
-| O-07 | 排队 SLA |
+| ID | 项 | 结论 |
+|----|-----|------|
+| **O-06** | 高峰 RFQ 并发 | 3–5 人；`OLLAMA_MAX_CONCURRENT=1` |
+| **O-07** | 排队 SLA | 单份 ~1–3 min；5 人连排 ≤10 min |
 
 ---
 

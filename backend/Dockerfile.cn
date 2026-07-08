@@ -40,10 +40,17 @@ RUN pip install --upgrade pip setuptools wheel \
 
 COPY app ./app
 COPY prompts ./prompts
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY bootstrap_db.py ./
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN mkdir -p /app/data/uploads /app/data/outputs /app/data/knowledge_base \
-    /app/data/chroma_db /app/data/templates
+    /app/data/chroma_db /app/data/templates \
+    && sed -i 's/\r$//' /app/docker-entrypoint.sh \
+    && chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 8000
 
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -2,10 +2,10 @@
 
 **产品：** ARIA 智能应用平台 · 报价助手  
 **客户：** 爱达克车辆设计（上海）有限公司（EDAG Engineering and Design (Shanghai) Co., Ltd.）  
-**版本：** v1.9 · 2026-07-02  
+**版本：** v2.0 · 2026-07-07  
 **报价有效期：** 自本文件日期起 **60 个自然日**
 
-> 完整方案：[ARIA-报价助手-正式版交付方案与报价（客户版）.md](ARIA-报价助手-正式版交付方案与报价（客户版）.md) v3.7 · [prod.md](../prod.md) v1.5 · [delivery-traceability.md](supplementary/delivery-traceability.md)
+> 完整方案：[ARIA-报价助手-正式版交付方案与报价（客户版）.md](ARIA-报价助手-正式版交付方案与报价（客户版）.md) v3.8 · [prod.md](../prod.md) v1.7 · [delivery-traceability.md](supplementary/delivery-traceability.md) v1.1 · [使用场景问卷](客户使用场景与访问方式确认（客户版）.md) v1.1
 
 ---
 

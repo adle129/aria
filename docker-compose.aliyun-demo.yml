@@ -1,4 +1,5 @@
-# Aliyun 4C8G remote UI demo — China mirrors + lightweight backend (no AI packages, saves memory)
+# Aliyun 4C8G remote UI demo — China mirrors + lightweight backend (no AI packages)
+# NOT R1-equivalent: no pgvector, no worker. Do not use for R1 feature acceptance.
 # Usage: docker compose -f docker-compose.aliyun-demo.yml up --build -d
 
 services:

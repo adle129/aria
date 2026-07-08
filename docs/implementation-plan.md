@@ -1,9 +1,8 @@
 # ARIA 智能应用平台 — 项目实施计划
 
 **首期应用：** ARIA 报价助手  
-**版本：** v1.4  
-**日期：** 2026-07-04  
-**状态：** Demo 完成 · **正式版方案已定 v1.2**（见 [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md)）· Q2/Q3 已确认 · 基于 Demo 框架按 R1→M6 逐步开发
+**版本：** v1.5 · 2026-07-07  
+**状态：** Demo 完成 · **正式版方案已定 v1.2**（见 [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md)）· Q2/Q3 已确认 · **SURVEY-01~06 已确认** · 基于 Demo 框架按 R1→M6 逐步开发
 
 > 品牌与范围：[platform-brand.md](supplementary/platform-brand.md) — **当前 WBS 仅覆盖报价助手 Demo，不含财务助手实现。**
 
@@ -33,12 +32,12 @@
 | 客户 | EDAG（爱达克） |
 | 开发方 | [开发团队名称] |
 | 计划周期 | Phase 1: 4–6 周（Demo · 已完成）；**正式版：R1/M3–M6 约 20 周** |
-| 需求基线 | [prod.md](../prod.md) v1.5 · [customer-delivery-roadmap.md](customer-delivery-roadmap.md) v1.9 |
+| 需求基线 | [prod.md](../prod.md) v1.7 · [customer-delivery-roadmap.md](customer-delivery-roadmap.md) v1.9 · [使用场景问卷](客户使用场景与访问方式确认（客户版）.md) v1.1 |
 
 ### 1.2 项目目标
 
 1. **Phase 1：** 交付 **报价助手** 可演示 Demo（**已完成 / 反馈收集中**）
-2. **正式版：** 按 **R1 → M3 → M4 → M5 → M6** 交付（与客户 v3.7 一致）；详见 [prod.md §9.2](../prod.md)
+2. **正式版：** 按 **R1 → M3 → M4 → M5 → M6** 交付（与客户 v3.8 一致）；详见 [prod.md §9.2](../prod.md)
 3. **Phase 3：** 平台第二应用 — **财务助手**（远期）
 
 ---

@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient, fetchHealth } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import DimensionBaselineReview, { type DimensionDraft } from "@/components/DimensionBaselineReview";
 import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/ComparisonMatrix";
 import { useTaskContext } from "@/context/TaskContext";
 import type { TaskPayload, TaskSummary } from "@/types/task";
@@ -45,6 +46,7 @@ const POLL_MAX_ITERATIONS = 360;
 const STAGE_LABELS: Record<string, string> = {
   pending: "等待处理",
   parsing: "正在解析 RFQ（LLM 可能需 1–2 分钟）",
+  dimension_review: "等待工程师确认基准维度清单",
   retrieving: "正在检索相似历史项目",
   generating: "正在生成技术维度对比表",
   completed: "分析完成",
@@ -93,6 +95,8 @@ export default function RfqPage() {
   const [demoSamples, setDemoSamples] = useState<
     Array<{ filename: string; title: string; description: string; download_url: string }>
   >([]);
+  const [dimensionDraft, setDimensionDraft] = useState<DimensionDraft | null>(null);
+  const [confirmingDimensions, setConfirmingDimensions] = useState(false);
 
   useEffect(() => {
     fetchHealth()
@@ -122,38 +126,52 @@ export default function RfqPage() {
       setTask(data);
       setMatrixRows((data.comparison_table?.matrix_rows as MatrixRow[]) || []);
       setConfirmed(data.status !== "draft");
+      setDimensionDraft((data.dimension_draft as DimensionDraft) || null);
       syncFromPayload(data);
     },
     [syncFromPayload],
   );
 
-  const pollTask = useCallback(async (taskId: string) => {
-    setAnalysisProgress(0);
-    setAnalysisMessage("等待处理...");
-    setQueuePosition(null);
-    setEstimatedWaitSeconds(null);
-    for (let i = 0; i < POLL_MAX_ITERATIONS; i++) {
-      const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${taskId}/status`);
-      const status = statusResp.data;
-      setAnalysisProgress(status.progress ?? 0);
-      setQueuePosition(status.queue_position ?? null);
-      setEstimatedWaitSeconds(status.estimated_wait_seconds ?? null);
-      setAnalysisMessage(
-        status.message || STAGE_LABELS[status.status] || "正在分析...",
-      );
-      if (status.status === "completed" || status.status === "failed") {
-        const taskResp = await apiClient.get<{ code: number; data: TaskData }>(`/rfq/tasks/${taskId}`);
-        syncMatrixFromTask(taskResp.data.data);
-        if (status.status === "failed") {
-          message.error("RFQ 分析失败");
+  const pollUntilTerminal = useCallback(
+    async (taskId: string, stopAt: "dimension_review" | "completed") => {
+      setAnalysisProgress(0);
+      setAnalysisMessage("等待处理...");
+      setQueuePosition(null);
+      setEstimatedWaitSeconds(null);
+      for (let i = 0; i < POLL_MAX_ITERATIONS; i++) {
+        const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${taskId}/status`);
+        const status = statusResp.data;
+        setAnalysisProgress(status.progress ?? 0);
+        setQueuePosition(status.queue_position ?? null);
+        setEstimatedWaitSeconds(status.estimated_wait_seconds ?? null);
+        setAnalysisMessage(status.message || STAGE_LABELS[status.status] || "正在分析...");
+        const done =
+          status.status === "failed" ||
+          status.status === stopAt ||
+          (stopAt === "completed" && status.status === "completed");
+        if (done) {
+          const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
+            `/rfq/tasks/${taskId}`,
+          );
+          syncMatrixFromTask(taskResp.data.data);
+          if (status.status === "failed") {
+            message.error("RFQ 分析失败");
+          }
+          setAnalysisProgress(status.status === "completed" ? 100 : status.progress ?? 0);
+          return status.status;
         }
-        setAnalysisProgress(status.status === "completed" ? 100 : 0);
-        return;
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       }
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    }
-    message.warning("分析超时，请稍后刷新任务或检查 Ollama 是否响应");
-  }, [syncMatrixFromTask]);
+      message.warning("分析超时，请稍后刷新任务或检查 Ollama 是否响应");
+      return "timeout";
+    },
+    [syncMatrixFromTask],
+  );
+
+  const pollTask = useCallback(
+    async (taskId: string) => pollUntilTerminal(taskId, "dimension_review"),
+    [pollUntilTerminal],
+  );
 
   const loadExistingTask = useCallback(async (taskId: string) => {
     const id = taskId.trim();
@@ -164,10 +182,16 @@ export default function RfqPage() {
     try {
       const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${id}/status`);
       const status = statusResp.data;
-      if (status.status === "completed" || status.status === "failed") {
+      if (
+        status.status === "completed" ||
+        status.status === "failed" ||
+        status.status === "dimension_review"
+      ) {
         const taskResp = await apiClient.get<{ code: number; data: TaskData }>(`/rfq/tasks/${id}`);
         syncMatrixFromTask(taskResp.data.data);
-        setAnalysisProgress(status.status === "completed" ? 100 : 0);
+        setAnalysisProgress(
+          status.status === "completed" ? 100 : status.status === "dimension_review" ? 40 : 0,
+        );
         setAnalysisMessage(status.message || STAGE_LABELS[status.status] || "");
       } else {
         setUploading(true);
@@ -217,6 +241,7 @@ export default function RfqPage() {
     setTask(null);
     setMatrixRows([]);
     setConfirmed(false);
+    setDimensionDraft(null);
     setAnalysisProgress(0);
     setAnalysisMessage("");
     try {
@@ -254,6 +279,40 @@ export default function RfqPage() {
     setMatrixRows((rows) =>
       rows.map((row) => (row.dimension === dimension ? { ...row, new_project: value } : row)),
     );
+  };
+
+  const handleSaveDimensionDraft = async () => {
+    if (!task || !dimensionDraft) return;
+    setSaving(true);
+    try {
+      const resp = await apiClient.put<{ code: number; data: TaskData }>(`/rfq/tasks/${task.task_id}`, {
+        dimension_draft: dimensionDraft,
+      });
+      syncMatrixFromTask(resp.data.data);
+      message.success("已保存维度勾选");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDimensions = async () => {
+    if (!task || !dimensionDraft) return;
+    setConfirmingDimensions(true);
+    setUploading(true);
+    try {
+      await apiClient.post(`/rfq/tasks/${task.task_id}/confirm-dimensions`, {
+        baseline_version: dimensionDraft.baseline_version,
+        items: dimensionDraft.items,
+        custom_items: dimensionDraft.custom_items || [],
+      });
+      message.success("已确认维度，正在生成对比矩阵...");
+      await pollUntilTerminal(task.task_id, "completed");
+    } catch {
+      message.error("确认维度失败，请检查勾选后重试");
+    } finally {
+      setConfirmingDimensions(false);
+      setUploading(false);
+    }
   };
 
   const handleSaveReview = async () => {
@@ -298,6 +357,9 @@ export default function RfqPage() {
     }
   )?.function_coverage;
   const uncoveredFunctions = functionCoverage?.uncovered || [];
+  const inDimensionReview = task?.processing_status === "dimension_review";
+  const showComparisonMatrix =
+    task?.processing_status === "completed" && matrixRows.length > 0;
 
   return (
     <div>
@@ -479,6 +541,20 @@ export default function RfqPage() {
             )}
           </Card>
 
+          {inDimensionReview && dimensionDraft && (
+            <Card title="基准维度确认" style={{ marginBottom: 24 }}>
+              <DimensionBaselineReview
+                draft={dimensionDraft}
+                saving={saving}
+                confirming={confirmingDimensions}
+                onDraftChange={setDimensionDraft}
+                onSaveDraft={() => void handleSaveDimensionDraft()}
+                onConfirm={() => void handleConfirmDimensions()}
+              />
+            </Card>
+          )}
+
+          {showComparisonMatrix && (
           <Card
             title={
               <Space>
@@ -537,7 +613,9 @@ export default function RfqPage() {
               )}
             </Space>
           </Card>
+          )}
 
+          {task.processing_status === "completed" && (
           <Card title="相似项目检索摘要">
             <Table
               rowKey="project_name"
@@ -634,6 +712,7 @@ export default function RfqPage() {
               </Paragraph>
             )}
           </Card>
+          )}
         </>
       )}
 

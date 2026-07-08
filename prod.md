@@ -406,7 +406,7 @@ R1 须同时支持客户历史 **`.docx`** 与旧版 **`.doc`** RFQ（验证语�
 /opt/aria/deploy/        → 应用交付包、compose、.env（系统盘，可重装）
 ```
 
-**原则：** 换机迁移时 **rsync `/data`** + 重装应用；向量与业务数据均在 PostgreSQL，**`pg_dump` 一次备份**。
+**原则：** ARIA 应用 **五容器**（postgres+pgvector、backend、**worker**、frontend、nginx）均经 Compose 启动；**Ollama 独立宿主机进程**（不进容器）。换机迁移时 **rsync `/data`** + 重装应用；向量与业务数据均在 PostgreSQL，**`pg_dump` 一次备份**。
 
 详细硬件、备份与迁移见 [deployment-guide.md](docs/deployment-guide.md)、[customer-it-infrastructure.md](docs/customer-it-infrastructure.md)。
 

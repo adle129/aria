@@ -1,9 +1,9 @@
 # 正式版交付实施方案（内部 · 定方案版）
 
-**版本：** v1.3 · 2026-07-04  
+**版本：** v1.4 · 2026-07-07  
 **状态：** **方案已定 · 可开工 R1**  
 **受众：** PM、开发、验收负责人（**本文不对客户披露**）  
-**关联：** [prod.md](../../prod.md) v1.5 · [delivery-traceability.md](delivery-traceability.md) · [customer-feedback-baseline.md](../customer-feedback-baseline.md) · [customer-delivery-roadmap.md](../customer-delivery-roadmap.md)
+**关联：** [prod.md](../../prod.md) v1.7 · [delivery-traceability.md](delivery-traceability.md) v1.1 · [customer-feedback-baseline.md](../customer-feedback-baseline.md) v1.5 · [customer-delivery-roadmap.md](../customer-delivery-roadmap.md) v2.0
 
 > **本文用途：** 统一内部实施口径：Demo 与正式版的关系、按合同里程碑如何一步一步开发、分支与环境如何隔离。  
 > **客户侧：** 仅感知 [customer-delivery-roadmap.md](../customer-delivery-roadmap.md) 与各期验收文档；**不参与**分支、Profile、是否复用 Demo 代码等工程决策。  
@@ -35,12 +35,13 @@
 | D5 | 远程 Demo 环境？ | **保留** `main` + `docker-compose.aliyun-demo.yml` + Mock | 与正式生产环境隔离；Demo 不再演进业务功能 |
 | D6 | R1 后端必做项？ | pgvector + PG 任务队列 + worker + F1.10 + Engagement | 见 §6；与 Demo 实现无关，按设计文档实施 |
 | D7 | Demo 反馈 Q2/Q3？ | **已获客户确认（2026-07-04）** | Q2 五步顺序锁定；Q3 M4 **仅生成/下载 Excel**，无 Web 在线编辑 |
+| D8 | R1 是否含登录与权限？ | **是 · Auth MVP 同期交付、不延期** | 问卷 SURVEY-05/06：任务隔离 + 两角色；**不含** SSO/部门 ACL/任务委派 |
 
 ---
 
 ## 3. 客户反馈 → 正式版实施
 
-来源：[customer-feedback-baseline.md](../customer-feedback-baseline.md) v1.3
+来源：[customer-feedback-baseline.md](../customer-feedback-baseline.md) v1.5
 
 | ID | 客户反馈 | 正式版落点 | 状态 |
 |----|----------|------------|------|
@@ -51,6 +52,8 @@
 | Q6 | 对标前先确认维度 | R1 F1.10a–d | 已纳入 R1 |
 | Q7 | 最相似项目填 Excel | M3 ScopeMatch | 已纳入 M3 |
 | **Q8** | **RFQ 全维度对比矩阵**（核心） | 基准库 ~100 项 + 勾选 + 矩阵 | **已反馈 · 清单待客户提供** |
+| **SURVEY-05** | 每人只看到自己的 RFQ 项目 | R1-AUTH · `owner_id` 任务隔离 | **已确认 2026-07-07** |
+| **SURVEY-06** | 分角色（工程师 / 资料库管理员） | R1-AUTH · `quote_engineer` / `kb_admin` | **已确认 2026-07-07** |
 
 **Q8 规格：** [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · 确认页全量基准行；矩阵页仅 in_scope 行。
 
@@ -75,6 +78,7 @@
 | 类别 | Demo 现状 | 正式版 |
 |------|-----------|--------|
 | 长任务 | `BackgroundTasks` | PG 任务表 + 独立 worker |
+| 访问控制 | 内网 flat、无登录 | **JWT 登录 + 两角色 + RFQ 任务归属** |
 | 向量库 | Chroma | pgvector + Ollama Embedding |
 | RAG | Mock 兜底 | Top-K + metadata；`insufficient_evidence` 拒答 |
 | RFQ | 段落解析；无 F1.10 | Word 表格 + **基准库匹配** + `dimension_review` 勾选 UI + 矩阵 |
@@ -88,8 +92,8 @@
 
 | 页面 | R1 | M3 | M4 | M5 | M6 |
 |------|----|----|----|----|-----|
-| `/rfq` | **F1.10a–d：** 模块摘要 · 基准勾选表 · 对比矩阵 | — | — | — | 联调 |
-| `/knowledge` | 扩展：Engagement · baselines | — | — | — | 联调 |
+| `/rfq` | **F1.10a–d：** 模块摘要 · 基准勾选表 · 对比矩阵 · **登录 + 排队 UI** | — | — | — | 联调 |
+| `/knowledge` | 扩展：Engagement · baselines · **kb_admin 写操作入口** | — | — | — | 联调 |
 | `/quote` | 不交付 / 不可达 | 业务区正式实现 | — | — | 联调 |
 | `/qa` | 不交付 / 不可达 | — | 生成 + 下载 Excel（无 Web 编辑） | — | 联调 |
 | `/proposal` | 不交付 / 不可达 | — | — | 业务区正式实现 | 联调 |
@@ -158,9 +162,9 @@ flowchart LR
 
 ### R1（第 1–8 周）— 当前唯一开发范围
 
-**后端：** 任务队列 · pgvector · Engagement · **F1.10a–d（基准库 + 匹配 + 确认）** · 检索评测支持  
+**后端：** 任务队列 · pgvector · Engagement · **F1.10a–d** · **Auth MVP（R1-AUTH）** · 检索评测支持  
 
-**前端：** RFQ **两阶段 UI**（勾选确认 + 对比矩阵）· 知识库 · Profile=`r1`  
+**前端：** RFQ **两阶段 UI** · 知识库 · **登录页** · Profile=`r1`  
 
 **客户验收：** R1 文档 · 3 份 RFQ **基准勾选 + 矩阵** · ≥12/15 检索 · **须客户正式基准清单（R1-β）**
 
@@ -189,7 +193,8 @@ Service → unit test → API → API test → 前端 → 联调
 
 1. 从 `main` 创建 `release/r1`（复用 Demo 壳与工程配置）  
 2. 任务队列 + worker  
-3. pgvector + ingest  
+3. **Auth MVP（R1-AUTH01–07，与 2–4 并行）**  
+4. pgvector + ingest  
 4. Engagement + baselines  
 5. **F1.10a–d** + RFQ 页（基准勾选 + 矩阵）  
 6. Knowledge 页扩展 + Profile=`r1`  
@@ -222,6 +227,7 @@ Service → unit test → API → API test → 前端 → 联调
 - [ ] Profile=`r1` 生产可用；proposal/qa/quote 不可误触 Mock  
 - [ ] 生产无 Mock LLM/RAG  
 - [ ] F1.10a–d + Engagement + ≥12/15 检索评测  
+- [ ] **Auth MVP**：登录 · 任务隔离 · kb_admin 写守卫（AUTH-01～07）  
 - [ ] 客户正式基准库已导入并完成 3 份 RFQ 对标签字  
 - [ ] `run_tests.ps1` 全绿；涉及 RAG/解析则 `--regression` 结构通过  
 - [ ] **不含** F5.6 一键反馈作为客户交付或验收项

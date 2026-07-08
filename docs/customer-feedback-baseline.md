@@ -1,8 +1,8 @@
 # Demo 反馈 — 需求基线对照表
 
-**版本：** v1.4 · 2026-07-04  
-**来源：** `项目问题确认表.xlsx` + 贵司口头/书面补充  
-**状态：** 已纳入 [prod.md](../prod.md) v1.5 · [delivery-traceability.md](supplementary/delivery-traceability.md) · **Q2/Q3/Q8 已录入（2026-07-04）**
+**版本：** v1.5 · 2026-07-07  
+**来源：** `项目问题确认表.xlsx` + 贵司口头/书面补充 + **[使用场景问卷（2026-07-07）](客户使用场景与访问方式确认（客户版）.md)**  
+**状态：** 已纳入 [prod.md](../prod.md) v1.7 · [delivery-traceability.md](supplementary/delivery-traceability.md) v1.1 · **Q2/Q3/Q8 已录入（2026-07-04）** · **SURVEY 已录入（2026-07-07）**
 
 ---
 
@@ -29,6 +29,17 @@
 
 > **开放项：** 约 100 项 **正式基准清单** 尚待客户提供；**R1-β 验收签字** 须导入客户正式清单（见 [rfq-dimension-baseline-spec.md §5](supplementary/rfq-dimension-baseline-spec.md)）。
 
+### 1.2 使用场景问卷（SURVEY · 2026-07-07）
+
+| ID | 问题 | 客户答案 | 基线变更 | 交付 |
+|----|------|----------|----------|------|
+| SURVEY-01 | 使用人数 | **10–20 人** | prod §2.1；推荐版硬件 | R1 |
+| SURVEY-02 | 忙时同时干活 | **3–5 人** | O-06 关闭；`OLLAMA_MAX_CONCURRENT=1` | R1 |
+| SURVEY-03 | 集中使用 | **很少错开** | 单 worker 足够 | R1 |
+| SURVEY-04 | 排队容忍 | **可等几分钟** | O-07 关闭；SLA ≤10 min | R1 |
+| SURVEY-05 | 任务隔离 | **须各看各的** | NF20 · R1-AUTH03 | **R1** |
+| SURVEY-06 | 分角色登录 | **工程师 / KB 管理员** | NF19 · R1-AUTH | **R1** |
+
 ---
 
 ## 2. 客户输出 ↔ 模块映射（更新后）
@@ -44,7 +55,7 @@
 
 ---
 
-## 2.1 R1 知识库范围（v3.7 架构分界）
+## 2.1 R1 知识库范围（v3.8 架构分界）
 
 > **Engagement 三件套（RFQ + Q_A + 报价）** 为 M3/M4 自动流程必需；Proposal 可选归档。**M5 不调用 Proposal RAG**，仅 RFQ → Content Template 预填。
 
@@ -109,7 +120,7 @@
 
 ---
 
-## 4. 技术方案 PPT 范围（M5 · v3.7）
+## 4. 技术方案 PPT 范围（M5 · v3.8）
 
 | 项 | 说明 |
 |----|------|
@@ -137,6 +148,8 @@
 |----|--------|---------|
 | ~~Q2 流程顺序~~ | — | **已确认 2026-07-04** |
 | ~~Q3 QA 编辑方式~~ | — | **已确认 2026-07-04** |
+| ~~O-06 高峰并发~~ | — | **已关闭 2026-07-07** · 3–5 人 |
+| ~~O-07 排队 SLA~~ | — | **已关闭 2026-07-07** · ≤10 min |
 | **工作维度基准清单（~100 项）** | 贵司 | **R1 第 7–8 周前**（见 [rfq-dimension-baseline-spec §6](supplementary/rfq-dimension-baseline-spec.md)） |
 | ≥5 套金标准 + 内网 bulk 落盘计划（清点表 O-02d） | 贵司 + 我方 | **R1 启动前 / 并行** |
 | Content Template 34 页签收 | 贵司 | **M5 启动前** |

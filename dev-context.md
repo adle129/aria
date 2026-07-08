@@ -61,8 +61,8 @@
 
 ### 基础设施
 
-- Docker Compose（`web` + **`worker`** 同镜像独立进程 + Postgres + Nginx）、Nginx
-- Ollama + Qwen2.5：**14b**（Demo）/ **32b Q4**（生产主模型，4090 推荐）
+- Docker Compose（`postgres` + `backend` + **`worker`** + `frontend` + `nginx`）— **dev 与 prod 同拓扑**
+- Ollama + Qwen2.5：**14b**（Demo）/ **32b Q4**（生产主模型，4090 推荐）— **宿主机独立进程，不进容器**
 - **nomic-embed-text**（RAG Embedding，经 Ollama `/api/embeddings` 写入 pgvector）
 
 ### 长任务与并发（正式版 R1+）

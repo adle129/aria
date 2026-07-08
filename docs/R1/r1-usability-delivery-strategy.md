@@ -1,7 +1,7 @@
 # R1「签完即用」交付策略（内部共识）
 
-**版本：** v1.1 · 2026-07-06  
-**状态：** 已采纳  
+**版本：** v1.2 · 2026-07-07  
+**状态：** 已采纳 · Auth MVP 已纳入 R1 交付  
 **索引：** [README.md](README.md) · [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md)
 
 > **PM / 架构 / 销售对齐用。** 客户向表述见 [客户易懂版 §5](../ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md) 与 [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md)。
@@ -72,7 +72,8 @@ M3/M4/M5 是在 **同一知识库** 上增量打开 Excel 生成、Q&A 导出、
 | 3 | RFQ 对标 | **3 份** RFQ 走通 F1.10（**内网**演示） |
 | 4 | 检索 | ≥15 题、≥12/15 Pass；内网 **≥15** indexed RFQ（推荐） |
 | 5 | Bulk（P2） | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) **档位 A**（清点表范围 ≥90%） |
-| 6 | 明确不含 | M3 Excel、M4 Q&A、M5 PPT、Hybrid/Rerank |
+| 6 | 明确不含 | M3 Excel、M4 Q&A、M5 PPT、Hybrid/Rerank、SSO/AD |
+|| 7 | 访问控制 | 登录 + 两角色（工程师 / 资料库管理员）+ RFQ 任务隔离 |
 
 ---
 

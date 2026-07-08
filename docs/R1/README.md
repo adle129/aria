@@ -1,9 +1,9 @@
 # R1 第一期 — 任务索引
 
 **里程碑：** R1（第 1–8 周 · ¥76,300）  
-**版本：** v1.3 · 2026-07-06  
+**版本：** v1.4 · 2026-07-07  
 **状态：** **RFQ + RAG spike 已结案** · pgvector 生产入库（R1-K）未开工 · Debug UI 已实现  
-**基线：** [prod.md](../../prod.md) v1.6 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.3
+**基线：** [prod.md](../../prod.md) v1.7 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.4
 
 ---
 
@@ -49,7 +49,7 @@ R1 业务主线：**先知识库（2A），再 RFQ 对标（2B）**。其前须�
 | **P0-1** | R1-I | 任务队列 + pgvector — KB 与 RFQ 共用底座 |
 | **P0-2** | **R1-K** | **知识库优先**：manifest → ingest → baselines → 检索 → `/knowledge` |
 | **P0-3** | R1-F → R1-U | KB 可用后：F1.10 → dimension_review → confirm → Top-3 RAG → 矩阵 |
-| 收尾 | R1-A | 检索评测、彩排、R1-β 客户签字 |
+| 收尾 | R1-AUTH + R1-A | 认证权限收尾、检索评测、彩排、R1-β 客户签字 |
 
 每个能力按项目规范：**Service → unit test → API → API test → 前端 → 联调**。
 
@@ -76,7 +76,7 @@ R1 业务主线：**先知识库（2A），再 RFQ 对标（2B）**。其前须�
 | 2–3 | **知识库后端 + 脱敏联调（P1）** | R1-K01–K07；manifest 模板 | **P0-2** |
 | 4 | **O-02d 清点表** + 检索题确认 | R1-K08–K09 | **P0-2** |
 | 5–6 | RFQ 对标 + **内网 bulk 落盘（P2）** | R1-F01–F10, R1-U01–U06 | P0-3 |
-| 7–8 | **内网** bulk re-index + R1-β 签字 | R1-A03–A07, O-01～O-05 | 验收 |
+| 7–8 | **内网** bulk re-index + R1-β 签字 | R1-AUTH01–07 + R1-A01–A07, O-01～O-05 | 验收 |
 
 ---
 

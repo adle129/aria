@@ -1,6 +1,6 @@
 # R1 验收清单
 
-**版本：** v1.3 · 2026-07-06  
+**版本：** v1.4 · 2026-07-07  
 **索引：** [README.md](README.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md)  
 **基线：** [prod.md §10.2 R1](../../prod.md) · [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) · [manpower-baselines-spec.md](../supplementary/manpower-baselines-spec.md)
 
@@ -104,6 +104,31 @@
 
 ---
 
+## 4.1 认证与权限（AUTH · R1 新增）
+
+- [ ] **AUTH-01** 未登录访问 `/rfq/tasks` → 401  
+  - 关联任务：R1-AUTH02 / R1-AUTH07
+
+- [ ] **AUTH-02** 工程师 A 无法 GET 工程师 B 的 `task_id` → 404  
+  - 关联任务：R1-AUTH03
+
+- [ ] **AUTH-03** 工程师调用 `POST /knowledge/import` → 403  
+  - 关联任务：R1-AUTH04
+
+- [ ] **AUTH-04** `kb_admin` 可 import/reindex/upload；检索与工程师一致  
+  - 关联任务：R1-AUTH04
+
+- [ ] **AUTH-05** 上传 RFQ 后列表 **仅含本人任务**  
+  - 关联任务：R1-AUTH03 / R1-AUTH05
+
+- [ ] **AUTH-06** 第 2 位提交者 status 含 `queue_position≥1` 且 **前端可见 ETA**  
+  - 关联任务：R1-I04 / R1-AUTH06
+
+- [ ] **AUTH-07** 生产 `AUTH_ENABLED=true`；`MOCK_LLM/RAG=false` 门禁通过  
+  - 关联任务：R1-E05 / R1-AUTH07
+
+---
+
 ## 5. R1 明确不含（验收时勿扩 scope）
 
 | 项 | 归属 |
@@ -113,6 +138,7 @@
 | 34 页 PPT 预填 | M5 |
 | Hybrid / Rerank | 合同外 |
 | 运营级 upload 门户 | 合同外 §11.3 |
+| SSO / AD、部门级 ACL | 运维包 §11.3 |
 | 财务助手 | Phase 3 |
 
 ---
@@ -136,6 +162,7 @@
 |--------|-------------|
 | 知识库 | R1-K01–K10, R1-K08b, R1-K08c |
 | 基础设施 | R1-I01–I09 |
+| **认证权限** | **R1-AUTH01–AUTH07** |
 | RFQ 对标 | R1-F01–F10, R1-U01–U06 |
 | 工程准备 | R1-E01–E05 |
 | 验收联调 | R1-A01–A07 |

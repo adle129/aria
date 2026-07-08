@@ -1,7 +1,7 @@
 # RFQ 全维度对比矩阵 — 设计规格（F1.10a–d）
 
-**版本：** v1.0 · 2026-07-04  
-**状态：** 方案已定 · **待客户基准清单** · 未开发  
+**版本：** v1.1 · 2026-07-08  
+**状态：** F1.10c 例外驱动复核方案已定 · **待客户基准清单**  
 **关联：** [customer-feedback-baseline.md §1.1 Q8](../customer-feedback-baseline.md) · [prod.md](../../prod.md) F1.10 · [prompt-spec.md §3](prompt-spec.md) · [api-design.md §2.2](api-design.md)
 
 > **客户反馈定位：** R1 **核心优先级最高** 功能 — 在统一 **~100 项工作维度基准库** 上，自动匹配 RFQ、勾选复核、再生成 Top-3 历史对比矩阵。
@@ -95,15 +95,25 @@ flowchart TB
 1. **规则通道：** `keywords` 命中 RFQ 全文 / `development_scope.title` / `modules[].module_name`  
 2. **LLM 通道：** Prompt `rfq_baseline_match.txt` — 对每条基准输出 `in_scope`、`work_content`、`source_ref`、`confidence`
 
-### 3.2 展示规则（客户 Q8）
+### 3.2 展示规则（客户 Q8 · v1.1 例外驱动）
 
-| 状态 | `in_scope` | 工作内容列 | 勾选默认 |
-|------|------------|------------|----------|
-| RFQ 未涉及 | `false` | **`—`** | unchecked |
-| RFQ 涉及 | `true` | 匹配文本（可编辑） | checked |
-| 不确定 | `unknown` → 人工定 | 「未知」或 — | unchecked，标黄 |
+| 状态 | `review_tier` | `in_scope` 默认 | 工作内容列 | UI |
+|------|---------------|-----------------|------------|-----|
+| RFQ 明确涉及 | `auto_include` | `true` | 匹配文本 | 折叠，自动处理 |
+| 需人工确认 | `needs_review` | **`false`**（`module_scope`）或按规则 | 可编辑 | **默认展开**，标黄 |
+| RFQ 未涉及 | `auto_exclude` | `false` | **`—`** | 折叠 |
 
-### 3.3 模块摘要（`module_summary`）
+> **原则：**「全量可查（审计 Tab）≠ 全量必审（复核 Tab）」。`module_scope`（模块范围推断）**一律** `needs_review` 且默认 **不勾选**。
+
+### 3.3 复核档位（`review_tier`）
+
+| review_tier | 判定规则 | 默认勾选 |
+|-------------|----------|----------|
+| `auto_include` | `match_type=keywords` 且有 RFQ 证据片段 | checked |
+| `needs_review` | `match_type=module_scope`；或 `confidence=low`；或 LLM 无片段 | unchecked（module_scope） |
+| `auto_exclude` | 无模块、无关键词命中 | unchecked |
+
+### 3.4 模块摘要（`module_summary`）
 
 对每个 `module` 聚合：
 
@@ -118,6 +128,12 @@ flowchart TB
 ```json
 {
   "baseline_version": "v1",
+  "review_summary": {
+    "total": 100,
+    "auto_include": 18,
+    "needs_review": 12,
+    "auto_exclude": 70
+  },
   "items": [
     {
       "dimension_id": "chassis_front_susp",
@@ -126,7 +142,17 @@ flowchart TB
       "name": "前悬架开发",
       "in_scope": true,
       "work_content": "前悬架 M1/M2 数据开发",
-      "source_ref": "RFQ §4.2.1",
+      "match_type": "keywords",
+      "source_label": "关键词匹配",
+      "source_ref": "RFQ · 命中「前悬」",
+      "confidence": "high",
+      "review_tier": "auto_include",
+      "evidence": {
+        "rfq_section": "4.2.1",
+        "rfq_section_title": "前悬架开发",
+        "matched_keyword": "前悬",
+        "snippet": "…前悬架 MacPherson 布置…"
+      },
       "manually_adjusted": false,
       "custom": false
     }
@@ -137,6 +163,15 @@ flowchart TB
   ]
 }
 ```
+
+| 字段 | 说明 |
+|------|------|
+| `match_type` | 内部：`keywords` \| `module_scope` \| `llm` \| `none` |
+| `source_label` | 客户可见：关键词匹配 / 模块范围推断 / AI 语义匹配 |
+| `source_ref` | 客户可见 RFQ 出处摘要（非内部枚举） |
+| `review_tier` | UI 分流：`auto_include` \| `needs_review` \| `auto_exclude` |
+| `evidence` | RFQ 章节 + 片段 + 命中词，供并排复核 |
+| `review_summary` | 顶部摘要条统计 |
 
 **自定义维度（`custom: true`）：** 工程师补充、不在基准库中的行；确认矩阵时一并纳入。
 
@@ -153,16 +188,70 @@ flowchart TB
 
 > **已决：** R1 客户验收 **绑定 R1-β**（须客户正式基准清单）。R1-α 不替代签字。
 
-**已决 · UI：**
+**已决 · UI（v1.1）：**
 
-- **确认页（dimension_review）：** 展示 **全量基准行**（~100），out_of_scope 工作内容列 `—`  
+- **复核 Tab（默认）：** 摘要条 + 模块卡片 + 仅 `needs_review` 明细 + 并排 RFQ 证据  
+- **审计 Tab：** 全量 ~100 行 Collapse 表（PM/签字/抽检）  
 - **矩阵页（completed）：** 仅展示 **in_scope** 行 + Top-3 历史列  
+
+**复核 KPI（R1-β 验收建议）：**
+
+| 指标 | 目标 |
+|------|------|
+| 需逐条细看的行数 | ≤ 总数 15% |
+| 单份 RFQ 复核时长 | ≤ 5 分钟 |
+| 确认后矩阵因维度漏/错回退 | < 5% |
 
 ---
 
 ## 6. 页面设计（F1.10c · `/rfq`）
 
+> 线框详见 [f1.10c-review-wireframe.md](f1.10c-review-wireframe.md) · 客户对齐议程 [f1.10c-customer-alignment.md](../R1/f1.10c-customer-alignment.md)
+
 ### 6.1 阶段 A — 维度确认（`dimension_review`）
+
+#### 6.1.1 复核视图（默认 Tab）
+
+```
+┌─ 摘要 ─────────────────────────────────────────────────────────┐
+│ 共 100 项 · 自动处理 85 项 · 待您确认 12 项 · 已排除 3 项      │
+└────────────────────────────────────────────────────────────────┘
+┌─ 模块卡片 ─────────────────────────────────────────────────────┐
+│ [底盘] 建议 5 项 · 待确认 2 项  [展开细看] [本模块全选/取消]   │
+│ [内外饰] 不需要                [确认无误]                      │
+└────────────────────────────────────────────────────────────────┘
+┌─ 待确认明细（needs_review · 并排证据）─────────────────────────┐
+│ 维度 │ 系统结论（勾选+工作内容）│ RFQ 依据（§ + 片段 + 命中词）│
+│ [确认此项]                                                     │
+└────────────────────────────────────────────────────────────────┘
+              [ 确认以上例外，生成对比矩阵 ]
+```
+
+#### 6.1.2 审计视图（完整清单 Tab）
+
+```
+┌─ 基准维度表（Collapse 按 module · 全量 ~100 行）───────────────┐
+│ [√] 前悬架开发 │ 工作内容 │ 匹配方式 │ RFQ 出处               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**组件：** [`DimensionBaselineReview.tsx`](../../frontend/src/components/DimensionBaselineReview.tsx)
+
+**交互（保守策略 · 已决）：**
+
+- 模块级「全选/取消」为辅助，**不能**替代条目过目  
+- 确认前：每个含 `in_scope` 条目的模块须 **展开过一次**（`module_reviewed`）  
+- 所有 `needs_review` 条目须 **逐条确认**（编辑或点「确认此项」）  
+- Checkbox 切换 `in_scope`；编辑 `work_content`；点击 RFQ 片段打开 Drawer  
+- 确认前至少 1 项 `in_scope=true`
+
+**确认门禁：**
+
+1. `in_scope >= 1`  
+2. 含 in_scope 的模块均已 `module_reviewed`  
+3. 所有 `needs_review` 条目均已 `item_acknowledged`  
+
+### 6.1.3 旧版线框（v1.0 · 已由双 Tab 替代）
 
 ```
 ┌─ 模块摘要 ─────────────────────────────────────────┐
@@ -171,19 +260,9 @@ flowchart TB
 ┌─ 基准维度表（Collapse 按 module）─────────────────┐
 │ [√] 前悬架开发     │ 工作内容 │ 来源              │
 │ [ ] 门把手开闭件   │ —        │ 未涉及            │
-│ … 虚拟滚动 / 分页                                 │
-│ [+ 补充自定义维度]                                │
 └──────────────────────────────────────────────────┘
               [ 确认维度清单，生成对比矩阵 ]
 ```
-
-**组件（规划）：** `DimensionBaselineReview`（新建）；不复用 Demo 直接出矩阵流程。
-
-**交互：**
-
-- Checkbox 切换 `in_scope`；编辑 `work_content`  
-- 模块折叠；>50 行建议虚拟滚动  
-- 确认前至少 1 项 `in_scope=true`（或允许全 — 时 Warning + 人工确认）
 
 ### 6.2 阶段 B — 对比矩阵（`generating` → `completed`）
 
@@ -219,7 +298,9 @@ flowchart TB
 ## 9. 验收（R1 · 对标部分）
 
 - [ ] 基准库已导入（客户 v1，≥80 项或双方认可数量）  
-- [ ] 3 份 RFQ：**上传 → 全表勾选复核 → 确认 → Top-3 矩阵** 全流程  
+- [ ] 3 份 RFQ：**上传 → 例外复核（≤15% 逐条）→ 确认 → Top-3 矩阵** 全流程  
+- [ ] 复核 Tab 摘要与 `review_summary` 一致；审计 Tab 可查看全量  
+- [ ] `module_scope` 项默认不勾选，确认前须逐条 ack  
 - [ ] 未涉及维度在确认页显示 `—`；矩阵页不出现 out_of_scope 行  
 - [ ] 模块摘要与工程师人工判断 **无明显矛盾**（允许个别条目标黄复核）  
 - [ ] 对比矩阵可编辑、含来源与置信度  

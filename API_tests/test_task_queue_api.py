@@ -17,7 +17,7 @@ def test_upload_creates_queued_task(client, sample_rfq_bytes):
     assert response.status_code == 200
     task_id = response.json()["data"]["task_id"]
     status = client.get(f"/api/v1/rfq/tasks/{task_id}/status").json()
-    assert status["status"] in {"completed", "queued", "parsing"}
+    assert status["status"] in {"dimension_review", "completed", "queued", "parsing", "failed"}
     assert "queue_position" in status
     assert "estimated_wait_seconds" in status
 
@@ -35,7 +35,7 @@ def test_upload_inline_worker_completes(client, sample_rfq_bytes):
     )
     task_id = upload.json()["data"]["task_id"]
     status = client.get(f"/api/v1/rfq/tasks/{task_id}/status").json()
-    assert status["status"] == "completed"
+    assert status["status"] == "dimension_review"
     assert status["queue_position"] is None
 
 

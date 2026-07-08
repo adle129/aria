@@ -33,7 +33,7 @@ R1_OUT = DOCS / "R1-知识库验收与检索评测说明.docx"
 ROADMAP_OUT = DOCS / "ARIA 平台-知识库演进路线（客户版）.docx"
 VISION_OUT = DOCS / "ARIA 平台扩展愿景（客户版）.docx"
 
-DOC_DATE = "2026-07-06"
+DOC_DATE = "2026-07-07"
 
 
 def build_main_proposal() -> Path:
@@ -46,8 +46,8 @@ def build_main_proposal() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG Engineering and Design (Shanghai) Co., Ltd.）"),
-            ("版本", "v3.7"),
-            ("日期", "2026-07-02"),
+            ("版本", "v3.8"),
+            ("日期", "2026-07-07"),
             ("报价有效期", "自本文件日期起 60 个自然日"),
         ],
     )
@@ -162,7 +162,7 @@ def build_main_proposal() -> Path:
             ["Proposal", "可选配对"],
         ],
     )
-    add_para(doc, "R1 含：单套/小批量 Web 上传（≤5 套/次）、/knowledge 验收台；不含运营级上传门户、Hybrid/Rerank、细粒度权限。")
+    add_para(doc, "R1 含：单套/小批量 Web 上传（≤5 套/次）、/knowledge 验收台、本地账号登录 + 两角色 + RFQ 任务隔离；不含运营级上传门户、Hybrid/Rerank、SSO/AD、部门级 ACL。")
 
     doc.add_heading("3.3 入库方式", level=2)
     add_para(doc, "IT/管理员：${ARIA_DATA_ROOT}/app/knowledge_base/<engagement_id>/ + manifest.json + 批量导入。")
@@ -228,7 +228,7 @@ def build_main_proposal() -> Path:
     doc.add_heading("八、不在本期范围", level=1)
     add_para(
         doc,
-        "财务助手、OA 集成、细粒度权限、M5 历史 Proposal RAG / AI 四段式正文、OCR、硬件、年度运维代实施。",
+        "财务助手、OA 集成、SSO/AD、部门级 ACL（R1 已含基础两角色登录 + 任务隔离）、M5 历史 Proposal RAG / AI 四段式正文、OCR、硬件、年度运维代实施。",
     )
 
     doc.add_heading("九、报价与付款", level=1)
@@ -350,7 +350,7 @@ def build_main_proposal() -> Path:
             ["开发方项目负责人", "", "", ""],
         ],
     )
-    add_para(doc, "版本 v3.7 · R1 8 周 / 总 20 周 · 正式权利义务以合同为准。", size=9)
+    add_para(doc, "版本 v3.8 · R1 8 周 / 总 20 周 · 正式权利义务以合同为准。", size=9)
 
     MAIN_OUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(MAIN_OUT)
@@ -358,9 +358,9 @@ def build_main_proposal() -> Path:
 
 
 def build_main_proposal_plain() -> Path:
-    """Customer-friendly proposal (business language, v1.3)."""
+    """Customer-friendly proposal (business language, v1.6)."""
     doc = new_document()
-    plain_date = "2026-07-02"
+    plain_date = "2026-07-07"
 
     add_para(doc, "ARIA 智能应用平台", size=18, bold=True, center=True, space_after=4)
     add_para(
@@ -376,7 +376,7 @@ def build_main_proposal_plain() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG Engineering and Design (Shanghai) Co., Ltd.）"),
-            ("版本", "v1.3（业务评审版）"),
+            ("版本", "v1.6（业务评审版）"),
             ("日期", plain_date),
             ("报价有效期", "自本文件日期起 60 个自然日"),
         ],
@@ -384,7 +384,7 @@ def build_main_proposal_plain() -> Path:
 
     add_para(
         doc,
-        "技术版（合同附件）：ARIA-报价助手-正式版交付方案与报价（客户版）.md v3.7",
+        "技术版（合同附件）：ARIA-报价助手-正式版交付方案与报价（客户版）.md v3.8",
         size=9,
         italic=True,
     )
@@ -393,7 +393,7 @@ def build_main_proposal_plain() -> Path:
     add_bullets(
         doc,
         [
-            "本文性质：面向报价业务负责人与工程师的预估算方案；正式权利义务以合同及技术版 v3.7 为准。",
+            "本文性质：面向报价业务负责人与工程师的预估算方案；正式权利义务以合同及技术版 v3.8 为准。",
             "一句话：在贵司内网建立「历史项目资料库 + 本地 AI」，报价助手是首个应用；AI 出参考草稿，工程师审阅确认后定稿。",
             "验收细则与 IT 规格见文末附录 B。",
         ],
@@ -1036,8 +1036,8 @@ def build_main_proposal_plain() -> Path:
     add_bullets(
         doc,
         [
-            "技术版主方案 v3.7",
-            "附录-模块能力与验收配合说明（客户版）v1.2",
+            "技术版主方案 v3.8",
+            "附录-模块能力与验收配合说明（客户版）v1.5",
             "R1-知识库验收与检索评测说明（客户版）",
             "customer-it-infrastructure.md",
             "平台知识库演进路线（客户版）",
@@ -1045,7 +1045,7 @@ def build_main_proposal_plain() -> Path:
     )
     add_para(
         doc,
-        "版本 v1.3 · 客户易懂版 · R1 8 周 / 总 20 周 · 与 v3.7 对齐 · 正式权利义务以合同为准。",
+        "版本 v1.6 · 客户易懂版 · R1 8 周 / 总 20 周 · 与 v3.8 对齐 · 正式权利义务以合同为准。",
         size=9,
         italic=True,
     )
@@ -1062,8 +1062,8 @@ def build_appendix() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG）"),
-            ("版本", "v1.3（业务语言版） · " + DOC_DATE),
-            ("关联", "客户易懂版 v1.3 · 技术版 v3.7"),
+            ("版本", "v1.6（业务语言版） · " + DOC_DATE),
+            ("关联", "客户易懂版 v1.6 · 技术版 v3.8"),
         ],
     )
     add_para(
@@ -1266,7 +1266,7 @@ def build_appendix() -> Path:
         ],
     )
 
-    add_para(doc, "版本 v1.3 · 业务语言版 · 供验收签字与配合使用", size=9, italic=True)
+    add_para(doc, "版本 v1.6 · 业务语言版 · 供验收签字与配合使用", size=9, italic=True)
 
     doc.save(APPENDIX_OUT)
     return APPENDIX_OUT
@@ -1279,8 +1279,8 @@ def build_r1_acceptance() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG）"),
-            ("版本", "v1.2（业务语言版） · " + DOC_DATE),
-            ("关联", "客户易懂版 v1.3 · 附录 v1.3"),
+            ("版本", "v1.5（业务语言版） · " + DOC_DATE),
+            ("关联", "客户易懂版 v1.6 · 附录 v1.5"),
         ],
     )
     add_para(
@@ -1501,7 +1501,7 @@ def build_r1_acceptance() -> Path:
         ],
     )
 
-    add_para(doc, "版本 v1.2 · 业务语言版 · 供 R1 验收签字使用", size=9, italic=True)
+    add_para(doc, "版本 v1.5 · 业务语言版 · 供 R1 验收签字使用", size=9, italic=True)
     doc.save(R1_OUT)
     return R1_OUT
 
@@ -1535,7 +1535,7 @@ def build_platform_roadmap() -> Path:
             ["两阶段入库配合", "✓", "前期脱敏样本联调；后期内网真实历史库 bulk 验收"],
             ["清点表锁定范围", "✓", "签约后 2 周内填写计划套数与缺件（合同不写死总数）"],
             ["网页拖拽整目录、断点续传", "✗", "后续可选增强 · 变更单"],
-            ["分角色权限", "✗", "后续阶段"],
+            ["分角色权限", "✓", "R1 已含：工程师 / 资料库管理员两角色；SSO/部门 ACL → 后续可选"],
             ["网页点「结果不准」反馈", "✗", "第一期用检索试搜记录表；后续可选"],
             ["反馈运营看板", "✗", "后续可选 · 变更单"],
         ],
@@ -1608,7 +1608,7 @@ def build_platform_roadmap() -> Path:
         ("⑥ 资料过期提醒", "过老 RFQ/报价提醒，避免误用过期条件。"),
         ("⑦ 检索升级包", "项目代号更易精确命中，仍可按技术描述找相似。首期不含。"),
         ("⑧ 增量更新", "只索引新增/改动文件，补几套不用整库重跑很久。"),
-        ("⑨ 分角色权限", "工程师检索使用；管理员才能上传/重建索引。首期不含。"),
+        ("⑨ 分角色权限", "R1 已含：工程师检索使用；管理员才能上传/重建索引。SSO/部门 ACL → 后续可选。"),
     ]
     for title, desc in phase2_items:
         doc.add_heading(title, level=2)
@@ -1669,7 +1669,7 @@ def build_platform_vision() -> Path:
         [
             ["① 首期已签约", "签约后约 20 周（R1→M6）", "知识库底座 + 报价助手五步", "已含 · 分期验收"],
             ["② 知识库运营增强", "M6 稳定后可选", "大批量上传、反馈 L1/L2、定稿归档、检索升级等", "不含 · 变更单/运维包"],
-            ["③ 平台新能力", "远期规划", "财务助手、OA/PLM、多语言 RFQ、更细权限等", "不含 · 另立项"],
+            ["③ 平台新能力", "远期规划", "财务助手、OA/PLM、多语言 RFQ、SSO/AD 等", "不含 · 另立项"],
         ],
     )
 
@@ -1704,7 +1704,7 @@ def build_platform_vision() -> Path:
             ["企业系统集成", "与 OA、PLM/TC 等交换项目元数据", "不含"],
             ["多语言 RFQ", "英文/中德双语解析与对标", "不含"],
             ["扫描版 RFQ（OCR）", "纸质或扫描 PDF 直接识别", "不含"],
-            ["细粒度账号权限", "分角色上传/检索/管理", "首期内网扁平访问（约 20–30 人）"],
+            ["SSO/AD 与部门级 ACL", "企业统一账号、更细权限", "R1 已含基础两角色；更深集成 → 不含 · 另立项"],
             ["7×24 代运维", "乙方驻场或值班运维", "不含；可选年度运维包另议"],
         ],
     )
@@ -1731,7 +1731,7 @@ def build_platform_vision() -> Path:
     )
     add_para(
         doc,
-        "版本 v1.0 · 远景说明 · 正式权利义务以合同及技术版 v3.7 为准",
+        "版本 v1.0 · 远景说明 · 正式权利义务以合同及技术版 v3.8 为准",
         size=9,
         italic=True,
     )

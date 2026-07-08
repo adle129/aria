@@ -79,6 +79,9 @@ def _ensure_rfq_task_columns() -> None:
         additions.append("qa_excel_path VARCHAR")
     if "owner_id" not in existing:
         additions.append("owner_id VARCHAR")
+    if "dimension_draft" not in existing:
+        col_type = "JSON" if dialect == "postgresql" else "JSON"
+        additions.append(f"dimension_draft {col_type}")
     if not additions:
         return
     with engine.begin() as conn:

@@ -59,22 +59,26 @@ bash deploy/scripts/start.sh
 ### 一键启动（推荐）
 
 ```powershell
-# Windows 开发 / Demo（自动创建 .env）
-.\scripts\up.ps1
+# R1 联调 / 开发（默认 Docker 五件套：postgres+backend+worker+frontend+nginx）
+.\scripts\start.ps1
+.\scripts\start.ps1 -Detached
 
-# 后台启动
-.\scripts\up.ps1 -Detached
+# 生产同拓扑
+.\scripts\start.ps1 -Profile prod -Detached
 
-# 国内镜像
-.\scripts\up.ps1 -Cn
+# 国内镜像构建
+.\scripts\up.ps1 -Cn -Detached
+
+# pytest/CI 专用本机模式（非 R1 等价）
+.\scripts\start.ps1 -Local
 ```
 
 ```bash
-# Linux / macOS / Git Bash
-./scripts/up.sh
-./scripts/up.sh --cn
-bash deploy/scripts/start.sh   # 生产 / R1 客户版
+# Linux 生产 / R1
+bash deploy/scripts/start.sh
 ```
+
+访问 **http://localhost**（经 nginx）。Ollama 在宿主机，不进容器。
 
 仍可直接使用 `docker compose up --build`；若存在 `.env` 会参与变量替换，**不再强制** `env_file`（无 `.env` 也能启动，使用 compose 内默认值）。
 
@@ -125,13 +129,13 @@ docker pull nginx:alpine
 
 访问地址（容器全部 Up 后）：
 
-- 经 Nginx：**http://localhost**
+- 经 Nginx：**http://localhost**（唯一推荐入口）
 - Health：**http://localhost/api/v1/health**
-- 前端直连：http://localhost:3000
+- 后端直连（调试）：http://localhost:8000
 
 ### 首次 `docker compose up --build` 须知
 
-第一次执行会**同时拉镜像、构建前后端、启动 4 个容器**，终端会长时间有输出，**属于正常现象**。在全部完成之前，上述 localhost 地址**还无法访问**。
+第一次执行会**同时拉镜像、构建前后端、启动 5 个容器**（含 worker），终端会长时间有输出，**属于正常现象**。在全部完成之前，上述 localhost 地址**还无法访问**。
 
 #### 大概要多久
 
@@ -191,7 +195,7 @@ docker compose logs -f backend  # 只看后端
 | 同一层 `Pulling fs layer 0B` 超过 **20～30 分钟** 无变化 | 可能镜像下载卡住，Ctrl+C 停止后改用下方「Docker Hub 拉取失败」方案 |
 | 容器 **Restarting** 或 **Exited** | 执行 `docker compose logs backend` 查看报错 |
 | `pip install` 报 **HASHES DO NOT MATCH** | 镜像源与包不一致，见下方「pip 安装失败」 |
-| 不想等 Docker | 使用 `.\scripts\start-local.ps1` 本地启动（见下方方案 D） |
+| pytest 不需 Docker | CI/单测 | `.\scripts\start.ps1 -Local`（SQLite，**非 R1 等价**） |
 
 #### 构建完成后的快速验证
 
@@ -215,8 +219,8 @@ python -m pytest unit_tests API_tests -v
 | `registry-1.docker.io` / IPv6 超时 | Docker Hub 直连失败 | 配置上方 **registry-mirrors + ipv6:false** |
 | `pip HASHES DO NOT MATCH` | PyPI 下载慢/镜像不一致 | `docker compose build --no-cache backend` 后重试；依赖已拆分为 core + ai 两步安装 |
 | `docker.m.daocloud.io` **401**（cn Dockerfile） | 部分镜像需登录 | 改用 **Docker Engine 镜像加速** + 标准 `docker-compose.yml` |
-| 构建 30+ 分钟仍无容器 | 正常或网络慢 | 另开终端 `docker compose ps`；或先用 `docker-compose.dev.yml` |
-| 不想等 Docker | 本地开发 | `.\scripts\start-local.ps1` |
+| 构建 30+ 分钟仍无容器 | 正常或网络慢 | 另开终端 `docker compose ps`；或 `-Profile dev-fast`（非 R1） |
+| pytest 快速迭代 | 不需 Docker 等价栈 | `.\scripts\start.ps1 -Local`（**非 R1 验收**） |
 
 **方案 A — Docker Engine 镜像加速（推荐，已验证可用）**
 
@@ -259,19 +263,13 @@ docker compose up --build
 
 Phase 0 若只需 health + 前端，可用 `docker-compose.dev.yml` 跳过 AI 包安装。
 
-### 本地开发（不用 Docker）
+### 本地开发（pytest / 调试，非 R1 一键启动）
+
+R1 日常开发请用 Docker 一键启动（见上文）。以下仅用于跑 pytest 或单步调试：
 
 ```powershell
-.\scripts\start-local.ps1
-# 前端 http://localhost:3000  后端 http://localhost:8000/api/v1/health
-```
-
-或分两个终端：
-
-```powershell
-# 终端 1 — 后端
+# 终端 1 — 后端（SQLite，见 .env.local.example）
 $env:PYTHONPATH="e:\work\aria\backend"
-pip install fastapi uvicorn pydantic-settings httpx
 cd backend
 python -m uvicorn app.main:app --reload --port 8000
 

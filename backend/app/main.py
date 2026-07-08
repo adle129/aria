@@ -16,7 +16,8 @@ logging.basicConfig(level=settings.log_level)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
+    if not settings.database_url.startswith("postgresql"):
+        init_db()
     yield
 
 

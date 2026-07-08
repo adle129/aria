@@ -1,12 +1,12 @@
-# Phase 0 fast start: skip heavy backend AI packages for quicker builds
-# Usage: scripts/up.sh --dev-fast
+# Phase 0 fast build ONLY — NOT for R1/pgvector/worker parity testing.
+
 x-backend-environment: &backend-environment
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
   OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
   MOCK_LLM: ${MOCK_LLM:-true}
   MOCK_RAG: ${MOCK_RAG:-true}
-  ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
+  ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-dev}
   KB_DEBUG_ENABLED: ${KB_DEBUG_ENABLED:-false}
   PROMPT_VERSION: ${PROMPT_VERSION:-v1}
   CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
@@ -19,7 +19,7 @@ x-backend-environment: &backend-environment
 
 x-frontend-build-args: &frontend-build-args
   NEXT_PUBLIC_API_BASE_URL: /api/v1
-  NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-experience}
+  NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-dev}
 
 services:
   postgres:
@@ -50,6 +50,7 @@ services:
     environment:
       <<: *backend-environment
       DATABASE_URL: postgresql://aria_admin:${POSTGRES_PASSWORD:-localdev123}@postgres:5432/aria_db
+      SKIP_MIGRATE: "true"
     volumes:
       - ./backend/data:/app/data
     depends_on:

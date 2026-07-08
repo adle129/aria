@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Production one-click start (bootstrap .env + data dirs + compose up)
+# Production one-click start: preflight + compose up (migrate via backend entrypoint)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +21,45 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 mkdir -p "$DATA_ROOT/postgres" "$DATA_ROOT/app"/{uploads,outputs,knowledge_base,chroma_db,templates,app/feedback}
 
+if ! docker info >/dev/null 2>&1; then
+  echo "ERROR: Docker is not running." >&2
+  exit 1
+fi
+
+MOCK_LLM="$(grep -E '^MOCK_LLM=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r" ' || echo false)"
+OLLAMA_URL="$(grep -E '^OLLAMA_BASE_URL=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r" ' || echo http://localhost:11434)"
+OLLAMA_URL="${OLLAMA_URL/host.docker.internal/localhost}"
+
+if [[ "${MOCK_LLM,,}" != "true" ]]; then
+  if ! curl -sf "${OLLAMA_URL}/api/tags" >/dev/null; then
+    echo "WARN: Ollama not reachable at ${OLLAMA_URL} (MOCK_LLM=false). Install/start Ollama first." >&2
+  fi
+fi
+
 cd "$ARIA_ROOT"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build "$@"
-echo "ARIA started (profile=${ARIA_UI_PROFILE:-r1}). Check: curl -s http://localhost/api/v1/health"
+
+deadline=$((SECONDS + 180))
+while (( SECONDS < deadline )); do
+  if curl -sf http://localhost/api/v1/health >/dev/null; then
+    break
+  fi
+  sleep 3
+done
+
+if ! curl -sf http://localhost/api/v1/health >/dev/null; then
+  echo "ERROR: health check failed. docker compose -f $COMPOSE_FILE logs backend worker" >&2
+  exit 1
+fi
+
+for c in aria-postgres aria-backend aria-worker aria-frontend aria-nginx; do
+  if ! docker ps --format '{{.Names}}' | grep -qx "$c"; then
+    echo "ERROR: container not running: $c" >&2
+    exit 1
+  fi
+done
+
+echo "ARIA started (profile=${ARIA_UI_PROFILE:-r1})."
+echo "  App:    http://localhost"
+echo "  Health: http://localhost/api/v1/health"
+echo "  Admin:  python deploy/scripts/create_admin.py  (first deploy)"

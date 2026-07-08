@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import resolve_owner_id
 from app.database import get_db
 from app.repositories.rfq_task_repository import RFQTaskRepository
-from app.schemas.rfq import RFQTaskUpdateRequest
+from app.schemas.rfq import ConfirmDimensionsRequest, RFQTaskUpdateRequest
 from app.config import get_settings
 from app.services import generators  # noqa: F401 — register GeneratorRegistry
 from app.services.artifact_service import ArtifactService
@@ -134,9 +134,38 @@ def update_task(
         task,
         review_status=body.status,
         comparison_table=body.comparison_table,
+        dimension_draft=body.dimension_draft,
         confirmed=body.confirmed,
     )
     return {"code": 200, "data": analysis_service.get_task_payload(updated)}
+
+
+@router.post("/tasks/{task_id}/confirm-dimensions")
+def confirm_dimensions(
+    task_id: str,
+    body: ConfirmDimensionsRequest,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    repo = RFQTaskRepository(db)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
+    if not task:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
+    try:
+        updated = analysis_service.confirm_dimensions(db, task, body.model_dump(exclude_none=True))
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    payload = analysis_service.get_task_payload(updated)
+    return {
+        "code": 200,
+        "data": {
+            "task_id": updated.id,
+            "processing_status": updated.processing_status,
+            "comparison_table": payload.get("comparison_table"),
+            "overall_confidence": (payload.get("comparison_table") or {}).get("overall_confidence"),
+            "task": payload,
+        },
+    }
 
 
 @router.post("/tasks/{task_id}/generate-excel")

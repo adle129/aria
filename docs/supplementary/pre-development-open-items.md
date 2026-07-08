@@ -1,6 +1,6 @@
 # 开发前开放项与待确认登记
 
-**版本：** v1.0 · 2026-07-04  
+**版本：** v1.1 · 2026-07-07  
 **受众：** PM、开发、验收负责人（**内部 · 不对客户披露**）  
 **用途：** 正式版 **写代码 / 开里程碑 / 合并 PR 前** 必读；确保待确认信息不遗漏。  
 **维护：** PM + 开发 Lead；状态变更时同步来源文档。
@@ -53,6 +53,13 @@
 | Q8 | **全维度对比矩阵**需求（基准库 + 勾选 + `—` 展示） | 2026-07-04 反馈 | F1.10a–d；**清单见 O-01** |
 | D1–D7 | Demo 复用壳、非生产逻辑；R1 仅 RFQ+知识库；等 | 2026-07-04 | formal-delivery-strategy |
 | UI-01 | 确认页展示 **全量基准行**；矩阵页 **仅 in_scope 行** | 2026-07-04 | rfq-dimension-baseline-spec §5 |
+| **SURVEY-01** | 使用人数 **10–20 人** | **2026-07-07** | prod §2.1 · deployment-guide §2.1 |
+| **SURVEY-02** | 忙时 **3–5 人** 同时在系统里干活 | **2026-07-07** | O-06 · I-01 |
+| **SURVEY-03** | 很少集中同时用（大家错开） | **2026-07-07** | I-01 维持 1 并发 |
+| **SURVEY-04** | 排队等待 **可接受**（几分钟） | **2026-07-07** | O-07 · user-manual §3.1 |
+| **SURVEY-05** | **须** 每人只看到自己的 RFQ 项目 | **2026-07-07** | R1-AUTH · prod NF18–NF20 |
+| **SURVEY-06** | **须** 分角色登录（工程师 / 资料库管理员） | **2026-07-07** | R1-AUTH · prod NF19 |
+| **D8** | R1 含 Auth MVP（登录 + 两角色 + 任务隔离）；不含 SSO | **2026-07-07** | formal-delivery-strategy §2 |
 
 ---
 
@@ -68,8 +75,6 @@
 | **O-03** | **≥15 条检索评测题集**（期望命中项目/文档） | 双方 | R1 **第 4 周前**共同确认 | **R1 验收** | 待双方确认 | R1 验收说明 §4.4 |
 | **O-04** | **3 份代表性 RFQ**（基准勾选 + 对比矩阵验收） | 客户 | R1 第 7–8 周 | **R1 验收** | 待客户提供 | R1 验收说明 §4.3 |
 | **O-05** | **M0：GPU / 独立数据盘 / Ollama / Docker** | 客户 IT | R1 验收前（可与 R1 开发并行） | **R1 验收** | 待客户提供 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) |
-| **O-06** | **高峰同时提交 RFQ 长任务人数**（团队 20–30 人中实际并发） | 客户 | 并行确认 | 不阻塞 R1 架构；**阻塞 SLA 文案** | 待客户提供 | customer-it §6.1 |
-| **O-07** | **排队 SLA 数字**（第 N 位预计等待分钟） | 双方 | O-06 确认后 | 不阻塞开发；**阻塞 user-manual 定稿** | 待双方确认 | [user-manual.md](../user-manual.md) · api-design |
 | **O-08** | **报价 Excel 模板书面签收** | 客户 | M3 启动前 | **M3** | 待客户提供 | implementation-plan D9 |
 | **O-09** | **M3：≥3 RFQ 的 best_match 历史项目书面确认** | 客户 | M3 验收 | **M3** | 待客户提供 | implementation-plan · prod §10.2 M3 |
 | **O-10** | **Content Template 34 页 PPT 模板签收** | 客户 | M5 启动前 | **M5** | 待客户提供 | customer-feedback §7 |
@@ -89,14 +94,15 @@
 
 | ID | 项 | 建议默认 | 何时定 | 状态 | 来源 |
 |----|-----|----------|--------|------|------|
-| **I-01** | `OLLAMA_MAX_CONCURRENT`（1 或 2） | **`1`** | O-06 确认后 | 内部待定 | dev-context · api-design |
-| **I-02** | 吞吐方案：32B 排队 / 降 14B / 多卡 | **32B + 排队** | O-06 后 | 内部待定 | 容量架构讨论 |
+| **I-01** | `OLLAMA_MAX_CONCURRENT`（1 或 2） | **`1`** | O-06 确认后 | **已关闭** · 2026-07-07 | dev-context · api-design |
+| **I-02** | 吞吐方案：32B 排队 / 降 14B / 多卡 | **32B + 排队** | O-06 后 | **已关闭** · 2026-07-07 | 容量架构讨论 |
 | **I-03** | R1-α 内部 seed 基准条数 | **20–30 项** | R1 编码启动 | 内部待定 | rfq-dimension-baseline-spec §5 |
 | **I-04** | Git 分支 `release/r1` 是否已创建 | 已创建（本地）；push 待网络 | 正式开工前 | **已关闭** | formal-delivery-strategy §9 |
 | **I-05** | `.cursor/rules` 与 pgvector / 无 LangChain 口径同步 | 已同步 v1.0 · 2026-07-04 | R1 前 | **已关闭** | formal-delivery-strategy §9 · aria-r1-delivery.mdc |
 | **I-06** | R1 验收彩排脚本（15–20 min，仅 RFQ+知识库） | 待编写 | R1 第 6 周前 | 内部待定 | formal-delivery-strategy §9.2 |
 | **I-07** | R1 检索评测 JSON 快照 / 自动化程度 | 手工表为主 | R1 第 4 周 | 内部待定 | test-plan §7 |
 | **I-08** | **F5.6 引用反馈 L1**（一键反馈 + CSV 导出） | **内部运维增强 · 可选做**；**不进客户合同** | R1～M6 视进度 | 内部待定 | dev-tasks **R1-OPS** · 2026-07-06 决策 |
+| **I-09** | **`JWT_SECRET` 生成策略** | 部署时 `openssl rand -hex 32`；写入 `.env.production` | R1-AUTH 开工前 | **已关闭** · 2026-07-07 | api-design §0 · deployment-guide |
 
 **I-08 说明：** 便于乙方 R1 末～M6 联调期收集 Top-3/检索问题；客户验收仍用试搜表 + 例会。若实施，**不**写入 [acceptance-checklist.md](../R1/acceptance-checklist.md) 与客户彩排。
 
@@ -124,6 +130,8 @@
 | `insufficient_evidence` 拒答（禁止 Mock 欺骗） | rag-design |
 | `ARIA_UI_PROFILE=r1` | formal-delivery-strategy §5.2 |
 | RFQ Word 表格解析 | prod F1.x |
+| **Auth MVP**（users 表 · JWT · owner 隔离 · kb_admin 写守卫） | api-design §0 · R1-AUTH01–07 |
+
 
 **可选 · 非合同（I-08）：** F5.6 引用反馈 L1 — [dev-tasks R1-OPS](../R1/dev-tasks.md)；**不**绑里程碑验收。
 
@@ -151,7 +159,7 @@
 | Demo 现状 | 正式版须替换 |
 |-----------|-------------|
 | Chroma 嵌入式 | pgvector |
-| `BackgroundTasks` | PG worker |
+| `BackgroundTasks` | PG worker + Auth JWT |
 | RFQ 无 `dimension_review` | F1.10a–d 全流程 |
 | Mock RAG 兜底 | 拒答门控 |
 | proposal/qa Stub | M4/M5 真实实现 |
@@ -165,6 +173,8 @@
 | Q2 五步顺序 | 2026-07-04 | 符合习惯，锁定 Demo 顺序 |
 | Q3 QA 交付方式 | 2026-07-04 | 仅生成/下载 Excel |
 | Phase 1 Demo 合同 / 框架档验收 | 2026-06 | Demo 已完成；`main` 冻结 |
+| **O-06** 高峰 RFQ 并发 | **2026-07-07** | 问卷 **3–5 人**；`OLLAMA_MAX_CONCURRENT=1` |
+| **O-07** 排队 SLA | **2026-07-07** | 单份 ~1–3 min；5 人连排 **≤10 min**；见 user-manual §3.1 |
 
 *后续关闭 O-xx / I-xx 时：将 §3/§4 中该行标为 **已关闭** 并在此追加一行。*
 

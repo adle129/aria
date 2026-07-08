@@ -1,7 +1,7 @@
 # 交付能力追溯矩阵
 
-**版本：** v1.0 · 2026-07-02  
-**基线：** [prod.md](../../prod.md) v1.5 · [客户版 v3.7](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.3](../ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md)
+**版本：** v1.1 · 2026-07-07  
+**基线：** [prod.md](../../prod.md) v1.7 · [客户版 v3.8](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.6](../ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md) · [R1 验收说明 v1.6](../R1-知识库验收与检索评测说明（客户版）.md) · **[使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)**
 
 > **用途：** 一页回答「客户说的某能力 → prod 功能 ID → API → 设计规格 → 如何验收」。  
 > **AI 列：** LLM = 本地大模型 · RAG = Embedding 检索 · Rule = 规则/算法/模板，不用 LLM 填核心数字或正文。
@@ -29,7 +29,9 @@
 | Q&A 模板导出（双语 Question） | M4 | F2.5–F2.7 | Rule | GET `.../download/qa` | template-mapping §2 | prod §10.2 M4 |
 | 34 页 PPT 预填 | M5 | F3.1–F3.3 | Rule | POST `.../generate-proposal` · GET `.../download/ppt` | m5-proposal-fill-spec | prod §10.2 M5 |
 | 哪些页已填/未填说明 | M5 | F3.4 | Rule | `proposal_fill_report` | m5-proposal-fill-spec §5 | 附录术语表 |
-| 任务历史、五步导航 | R1–M6 | F1.8, §5.4 | — | GET `/rfq/tasks` | prod §5.4 · dev-context | M6 UAT |
+| 任务历史、五步导航 | R1–M6 | F1.8, §5.4 | — | GET `/rfq/tasks`（**按 owner 过滤**） | prod §5.4 · dev-context | M6 UAT |
+| **登录 + 两角色 RBAC** | R1 | NF18–NF22 | — | POST `/auth/login` · GET `/auth/me` | api-design §0 · prod §4.1.1 | AUTH-01～07 |
+| **RFQ 任务归属隔离** | R1 | NF20 | — | 全部 `/rfq/*` | api-design §0.5 | AUTH-02, AUTH-05 |
 | 培训、备份演练、运维脚本 | M6 | NF16, §4.2 | — | — | deployment-guide · production-deploy-artifacts | 客户易懂版 §3.2 |
 | 3 个月 P0/P1 + 1 次体验优化 | M6 | — | — | — | 客户易懂版 §8.2 | M6 终验 |
 
@@ -41,7 +43,7 @@
 
 | 能力 | Demo（Phase 1 · 冻结） | 正式版（release/r1 逐步实施） |
 |------|------------------------|------------------------------|
-| RFQ + 对标 | 真实 AI（能力档） | R1：F1.10a–d 基准库、Engagement、Top-3、pgvector |
+| RFQ + 对标 | 真实 AI（能力档） | R1：F1.10a–d 基准库、Engagement、Top-3、pgvector、**登录 + 任务隔离** |
 | Excel | PM+Chassis 片段 | M3：全 9 Function + ScopeMatch |
 | `/qa` · `/proposal` | Stub +「Demo 预览」 | M4 / M5：按规格新建，非继承 Stub |
 | 知识库 | 统计 + 检索 + 触发导入 | R1：manifest、baselines、Web ≤5 |
@@ -58,7 +60,11 @@
 | 定稿一键进历史库 | — | POST `.../archive-to-knowledge` | api-design §2.3.5 | 变更单 |
 | Hybrid / Rerank | — | — | rag-design §7 · 演进路线 §4.7 | 独立技术包 |
 | NL 查历史项目人力（摘要向量） | — | POST `/knowledge/search` `doc_type=quote_summary` | [manpower-baselines-spec.md §5](manpower-baselines-spec.md) · R1-P2-01 | 变更单 |
-| 细粒度权限 | — | — | 演进路线 §4.9 | 变更单 |
+| SSO / AD 集成、部门级 ACL | — | — | prod §11.3 | 运维包 |
+| 任务委派 / 跨人共享 RFQ | — | — | prod §11.3 | 运维包 |
+| 密码自助重置、操作审计看板 | — | — | prod §11.3 | 运维包 |
+
+> **R1 合同内（非变更单）：** 本地账号登录 · `quote_engineer` / `kb_admin` · RFQ `owner_id` 隔离 · KB 写操作角色守卫。见 §1「登录 + 两角色 RBAC」行。
 
 ## 3.1 内部可选 · 非合同（不对客户承诺）
 
@@ -94,4 +100,4 @@
 
 ---
 
-*维护：客户 v3.7 / prod 变更时同步更新本表。*
+*维护：客户 v3.8 / prod 变更时同步更新本表。*

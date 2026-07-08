@@ -55,7 +55,11 @@ export default function TaskContextBar() {
         </Button>
         {task && (
           <Text type="secondary">
-            {task.file_name || "—"} · {task.processing_status} · 审阅 {task.status}
+            {task.file_name || "—"} ·{" "}
+            {task.processing_status === "dimension_review"
+              ? "等待基准维度勾选"
+              : task.processing_status}{" "}
+            · 审阅 {task.status}
           </Text>
         )}
       </Space>

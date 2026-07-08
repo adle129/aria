@@ -14,7 +14,10 @@ if (Test-Path $EnvFile) {
 
 $Src = switch ($Profile) {
     { $_ -in "prod", "production", "r1" } { Join-Path $Root ".env.production.example" }
-    default { Join-Path $Root ".env.example" }
+    default {
+        $docker = Join-Path $Root ".env.docker.example"
+        if (Test-Path $docker) { $docker } else { Join-Path $Root ".env.example" }
+    }
 }
 
 if (-not (Test-Path $Src)) {
