@@ -35,6 +35,10 @@ def _should_skip_position_label(label: str) -> bool:
         return True
     if normalized == _HEADER_POSITION_LABEL:
         return True
+    if "expense" in normalized:
+        return True
+    if "please fill with money" in normalized:
+        return True
     return False
 
 

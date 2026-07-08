@@ -22,7 +22,9 @@ import { InfoCircleOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
+import { useAuth } from "@/context/AuthContext";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -110,6 +112,8 @@ function formatBytes(n?: number): string {
 }
 
 export default function KnowledgePage() {
+  const { authEnabled, isKbAdmin } = useAuth();
+  const canWriteKb = !authEnabled || isKbAdmin;
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [results, setResults] = useState<RAGHitRow[]>([]);
@@ -123,6 +127,9 @@ export default function KnowledgePage() {
   const [importLoading, setImportLoading] = useState(false);
   const [lastImport, setLastImport] = useState<ImportResult | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
+  const [activeTab, setActiveTab] = useState("docs");
+  const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
+  const [insufficientEvidence, setInsufficientEvidence] = useState<boolean | null>(null);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -156,9 +163,18 @@ export default function KnowledgePage() {
   }, [loadStats, loadDocuments]);
 
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("q");
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
     if (q) {
       setQuery(decodeURIComponent(q));
+    }
+    const tab = params.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+    const engagementId = params.get("engagement_id");
+    if (engagementId) {
+      setBaselinesEngagementId(engagementId);
     }
   }, []);
 
@@ -175,7 +191,10 @@ export default function KnowledgePage() {
     }
     setSearchLoading(true);
     try {
-      const resp = await apiClient.post<{ code: number; data: { results: RAGHitRow[] } }>(
+      const resp = await apiClient.post<{
+        code: number;
+        data: { results: RAGHitRow[]; insufficient_evidence?: boolean };
+      }>(
         "/knowledge/search",
         {
           query: query.trim(),
@@ -185,6 +204,7 @@ export default function KnowledgePage() {
         },
       );
       setResults(resp.data.data.results);
+      setInsufficientEvidence(resp.data.data.insufficient_evidence ?? null);
       setWizardStep(3);
       if (resp.data.data.results.length === 0) {
         message.info("未找到匹配结果，可调整关键词或先更新知识库索引");
@@ -241,6 +261,16 @@ export default function KnowledgePage() {
       </Paragraph>
 
       <PlatformKnowledgeExplainer />
+
+      {authEnabled && !isKbAdmin && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="当前为只读模式"
+          description="知识库索引更新仅资料库管理员（kb_admin）可操作；您仍可检索与查看统计。"
+        />
+      )}
 
       {stats?.mock_rag && (
         <Alert
@@ -313,7 +343,8 @@ export default function KnowledgePage() {
       )}
 
       <Tabs
-        defaultActiveKey="docs"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: "docs",
@@ -325,13 +356,15 @@ export default function KnowledgePage() {
                     <Button onClick={() => void loadStats()} loading={statsLoading}>
                       刷新统计
                     </Button>
-                    <Button
-                      type="primary"
-                      loading={importLoading}
-                      onClick={() => void runImport()}
-                    >
-                      更新知识库索引
-                    </Button>
+                    {canWriteKb && (
+                      <Button
+                        type="primary"
+                        loading={importLoading}
+                        onClick={() => void runImport()}
+                      >
+                        更新知识库索引
+                      </Button>
+                    )}
                     <Button onClick={() => void loadDocuments()} loading={docsLoading}>
                       刷新文档清单
                     </Button>
@@ -520,6 +553,16 @@ export default function KnowledgePage() {
                     </Button>
                   </Space>
 
+                  {insufficientEvidence === true && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      message="检索依据不足"
+                      description="最高相似度低于阈值，RFQ 对标时系统将提示人工补充历史资料或核对结论。"
+                    />
+                  )}
+
                   <Table
                     rowKey={(_, i) => String(i)}
                     size="small"
@@ -564,6 +607,11 @@ export default function KnowledgePage() {
                 </Card>
               </>
             ),
+          },
+          {
+            key: "baselines",
+            label: "人天基线",
+            children: <ManpowerBaselinesPanel engagementId={baselinesEngagementId} />,
           },
           {
             key: "modules",

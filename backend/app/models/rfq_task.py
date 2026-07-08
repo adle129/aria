@@ -14,6 +14,7 @@ class RFQTask(Base):
     __tablename__ = "rfq_tasks"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    owner_id = Column(String, nullable=True, index=True)
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     module_type = Column(String, default="manpower")

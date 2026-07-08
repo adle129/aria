@@ -1,0 +1,79 @@
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+import jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+
+from app.config import Settings
+from app.models.user import USER_ROLE_QUOTE_ENGINEER, User
+from app.repositories.user_repository import UserRepository
+from app.schemas.auth import UserPublic
+
+_pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+
+class AuthService:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+
+    def hash_password(self, password: str) -> str:
+        return _pwd_context.hash(password)
+
+    def verify_password(self, password: str, password_hash: str) -> bool:
+        return _pwd_context.verify(password, password_hash)
+
+    def create_user(
+        self,
+        db: Session,
+        *,
+        username: str,
+        password: str,
+        display_name: str,
+        role: str = USER_ROLE_QUOTE_ENGINEER,
+    ) -> User:
+        repo = UserRepository(db)
+        if repo.get_by_username(username):
+            raise ValueError(f"用户名已存在: {username}")
+        user = User(
+            username=username,
+            password_hash=self.hash_password(password),
+            display_name=display_name,
+            role=role,
+        )
+        return repo.create(user)
+
+    def authenticate(self, db: Session, username: str, password: str) -> User | None:
+        user = UserRepository(db).get_by_username(username)
+        if not user or not user.is_active:
+            return None
+        if not self.verify_password(password, user.password_hash):
+            return None
+        return user
+
+    def create_access_token(self, user: User) -> str:
+        expire = datetime.now(timezone.utc) + timedelta(hours=self.settings.jwt_expire_hours)
+        payload = {"sub": user.id, "exp": expire}
+        return jwt.encode(payload, self.settings.jwt_secret, algorithm="HS256")
+
+    def resolve_user_from_token(self, db: Session, token: str) -> User | None:
+        try:
+            payload = jwt.decode(token, self.settings.jwt_secret, algorithms=["HS256"])
+        except jwt.PyJWTError:
+            return None
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        user = UserRepository(db).get_by_id(str(user_id))
+        if not user or not user.is_active:
+            return None
+        return user
+
+    @staticmethod
+    def user_public(user: User) -> dict[str, Any]:
+        return UserPublic(
+            id=user.id,
+            username=user.username,
+            display_name=user.display_name,
+            role=user.role,
+        ).model_dump()

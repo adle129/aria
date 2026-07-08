@@ -29,6 +29,6 @@ def test_api_response_success_wrapper():
 
 
 def test_api_response_error_shape():
-    wrapped = ApiResponse(code=400, msg="仅支持 .docx 格式文件")
+    wrapped = ApiResponse(code=400, msg="仅支持 Word RFQ 文件（.docx 或 .doc）")
     assert wrapped.code == 400
     assert wrapped.data is None

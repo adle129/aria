@@ -1,9 +1,9 @@
 # ARIA 智能应用平台 — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.10 · 2026-07-04  
+**版本：** v1.11 · 2026-07-07  
 **受众：** 工程师、Cursor Agent  
-**产品基线：** [prod.md](prod.md) v1.5 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
+**产品基线：** [prod.md](prod.md) v1.7 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
 
 > 本文档描述**如何实现** ARIA 平台及首期 **报价助手** 应用，供日常编码与 AI 辅助开发使用。  
 > **当前代码范围：** Demo（Phase 1）已实现并 **冻结于 `main`**，仅供体验与流程参考；**正式版** 在 `release/r1` 基于 Demo **框架与 UI 壳** 按 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) v1.1 逐步实施（多数 R1 API **设计已定 · 未实现**）。
@@ -14,7 +14,7 @@
 
 | 文档 | 用途 |
 |------|------|
-| [prod.md](prod.md) | 产品需求与验收基线（v1.5） |
+| [prod.md](prod.md) | 产品需求与验收基线（v1.7） |
 | [docs/supplementary/delivery-traceability.md](docs/supplementary/delivery-traceability.md) | 客户能力 ↔ prod ↔ API ↔ 验收 |
 | [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md) | 品牌定义、平台 vs 应用、**当前开发范围** |
 | **dev-context.md**（本文） | 技术栈、目录、API、模型、编码规范 |
@@ -69,7 +69,7 @@
 
 - RFQ 解析等长任务：**PostgreSQL 任务表 + 独立 worker**（`SKIP LOCKED` 认领），**不用** Redis/Celery
 - Ollama **并发闸**（worker 内信号量，同时 1–2 个 generate）+ 前端排队位置/ETA
-- 团队规模 20–30 人；高峰同时长任务人数与排队 SLA **待客户确认（TBD）**
+- 团队规模 **10–20 人**（问卷确认）；高峰同时长任务 **3–5 人**；排队 SLA **≤10 min**
 
 ---
 
@@ -181,7 +181,7 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/v1/health` | 健康检查 |
-| POST | `/api/v1/rfq/upload` | 上传 .docx，返回 task_id |
+| POST | `/api/v1/rfq/upload` | 上传 Word RFQ（**.docx / .doc**），返回 task_id |
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
 | GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`） |
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
@@ -291,11 +291,25 @@ generator.generate(context, template_path, output_path)
 - **R1 目标：** 结构化预解析（Heading 章节 + `doc.tables` → IR）→ LLM 填 [`rfq_parse.txt`](backend/prompts/v1/rfq_parse.txt) JSON；不确定填「未知」，禁止编造
 - 失败降级：`{"raw_output": ..., "parse_error": true}`
 
-### 任务队列（正式版 R1+ · 设计已定 · 未实现）
+### 任务队列（R1+ · 部分实现）
 
-- 替换 `BackgroundTasks`：任务写入 PG 表，**独立 worker** 进程消费（compose 同镜像、不同 CMD）
-- `TaskQueue` 接口封装；认领用 `SELECT … FOR UPDATE SKIP LOCKED`
-- 详见 [production-deploy-artifacts.md](docs/supplementary/production-deploy-artifacts.md)、[api-design.md §3](docs/supplementary/api-design.md)
+- RFQ 上传写入 PostgreSQL `task_jobs` 表；**独立 worker**（`python -m app.worker`）认领执行
+- `OLLAMA_MAX_CONCURRENT` 默认 **1**（问卷 O-06 已关闭）
+- 状态 API 返回 `queue_position`、`estimated_wait_seconds`
+- 测试/SQLite 可用 `TASK_WORKER_INLINE=true` 同步执行
+- 详见 [api-design.md §3](docs/supplementary/api-design.md)
+
+### 认证与权限（R1 · SURVEY-05/06）
+
+| 模型 | 说明 |
+|------|------|
+| `users` | id, username, password_hash, display_name, role, is_active |
+| `rfq_tasks.owner_id` | FK → users；列表/读写按 owner 过滤 |
+| 角色 | `quote_engineer`（默认）、`kb_admin` |
+| 会话 | JWT（`Authorization: Bearer`）；生产 `AUTH_ENABLED=true` |
+
+- API 契约：[api-design.md §0](docs/supplementary/api-design.md)
+- 任务 ID：[dev-tasks.md R1-AUTH](docs/R1/dev-tasks.md)
 
 ### RAGService（`services/rag_service.py`）
 
@@ -365,7 +379,7 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 
 ```json
 {"code": 200, "data": {...}}
-{"code": 400, "msg": "仅支持 .docx 格式文件"}
+{"code": 400, "msg": "仅支持 Word RFQ 文件（.docx 或 .doc）"}
 {"code": 404, "msg": "任务 ID 不存在"}
 {"code": 422, "msg": "参数校验失败", "detail": [...]}
 {"code": 500, "msg": "服务器内部错误，请联系管理员"}
@@ -513,4 +527,4 @@ test: 知识库搜索异常路径
 
 ---
 
-**关联文档：** [prod.md](prod.md) v1.5 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) | [implementation-plan.md](docs/implementation-plan.md) | [api-design.md](docs/supplementary/api-design.md) | [rag-design.md](docs/supplementary/rag-design.md)
+**关联文档：** [prod.md](prod.md) v1.7 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) v1.1 | [implementation-plan.md](docs/implementation-plan.md) v1.5 | [api-design.md](docs/supplementary/api-design.md) v1.4 | [rag-design.md](docs/supplementary/rag-design.md) v1.4

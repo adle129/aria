@@ -11,6 +11,8 @@ from app.models.engagement import Engagement
 from app.repositories.engagement_repository import EngagementRepository
 from app.schemas.engagement import EngagementManifest
 from app.services.engagement_manifest_service import resolve_manifest
+from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only, summarize_doc_type_counts
+from app.services.ingest.chunk_benchmarks import summarize_doc_type_counts
 from app.services.ingest.engagement_preview import build_engagement_preview
 from app.services.ingest.quote_baseline_extractor import extract_manpower_baselines
 from app.services.knowledge_index_service import (
@@ -91,6 +93,7 @@ class EngagementIngestService:
 
         chunks = flatten_engagement_chunks(report, manifest, self.kb_root, folder)
         self.assert_rfqa_gate(chunks, manifest.engagement_id)
+        assert_vector_chunks_rfqa_only(chunks)
 
         baseline_project: dict[str, Any] | None = None
         quote = report.get("quote_baselines")
@@ -179,8 +182,7 @@ class EngagementIngestService:
             except Exception:
                 pass
 
-        rfq_count = sum(1 for c in all_chunks if (c.get("metadata") or {}).get("doc_type") == "rfq")
-        qa_count = sum(1 for c in all_chunks if (c.get("metadata") or {}).get("doc_type") == "qa")
+        doc_type_counts = summarize_doc_type_counts(all_chunks)
 
         return {
             "new_documents": new_documents,
@@ -189,7 +191,7 @@ class EngagementIngestService:
             "failed_files": failed_files,
             "last_import_at": state.get("last_index_at"),
             "engagements_indexed": len(folders) - len(failed_files),
-            "doc_type_counts": {"rfq": rfq_count, "qa": qa_count},
+            "doc_type_counts": doc_type_counts,
         }
 
     def get_baselines(

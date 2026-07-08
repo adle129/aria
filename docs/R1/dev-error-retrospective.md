@@ -102,7 +102,7 @@
 |----|------|
 | **现象** | 客户模板为 `.doc`，Linux/无 Office 环境无法 spike |
 | **根因** | `rfq_document_loader` 在 Windows 用 COM 转 docx |
-| **待办** | R1 上传优先 **docx**；`.doc` 走 IT 转换或验证期专用机 |
+| **待办** | ~~R1 上传优先 docx~~ → **prod v1.7：R1 须支持 `.doc`**；实现见 **R1-F04-07** |
 | **预防** | Spike 文档注明 **OS/依赖**；CI 用 docx fixture |
 
 ---

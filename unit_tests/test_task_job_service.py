@@ -62,6 +62,34 @@ def test_queue_info_for_queued_job(db_session, job_service):
     assert info["estimated_wait_seconds"] == 0
 
 
+def test_queue_info_second_job_has_eta(db_session, job_service):
+    from datetime import timedelta
+
+    t0 = datetime.now(timezone.utc)
+    TaskJobRepository(db_session).create(
+        TaskJob(
+            job_type="rfq_analysis",
+            ref_id="task-1",
+            status="queued",
+            queued_at=t0,
+            created_at=t0,
+            updated_at=t0,
+        )
+    )
+    second = TaskJob(
+        job_type="rfq_analysis",
+        ref_id="task-2",
+        status="queued",
+        queued_at=t0 + timedelta(seconds=1),
+        created_at=t0,
+        updated_at=t0,
+    )
+    TaskJobRepository(db_session).create(second)
+    info = job_service.get_queue_info(db_session, second)
+    assert info["queue_position"] == 2
+    assert info["estimated_wait_seconds"] == 60
+
+
 def test_mark_failed_requeues_until_max_attempts(db_session, job_service):
     job = job_service.enqueue(db_session, job_type="rfq_analysis", ref_id="task-1")
     job.attempts = 1

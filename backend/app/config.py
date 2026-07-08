@@ -1,7 +1,10 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.utils.paths import resolve_data_path
 
 
 class Settings(BaseSettings):
@@ -19,6 +22,10 @@ class Settings(BaseSettings):
     embedding_max_chars: int = 2400
     mock_llm: bool = True
     mock_rag: bool = True
+
+    auth_enabled: bool = False
+    jwt_secret: str = "change-me-in-production"
+    jwt_expire_hours: int = 24
 
     ollama_max_concurrent: int = 1
     rag_similarity_threshold: float = 0.65
@@ -39,6 +46,7 @@ class Settings(BaseSettings):
     output_path: str = "./data/outputs"
     knowledge_base_path: str = "./data/knowledge_base"
     manpower_baselines_path: str = "./data/manpower_baselines.json"
+    dimension_baseline_path: str = "./data/config/dimension_baseline.v1.json"
     knowledge_vector_namespace: str = "production"
     template_path: str = "./data/templates"
     samples_rfq_path: str = "/app/samples/rfq"
@@ -47,6 +55,19 @@ class Settings(BaseSettings):
     def _kb_debug_dev_only(self) -> "Settings":
         if self.kb_debug_enabled and self.aria_ui_profile != "dev":
             self.kb_debug_enabled = False
+        return self
+
+    @model_validator(mode="after")
+    def _normalize_data_paths(self) -> "Settings":
+        self.upload_path = str(resolve_data_path(self.upload_path))
+        self.output_path = str(resolve_data_path(self.output_path))
+        self.chroma_path = str(resolve_data_path(self.chroma_path))
+        self.knowledge_base_path = str(resolve_data_path(self.knowledge_base_path))
+        self.template_path = str(resolve_data_path(self.template_path))
+        if not Path(self.manpower_baselines_path).is_absolute():
+            self.manpower_baselines_path = str(resolve_data_path(self.manpower_baselines_path))
+        if not Path(self.dimension_baseline_path).is_absolute():
+            self.dimension_baseline_path = str(resolve_data_path(self.dimension_baseline_path))
         return self
 
 

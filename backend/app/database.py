@@ -35,11 +35,13 @@ def init_db() -> None:
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
+    from app.models.user import User
 
     Base.metadata.create_all(
         bind=engine,
         tables=[
             Project.__table__,
+            User.__table__,
             RFQTask.__table__,
             TaskJob.__table__,
             Engagement.__table__,
@@ -75,6 +77,8 @@ def _ensure_rfq_task_columns() -> None:
         additions.append(f"qa_items {col_type}")
     if "qa_excel_path" not in existing:
         additions.append("qa_excel_path VARCHAR")
+    if "owner_id" not in existing:
+        additions.append("owner_id VARCHAR")
     if not additions:
         return
     with engine.begin() as conn:

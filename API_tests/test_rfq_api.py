@@ -15,13 +15,38 @@ def test_upload_docx_success(client, sample_rfq_bytes):
     assert "task_id" in body["data"]
 
 
-def test_upload_non_docx_rejected(client):
+def test_upload_non_word_rejected(client):
     response = client.post(
         "/api/v1/rfq/upload",
         files={"file": ("bad.txt", b"hello", "text/plain")},
     )
     assert response.status_code == 400
     assert response.json()["code"] == 400
+    assert "docx" in response.json()["msg"]
+    assert ".doc" in response.json()["msg"]
+
+
+def test_upload_doc_accepted(client, sample_rfq_bytes, monkeypatch):
+    import app.api.v1.rfq as rfq_module
+
+    monkeypatch.setattr(
+        rfq_module.analysis_service.job_service,
+        "uses_inline_worker",
+        lambda: False,
+    )
+    response = client.post(
+        "/api/v1/rfq/upload",
+        files={
+            "file": (
+                "legacy_rfq.doc",
+                sample_rfq_bytes,
+                "application/msword",
+            )
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["code"] == 200
+    assert "task_id" in response.json()["data"]
 
 
 def test_get_task_not_found(client):

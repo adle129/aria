@@ -219,6 +219,9 @@ def merge_rfq_parse_parts(parts: list[dict[str, Any]]) -> dict[str, Any]:
     merged["special_requirements"] = _dedupe_strings(merged["special_requirements"])
     merged["development_scope"] = _dedupe_dicts(merged["development_scope"], ("id", "title"))
     merged["modules"] = _dedupe_dicts(merged["modules"], ("function", "module_name"))
+    from app.services.rfq_rules_extractor import enrich_unknown_module_functions
+
+    enrich_unknown_module_functions(merged["modules"])
     return merged
 
 
@@ -334,129 +337,24 @@ def run_rfq_parse_spike_rules_first(
     bundle_max_chars: int = DEFAULT_BUNDLE_MAX_CHARS,
 ) -> dict[str, Any]:
     """Rules-first spike: extract §3/§4 by rules; LLM only for gaps (target 1–3 calls)."""
-    from app.services.rfq_rules_extractor import (
-        extract_rfq_rules,
-        is_deliverable_table_chunk,
-        needs_overview_llm,
-        needs_scope_llm,
-    )
+    from app.services.rfq_rules_first_service import run_parse_report
 
     _progress("Loading RFQ from corpus…")
-    path = resolve_rfq_path(rfq_path, corpus_dir)
-    raw_text, loader = load_rfq_text(path)
-    _progress(f"Loaded {path.name} via {loader} ({len(raw_text)} chars)")
-    source_doc = path.name
-    chunks = chunk_rfq_text(raw_text, source_doc=source_doc)
-    _progress(f"Chunked into {len(chunks)} pieces")
-
-    rules_result = extract_rfq_rules(raw_text, chunks)
-    rules_stats = dict(rules_result.pop("_rules_stats", {}))
-    _progress(
-        f"Rules: milestones={rules_stats.get('milestones_count', 0)} "
-        f"scope={rules_stats.get('development_scope_count', 0)} "
-        f"modules={rules_stats.get('modules_count', 0)} "
-        f"deliverable_tables={rules_stats.get('deliverable_sections', 0)}"
+    report = run_parse_report(
+        settings,
+        rfq_path=rfq_path,
+        corpus_dir=corpus_dir,
+        bundle_max_chars=bundle_max_chars,
     )
-
-    prompt_root = Path(__file__).resolve().parents[2] / "prompts" / settings.prompt_version
-    llm = LLMService(settings)
-
-    all_parts: list[dict[str, Any]] = [{"source": "rules", **rules_result}]
-    pass_logs: list[dict[str, Any]] = [
-        {
-            "pass": "rules",
-            "skipped_llm": True,
-            "milestones_count": rules_stats.get("milestones_count", 0),
-            "modules_count": rules_stats.get("modules_count", 0),
-            "development_scope_count": rules_stats.get("development_scope_count", 0),
-        }
-    ]
-    total_ms = 0
-
-    llm_plan: list[tuple[ParsePass, list[dict[str, Any]], str]] = []
-
-    if needs_overview_llm(rules_result):
-        overview_chunks = select_chunks_for_pass(chunks, "overview")
-        if overview_chunks:
-            llm_plan.append(("overview", overview_chunks, "rules missing overview fields"))
-        else:
-            pass_logs.append({"pass": "overview", "skipped": True, "reason": "no overview chunks"})
-    else:
-        pass_logs.append({"pass": "overview", "skipped_llm": True, "reason": "rules sufficient"})
-
-    ms_count = len(rules_result.get("milestones") or {})
-    if ms_count >= 1:
-        pass_logs.append({"pass": "milestones", "skipped_llm": True, "reason": f"rules extracted {ms_count}"})
-    else:
-        milestone_chunks = select_chunks_for_pass(chunks, "milestones")
-        if milestone_chunks:
-            llm_plan.append(("milestones", milestone_chunks, "rules found no milestones"))
-        else:
-            pass_logs.append({"pass": "milestones", "skipped": True, "reason": "no milestone chunks"})
-
-    if needs_scope_llm(rules_result):
-        table_42 = [c for c in chunks if is_deliverable_table_chunk(c)]
-        selected = table_42[:4] if table_42 else []
-        if selected:
-            llm_plan.append(("scope", selected, "rules missing modules/deliverables enrichment"))
-        else:
-            pass_logs.append({"pass": "scope", "skipped": True, "reason": "no scope chunks"})
-    else:
-        pass_logs.append(
-            {
-                "pass": "scope",
-                "skipped_llm": True,
-                "reason": f"rules extracted {rules_stats.get('modules_count', 0)} modules",
-            }
-        )
-
-    total_llm_calls = sum(len(batch_chunks(sel, bundle_max_chars)) for _, sel, _ in llm_plan)
-    _progress(f"Plan: {total_llm_calls} LLM call(s) (rules-first; chunk_scope baseline was 9)")
-
-    for parse_pass, selected, reason in llm_plan:
-        _progress(f"Pass '{parse_pass}' (LLM fallback: {reason}): {len(selected)} chunk(s)")
-        parts, logs, elapsed = _run_single_pass(
-            llm,
-            parse_pass=parse_pass,
-            chunks=selected,
-            prompt_root=prompt_root,
-            bundle_max_chars=bundle_max_chars,
-        )
-        all_parts.extend(parts)
-        pass_logs.extend(logs)
-        total_ms += elapsed
-
-    result = merge_rfq_parse_parts(all_parts)
-    validation = validate_rfq_parse_result(result)
-    used_chars = sum(len(chunk_content(c)) for c in chunks)
-
-    llm_batches = sum(1 for log in pass_logs if "batch" in log)
-
-    return {
-        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "rfq_path": str(path.resolve()),
-        "loader": loader,
-        "parse_strategy": "rules_first",
-        "mock_llm": settings.mock_llm,
-        "ollama_model": settings.ollama_model,
-        "ollama_llm_timeout_seconds": settings.ollama_llm_timeout_seconds,
-        "rules_stats": rules_stats,
-        "llm_batches": llm_batches,
-        "text_stats": {
-            "char_count_raw": len(raw_text),
-            "char_count_used": used_chars,
-            "truncated": False,
-            "chunk_count": len(chunks),
-            "bundle_max_chars": bundle_max_chars,
-            "word_table_cell_markers": count_word_table_cells(raw_text),
-            "line_count": len(raw_text.splitlines()),
-        },
-        "passes": pass_logs,
-        "timing_ms": total_ms,
-        "validation": validation,
-        "partial_results": all_parts,
-        "result": result,
-    }
+    stats = report.get("rules_stats") or {}
+    _progress(
+        f"Rules: milestones={stats.get('milestones_count', 0)} "
+        f"scope={stats.get('development_scope_count', 0)} "
+        f"modules={stats.get('modules_count', 0)} "
+        f"deliverable_tables={stats.get('deliverable_sections', 0)}"
+    )
+    _progress(f"Plan complete: {report.get('llm_batches', 0)} LLM batch(es)")
+    return report
 
 
 def run_rfq_parse_spike_chunked(

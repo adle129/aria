@@ -4,9 +4,8 @@
 
 **产品品牌：** ARIA（**A**ssisted **R**easoning & **I**ntelligence **A**pplications）  
 **中文名：** ARIA 智能应用平台  
-**版本：** v1.6  
-**日期：** 2026-07-04  
-**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 · 2026-07-04）  
+**版本：** v1.7 · 2026-07-07  
+**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 2026-07-04；**使用场景问卷 SURVEY-01~06 确认 2026-07-07**；**F1.1 增补 `.doc` 上传 2026-07-07**）  
 **客户：** EDAG（爱达克）车辆工程服务  
 
 > 品牌与平台定位详见 [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md)。  
@@ -78,7 +77,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 ### 1.4 不在本期范围（报价助手 Demo）
 
 - 企业 OA 系统集成
-- 用户分级权限（本期 20–30 人 flat access）
+- SSO / AD 集成、部门级 ACL、任务共享委派（R1 已含 **基础两角色 RBAC + 任务归属**，见 §4.1.1）
 - **ARIA 财务助手**及财务核算（Phase 3 平台第二应用，见 §11）
 - 实验/外部费用 AI 核算（客户明确暂不纳入）
 - 平台级多 App 注册、通用资料问答 Chat（Phase 2+ 规划，Demo 不实现）
@@ -102,8 +101,8 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 
 | 角色 | 人数 | 主要操作 |
 |------|------|---------|
-| 报价工程师 | 20–30 | 上传 RFQ、审阅 AI 输出、编辑定稿、导出文件 |
-| 知识库管理员 | 1–2 | 导入历史文档、触发增量更新/Re-index |
+| 报价工程师 | **10–20**（问卷确认） | 登录后上传 RFQ、审阅 AI 输出、编辑定稿、导出文件；**仅可见本人任务** |
+| 知识库管理员（`kb_admin`） | 1–2 | 登录后导入历史文档、触发增量更新/Re-index；工程师 **不可** 执行写操作 |
 | 客户 IT | 1–2 | 服务器部署、Ollama 维护、版本升级 |
 
 ### 2.2 核心用户故事
@@ -148,7 +147,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 
 | ID | 功能 | Demo | 正式版（里程碑） | AI | 优先级 |
 |----|------|------|-----------------|-----|--------|
-| F1.1 | 上传 RFQ 文件 | .docx | .docx（R1）；+ PDF/PPT 可选 | — | P0 |
+| F1.1 | 上传 RFQ 文件 | .docx | **`.docx` + `.doc`（R1）**；+ PDF/PPT 可选 | — | P0 |
 | F1.2 | 自动解析 Function 工作模块 | ✓ | R1 | LLM | P0 |
 | F1.3 | 解析交付物清单、里程碑、§四 `development_scope` | ✓ | R1 | LLM | P0 |
 | F1.4 | 向量检索 **Top-3** 相似历史项目（不足 3 个时继续 + Warning） | ✓ | R1 | RAG | P0 |
@@ -158,6 +157,25 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | F1.7 | 差异总结与报价参考概览 | ✓ | R1 | LLM | P1 |
 | F1.8 | RFQ 任务历史列表与切换回看 | ✓（框架） | R1 | — | P0 |
 | F1.9 | 相似项目展开（RAG 片段 + 来源） | ✓（框架） | R1 | RAG | P1 |
+
+#### 3.1.1a RFQ 上传格式（F1.1）
+
+R1 须同时支持客户历史 **`.docx`** 与旧版 **`.doc`** RFQ（验证语料含 `RFQ_模板.doc`）。
+
+| 格式 | R1 | 解析路径 |
+|------|-----|----------|
+| `.docx` | ✓ 必达 | `python-docx` 结构化读入（主路径） |
+| `.doc` | ✓ 必达 | Docker/生产：**LibreOffice headless** 转 `.docx` 后同路径解析；Windows 本地开发可选 **Word COM**（`pywin32`） |
+| PDF / PPT | 可选 | M6+ 或独立变更单；**不**作为 R1 上传门禁 |
+
+**约束：**
+
+- 单文件最大 **50MB**（与 [api-design.md](docs/supplementary/api-design.md) 一致）
+- 前端上传区须接受 `.docx` 与 `.doc`；非法扩展名返回 **400**（不 500）
+- `.doc` 转换失败时返回可读错误（如缺少 LibreOffice、文件损坏），提示另存为 `.docx` 或联系 IT
+- 知识库 **Engagement** 中 `doc_type=rfq` 的 RFQ 文档与上传接口格式一致（`.docx` / `.doc`）
+
+> 实现参考：`backend/app/services/ingest/rfq_document_loader.py`（Spike 已验证 `.doc` 切块）；上传 API / UI 接入见 [dev-tasks.md R1-F04-07](docs/R1/dev-tasks.md)。
 
 #### 3.1.2 技术维度对比表（输出示例）
 
@@ -298,7 +316,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 
 **支持文档类型：**
 
-- Word：RFQ、技术方案、SOW
+- Word：**RFQ**（`.docx`、**`.doc`**）、技术方案、SOW
 - Excel：历史报价、Q_A 清单
 - PDF：技术方案（M6 后 ingest 可选）
 
@@ -358,6 +376,16 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | NF5 | Ollama 仅监听 localhost |
 | NF17 | **生产环境**应用与数据分离：业务数据与 PostgreSQL 存于独立数据盘 `${ARIA_DATA_ROOT}`（默认 `/data/aria`）；应用部署目录可重装（见 §4.2） |
 
+#### 4.1.1 访问控制（R1 · 客户问卷 2026-07-07 确认）
+
+| ID | 要求 |
+|----|------|
+| NF18 | 生产环境 **须登录**（本地账号 + JWT）；未登录 API 返回 401 |
+| NF19 | 两角色：`quote_engineer`（默认）、`kb_admin`；知识库 **写操作**（import / reindex / Engagement 上传）仅 `kb_admin` |
+| NF20 | RFQ 任务按 `owner_id` 隔离；工程师 **不可** 查看或修改他人任务（404 防枚举） |
+| NF21 | 历史 Engagement / 检索 **全平台共享**（工程师须检索历史项目）；隔离范围限于 **RFQ 工作区** |
+| NF22 | **不含** SSO/AD、部门级 ACL、任务委派；见 §11.3 运维包 |
+
 ### 4.2 部署画像与持久化存储
 
 生产与体验环境采用 **Deployment Profile**（不同 Compose，不混用）：
@@ -399,7 +427,8 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 |------|----------|---------|
 | RFQ 解析 + 对标 P95 | < 5 分钟 (14B+GPU) | < 3 分钟 (32B+4090) |
 | Excel 生成 | < 60 秒 | < 30 秒 |
-| 并发用户 | 1–3 人 | 10–15 人 |
+| 并发用户（浏览） | 1–3 人 | **10–15 人**（团队 10–20 人 · 问卷确认） |
+| RFQ 长任务排队 | — | 单 worker + `OLLAMA_MAX_CONCURRENT=1`；忙时 3–5 人连排 **≤10 分钟**（问卷可接受） |
 | RFQ 文件大小上限 | 50 MB | 50 MB |
 
 ### 4.5 可用性与维护
@@ -431,7 +460,7 @@ pending → parsing → dimension_review → retrieving → generating → compl
 | 状态 | 说明 |
 |------|------|
 | `pending` | 已创建，等待后台任务 |
-| `parsing` | 解析 docx + LLM 提取（最耗时） |
+| `parsing` | 解析 Word RFQ（`.docx` / `.doc`）+ LLM 提取（最耗时） |
 | `dimension_review` | **F1.10c：** 等待工程师 **基准库勾选复核**（~100 项匹配结果；确认页全表） |
 | `retrieving` | RAG 检索 Top-3 相似项目 |
 | `generating` | 按已确认 in_scope 维度生成对比矩阵 |
@@ -468,7 +497,9 @@ draft → in_review → approved → exported
 - **中：** 1–2 个相似项目或相似度 70–85%
 - **低：** 无相似项目或相似度 < 70%，UI 标红提醒重点校验
 
-### 5.4 五步进度与 `artifacts_status`（Demo 框架）
+### 5.4 五步进度与 `artifacts_status`
+
+**R1 新增：** `GET /rfq/tasks` 与 `GET /rfq/tasks/{id}` **按当前登录用户 `owner_id` 过滤**；工程师不可见他人任务。
 
 `GET /rfq/tasks/{id}` 返回计算字段 `artifacts_status`：
 
@@ -717,7 +748,7 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 
 #### 10.1.2 能力档（核心 AI 链路）
 
-- [ ] 上传 .docx RFQ，返回 Function 模块列表 + 交付物
+- [ ] 上传 **`.docx` 或 `.doc`** RFQ，返回 Function 模块列表 + 交付物
 - [ ] 展示 **Top-3** 相似项目技术维度对比表，含来源与置信度
 - [ ] 相似项目可展开查看摘要（Mock 或 RAG 片段）
 - [ ] 生成 Excel 初稿（Project info + Manpower + PM + Chassis）
@@ -808,7 +839,11 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 | 定稿项目一键进历史库 | archive-to-knowledge | hypercare |
 | 检索运营看板、资料过期提醒 | — | 运维包 |
 | Hybrid / Rerank（项目代号更准） | — | 独立技术变更单 |
-| 增量索引 UI、细粒度权限 | F5.2 / F5.5 | 运维包 |
+| 增量索引 UI | F5.2 / F5.5 | 运维包 |
+| SSO / AD 集成、部门级 ACL、任务委派 | — | 运维包 |
+| 密码自助重置 UI、操作审计看板 | — | 运维包 |
+
+> **R1 已含（¥18.3 万内）：** 本地账号登录、两角色 RBAC、RFQ 任务归属隔离。上表为 **R1 之外** 的可选增强。
 
 ---
 
@@ -897,7 +932,7 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 - [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) — **正式版交付实施方案（内部）**
 - [docs/R1/README.md](docs/R1/README.md) — **R1 开发任务索引与 8 周节奏（内部）**
 - [platform-brand.md](docs/supplementary/platform-brand.md) — 品牌、平台 vs 应用
-- [客户版 v3.7](docs/ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.3](docs/ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md)
+- [客户版 v3.8](docs/ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.6](docs/ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md)
 - [R1 验收说明（客户版）](docs/R1-知识库验收与检索评测说明（客户版）.md) · [附录验收配合（客户版）](docs/附录-模块能力与验收配合说明（客户版）.md)
 - [平台知识库演进路线（客户版）](docs/平台知识库演进路线（客户版）.md) — 可选增强 §4
 - [m3 / m4 / m5 规格](docs/supplementary/m3-scope-match-spec.md) · [rag-design.md](docs/supplementary/rag-design.md) · [api-design.md](docs/supplementary/api-design.md) · [prompt-spec.md](docs/supplementary/prompt-spec.md)

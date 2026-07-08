@@ -24,24 +24,43 @@ _DATE = re.compile(r"(\d{4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})")
 _FUNCTION_FROM_TEXT: list[tuple[str, str]] = [
     ("总布置", "GI"),
     ("尺寸工程", "GI"),
+    ("整车总布置", "GI"),
     ("车身", "BIW"),
     ("开闭", "Closure"),
     ("底盘", "Chassis"),
     ("动力附件", "Chassis"),
+    ("悬架", "Chassis"),
+    ("副车架", "Chassis"),
     ("电子电器", "EE"),
+    ("电器系统", "EE"),
     ("电器", "EE"),
     ("线束", "EE"),
     ("内外饰", "Interior"),
     ("内饰", "Interior"),
     ("外饰", "Interior"),
+    ("CAS", "Interior"),
+    ("A面", "Interior"),
+    ("DTS", "Interior"),
     ("CAE", "CAE"),
     ("NVH", "CAE"),
     ("结构与NVH", "CAE"),
     ("仿真", "Simulation"),
+    ("碰撞", "CAE"),
     ("试验", "Test validation"),
+    ("DVP", "Test validation"),
     ("项目管理", "PM"),
     ("PM", "PM"),
 ]
+
+_SECTION_FUNCTION_HINTS: dict[str, str] = {
+    "4.2.1": "GI",
+    "4.2.2": "BIW",
+    "4.2.3": "Chassis",
+    "4.2.4": "EE",
+    "4.2.5": "Interior",
+    "4.2.6": "CAE",
+    "4.2.7": "Test validation",
+}
 
 
 def infer_function_from_title(title: str) -> str:
@@ -50,6 +69,26 @@ def infer_function_from_title(title: str) -> str:
         if keyword in text:
             return function
     return "未知"
+
+
+def infer_function_for_section(section_id: str, section_title: str = "") -> str:
+    hint = _SECTION_FUNCTION_HINTS.get(section_id)
+    if hint:
+        return hint
+    combined = f"{section_id} {section_title}".strip()
+    return infer_function_from_title(combined)
+
+
+def enrich_unknown_module_functions(modules: list[dict[str, Any]]) -> None:
+    for module in modules:
+        fn = str(module.get("function") or "").strip()
+        if fn and fn != "未知" and fn in KNOWN_FUNCTIONS:
+            continue
+        for field in ("module_name", "description"):
+            inferred = infer_function_from_title(str(module.get(field) or ""))
+            if inferred != "未知":
+                module["function"] = inferred
+                break
 
 
 def parse_section_id_title(chapter: str) -> tuple[str, str] | None:
@@ -258,9 +297,10 @@ def extract_scope_rules(chunks: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> dict[str, list[str]]:
+def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> tuple[dict[str, list[str]], dict[str, str]]:
     """Parse §4.2 deliverable table rows (工作内容 column) per 4.2.x section."""
     by_section: dict[str, list[str]] = {}
+    section_titles: dict[str, str] = {}
     current_section = ""
 
     for chunk in chunks:
@@ -268,6 +308,7 @@ def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> dict[str, list[s
         parsed = parse_section_id_title(chapter)
         if parsed and parsed[0].startswith("4.2."):
             current_section = parsed[0]
+            section_titles[current_section] = parsed[1]
 
         if not current_section:
             continue
@@ -278,16 +319,17 @@ def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> dict[str, list[s
         deliverables: list[str] = []
         for line in body.split("\n"):
             line = line.strip()
-            if not line or line.startswith("表") or "类别" in line and "编号" in line:
+            if not line or line.startswith("表"):
+                continue
+            if "类别" in line and "编号" in line:
+                continue
+            if "详见表" in line and len(line) > 80:
                 continue
             cells = [c.strip() for c in line.split("|") if c.strip()]
             if len(cells) >= 3 and cells[0].isdigit():
                 work = cells[2] if len(cells) > 2 else cells[-1]
-                if work and work not in {"●", "〇", "○", "—", "-"}:
+                if work and work not in {"●", "〇", "○", "—", "-"} and len(work) >= 4:
                     deliverables.append(work[:200])
-            elif len(cells) == 1 and len(cells[0]) > 8 and not cells[0].isdigit():
-                if any(k in cells[0] for k in ("分析", "报告", "数据", "模型", "清单", "check")):
-                    deliverables.append(cells[0][:200])
 
         if deliverables:
             existing = by_section.setdefault(current_section, [])
@@ -295,26 +337,39 @@ def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> dict[str, list[s
                 if item not in existing:
                     existing.append(item)
 
-    return by_section
+    return by_section, section_titles
 
 
 def apply_deliverables_to_modules(
     modules: list[dict[str, Any]],
     deliverables_by_section: dict[str, list[str]],
+    section_titles: dict[str, str] | None = None,
 ) -> None:
-    """Attach §4.2 table deliverables to modules by function keyword match."""
+    """Attach §4.2 table deliverables — one section per module to avoid duplicates."""
+    section_titles = section_titles or {}
     section_function = {
-        sec_id: infer_function_from_title(sec_id + " " + " ".join(items[:2]))
-        for sec_id, items in deliverables_by_section.items()
+        sec_id: infer_function_for_section(sec_id, section_titles.get(sec_id, ""))
+        for sec_id in deliverables_by_section
     }
+    assigned_sections: set[str] = set()
+
+    enrich_unknown_module_functions(modules)
+
     for module in modules:
-        function = str(module.get("function") or "")
+        function = str(module.get("function") or "未知")
+        if function == "未知":
+            continue
         matched: list[str] = []
         for sec_id, items in deliverables_by_section.items():
-            if section_function.get(sec_id) == function or function in sec_id:
-                matched.extend(items[:5])
+            if sec_id in assigned_sections:
+                continue
+            if section_function.get(sec_id) != function:
+                continue
+            matched = items[:8]
+            assigned_sections.add(sec_id)
+            break
         if matched:
-            module["deliverables"] = matched[:8]
+            module["deliverables"] = matched
 
 
 def extract_rfq_rules(
@@ -325,10 +380,11 @@ def extract_rfq_rules(
     overview = extract_overview_rules(text)
     scope = extract_scope_rules(chunks)
     milestones = extract_milestones_rules(text, chunks)
-    deliverables_map = extract_deliverables_rules(chunks)
+    deliverables_map, section_titles = extract_deliverables_rules(chunks)
 
     modules = list(scope["modules"])
-    apply_deliverables_to_modules(modules, deliverables_map)
+    enrich_unknown_module_functions(modules)
+    apply_deliverables_to_modules(modules, deliverables_map, section_titles)
 
     functions = overview.get("functions_in_scope") or []
     if not functions:

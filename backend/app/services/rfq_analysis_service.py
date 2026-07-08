@@ -11,37 +11,47 @@ from app.repositories.task_job_repository import TaskJobRepository
 from app.services.artifact_service import compute_artifacts_status
 from app.services.llm_service import LLMService
 from app.services.rag_service import RAGService
+from app.services.rfq_parse_service import RFQParseService
 from app.services.rfq_parser import RFQParser
+from app.services.rfq_upload import validate_rfq_upload_filename
 from app.services.task_job_service import TaskJobService
+from app.utils.paths import resolve_data_path, resolve_task_file_path
 
 
 class RFQAnalysisService:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
         self.parser = RFQParser()
+        self.parse_service = RFQParseService(self.settings)
         self.llm = LLMService(self.settings)
         self.rag = RAGService(self.settings)
         self.job_service = TaskJobService(self.settings)
 
     def save_upload(self, filename: str, content: bytes) -> tuple[str, str]:
-        if not filename.lower().endswith(".docx"):
-            raise ValueError("仅支持 .docx 格式文件")
+        validate_rfq_upload_filename(filename)
         if len(content) > 50 * 1024 * 1024:
             raise ValueError("文件大小不能超过 50MB")
 
-        upload_dir = Path(self.settings.upload_path)
+        upload_dir = resolve_data_path(self.settings.upload_path)
         upload_dir.mkdir(parents=True, exist_ok=True)
         file_id = str(uuid.uuid4())
         safe_name = Path(filename).name
-        stored_path = upload_dir / f"{file_id}_{safe_name}"
+        stored_path = (upload_dir / f"{file_id}_{safe_name}").resolve()
         stored_path.write_bytes(content)
         return file_id, str(stored_path)
 
-    def create_task(self, db: Session, filename: str, stored_path: str) -> RFQTask:
+    def create_task(
+        self,
+        db: Session,
+        filename: str,
+        stored_path: str,
+        owner_id: str | None = None,
+    ) -> RFQTask:
         repo = RFQTaskRepository(db)
         task = RFQTask(
             file_name=filename,
             file_path=stored_path,
+            owner_id=owner_id,
             processing_status="queued",
             review_status="draft",
             progress="0",
@@ -73,10 +83,9 @@ class RFQAnalysisService:
             task.status_message = "正在解析 RFQ 文档..."
             repo.update(task)
 
-            rfq_text = self.parser.extract_text_from_docx(task.file_path)
-            prompt_root = Path(__file__).resolve().parents[2] / "prompts" / self.settings.prompt_version
-            prompt = self.parser.build_parse_prompt(rfq_text, prompt_root)
-            rfq_modules = self.llm.complete_json(prompt, rfq_text=rfq_text)
+            rfq_path = resolve_task_file_path(task.file_path, upload_dir=self.settings.upload_path)
+            rfq_modules = self.parse_service.parse_rules_first(rfq_path)
+            rfq_text = self.parser.extract_rfq_text(rfq_path)
 
             task.processing_status = "retrieving"
             task.progress = "50"

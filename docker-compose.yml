@@ -99,8 +99,9 @@ services:
     container_name: aria-frontend
     depends_on:
       - backend
-    ports:
-      - "3000:3000"
+    # 经 nginx :80 访问；避免与宿主机 3000 冲突（如 iflyrecClient）
+    expose:
+      - "3000"
 
   nginx:
     image: nginx:alpine

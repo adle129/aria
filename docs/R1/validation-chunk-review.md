@@ -372,7 +372,7 @@ Customer会提供法规清单和文档吗？…
 
 | 限制 | 计划 |
 |------|------|
-| RFQ 为 `.doc`（非 `.docx`） | R1 上传仍以 docx 为主；验证期 Windows Word COM；生产可 IT 批量转换 |
+| RFQ 为 `.doc`（非 `.docx`） | **R1 须支持**（prod §3.1.1a）；Docker LibreOffice 转换；见 **R1-F04-07** |
 | 章节切分为规则/heuristic | 可对照 golden 样本加回归断言 |
 | 尚未写入 pgvector（RFQ/Q_A） | R1-K + I05–I07；本阶段验证切块质量 |
 | 尚未写入 `manpower_baselines.json` | R1-K04/K05；Debug 仅 `kb_debug_preview.json` |

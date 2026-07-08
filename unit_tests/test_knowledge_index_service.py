@@ -97,3 +97,65 @@ def test_index_chunks_mock_embed_and_store(monkeypatch, tmp_path):
     hits = svc.search("hello", top_k=3)
     assert len(hits) == 1
     assert hits[0]["similarity_score"] == 0.88
+
+
+def test_search_applies_doc_type_filter(monkeypatch, tmp_path):
+    settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
+    svc = KnowledgeIndexService(settings, namespace="test_ns")
+
+    class FakeStore:
+        def count(self, namespace=None):
+            return 2
+
+        def search_by_embedding(self, query_embedding, top_k=5, namespace=None):
+            return [
+                {
+                    "chunk_id": "rfq1",
+                    "content": "rfq",
+                    "metadata": {"doc_type": "rfq", "functions": ["PM"]},
+                    "similarity_score": 0.9,
+                },
+                {
+                    "chunk_id": "qa1",
+                    "content": "qa",
+                    "metadata": {"doc_type": "qa", "area": "GD&T", "functions": ["PM"]},
+                    "similarity_score": 0.85,
+                },
+            ]
+
+    monkeypatch.setattr(svc, "_store", FakeStore())
+    monkeypatch.setattr(
+        "app.services.knowledge_index_service.embed_texts",
+        lambda s, texts: [[0.01] * 768 for _ in texts],
+    )
+    hits = svc.search("tolerance", top_k=5, doc_type_filter=["qa"])
+    assert len(hits) == 1
+    assert hits[0]["metadata"]["doc_type"] == "qa"
+
+
+def test_list_indexed_source_docs(monkeypatch, tmp_path):
+    settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
+    svc = KnowledgeIndexService(settings, namespace="prod_ns")
+
+    class FakeStore:
+        def list_source_docs(self, namespace=None):
+            assert namespace is None
+            return {"knowledge_base/eng_001/rfq.docx", "knowledge_base/eng_001/qa.xlsx"}
+
+    monkeypatch.setattr(svc, "_store", FakeStore())
+    docs = svc.list_indexed_source_docs()
+    assert "knowledge_base/eng_001/rfq.docx" in docs
+
+
+def test_list_indexed_source_docs_unavailable_returns_empty(monkeypatch, tmp_path):
+    settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
+    svc = KnowledgeIndexService(settings, namespace="prod_ns")
+
+    from app.services.pgvector_store import PgVectorUnavailableError
+
+    class FailingStore:
+        def list_source_docs(self, namespace=None):
+            raise PgVectorUnavailableError("no pg")
+
+    monkeypatch.setattr(svc, "_store", FailingStore())
+    assert svc.list_indexed_source_docs() == set()

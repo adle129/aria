@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -76,3 +77,22 @@ def test_process_one_marks_failed_when_handler_raises(db_session, monkeypatch):
     assert processed is not None
     assert processed.status == "failed"
     assert "parse failed" in (processed.error_message or "")
+
+
+def test_recover_stale_jobs_resets_to_queued(db_session):
+    from datetime import timedelta, timezone
+
+    stale = TaskJob(
+        job_type="rfq_analysis",
+        ref_id="task-stale",
+        status="running",
+        started_at=datetime.now(timezone.utc) - timedelta(hours=3),
+    )
+    TaskJobRepository(db_session).create(stale)
+
+    worker = WorkerService(Settings(database_url="sqlite://"))
+    reset = worker.recover_stale_jobs(db_session)
+    assert reset == 1
+    reloaded = TaskJobRepository(db_session).get_by_id(stale.id)
+    assert reloaded.status == "queued"
+    assert reloaded.worker_id is None

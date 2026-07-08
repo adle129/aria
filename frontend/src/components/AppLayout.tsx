@@ -6,14 +6,17 @@ import {
   DatabaseOutlined,
   FileSearchOutlined,
   FileTextOutlined,
+  LogoutOutlined,
   QuestionCircleOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
-import { Layout, Menu, Tag, Typography } from "antd";
+import { Button, Layout, Menu, Space, Tag, Typography } from "antd";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { fetchHealth, type HealthData } from "@/api/client";
 import TaskContextBar from "@/components/TaskContextBar";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { TaskProvider } from "@/context/TaskContext";
 
 const { Header, Sider, Content } = Layout;
@@ -65,6 +68,8 @@ function ModeBadge({ health }: { health: HealthData | null }) {
 
 function AppLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { loading: authLoading, authEnabled, user, logout } = useAuth();
   const [health, setHealth] = useState<HealthData | null>(null);
 
   useEffect(() => {
@@ -72,6 +77,23 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
       .then(setHealth)
       .catch(() => setHealth(null));
   }, []);
+
+  useEffect(() => {
+    if (pathname.startsWith("/login")) return;
+    if (authLoading) return;
+    if (authEnabled && !user) {
+      const next = encodeURIComponent(pathname);
+      router.replace(`/login?next=${next}`);
+    }
+  }, [authLoading, authEnabled, user, pathname, router]);
+
+  if (pathname.startsWith("/login")) {
+    return <>{children}</>;
+  }
+
+  if (authEnabled && authLoading) {
+    return null;
+  }
 
   const menuItems = [
     {
@@ -117,9 +139,18 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
         <Typography.Text type="secondary" style={{ marginLeft: 12 }}>
           EDAG 内部工具
         </Typography.Text>
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <ModeBadge health={health} />
-          {health?.mock_rag && <Tag style={{ marginLeft: 8 }}>Mock RAG</Tag>}
+          {health?.mock_rag && <Tag>Mock RAG</Tag>}
+          {authEnabled && user && (
+            <Space size={8}>
+              <Tag icon={<UserOutlined />}>{user.display_name || user.username}</Tag>
+              {user.role === "kb_admin" && <Tag color="blue">资料库管理员</Tag>}
+              <Button type="text" size="small" icon={<LogoutOutlined />} onClick={() => void logout()}>
+                退出
+              </Button>
+            </Space>
+          )}
         </div>
       </Header>
       <Layout>
@@ -142,8 +173,10 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <TaskProvider>
-      <AppLayoutInner>{children}</AppLayoutInner>
-    </TaskProvider>
+    <AuthProvider>
+      <TaskProvider>
+        <AppLayoutInner>{children}</AppLayoutInner>
+      </TaskProvider>
+    </AuthProvider>
   );
 }

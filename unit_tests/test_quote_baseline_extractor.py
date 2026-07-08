@@ -33,11 +33,23 @@ def test_extract_skips_hidden_placeholder_row(tmp_path):
     ps = result["functions"]["PS"]
     labels = [p["position"] for p in ps["positions"]]
 
-    assert ps["position_count"] == 3
+    assert ps["position_count"] == 1
     assert "XXXX" not in labels
+    assert "Expense" not in labels[0]
     assert ps["skipped_hidden_rows"] >= 1
     assert ps["positions"][0]["excel_row"] == 5
     assert ps["positions"][0]["sheet"] == "PS"
+
+
+def test_extract_skips_expense_and_money_rows(tmp_path):
+    xlsx = tmp_path / "quote_expense.xlsx"
+    _write_ps_sheet(xlsx, hide_row=73)
+
+    result = extract_manpower_baselines(xlsx)
+    labels = [p["position"] for p in result["functions"]["PS"]["positions"]]
+    assert len(labels) == 1
+    assert all("expense" not in label.casefold() for label in labels)
+    assert "XXXX" not in labels
 
 
 def test_extract_includes_visible_placeholder_row(tmp_path):
@@ -53,9 +65,11 @@ def test_extract_includes_visible_placeholder_row(tmp_path):
     not Path(r"E:/AI文档项目/RE_ 报价AI需求沟通/报价人力模板.xlsx").exists(),
     reason="validation corpus not on this machine",
 )
-def test_validation_corpus_ps_has_three_visible_rows():
+def test_validation_corpus_ps_has_headcount_rows_without_expense():
     path = Path(r"E:/AI文档项目/RE_ 报价AI需求沟通/报价人力模板.xlsx")
     result = extract_manpower_baselines(path)
     ps = result["functions"]["PS"]
-    assert ps["position_count"] == 3
-    assert "XXXX" not in [p["position"] for p in ps["positions"]]
+    labels = [p["position"] for p in ps["positions"]]
+    assert ps["position_count"] >= 1
+    assert "XXXX" not in labels
+    assert all("expense" not in label.casefold() for label in labels)

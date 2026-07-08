@@ -1,9 +1,89 @@
 # ARIA — API 设计规范
 
-**版本：** v1.3  
+**版本：** v1.4  
 **Base URL：** `/api/v1`  
-**日期：** 2026-07-04  
-**基线：** [prod.md](../../prod.md) v1.5 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)
+**日期：** 2026-07-07  
+**基线：** [prod.md](../../prod.md) v1.7 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
+
+---
+
+## 0. 认证与授权（R1 · SURVEY-05/06）
+
+生产环境 `AUTH_ENABLED=true`（测试/CI 可 `false` 跳过守卫）。除 `GET /health` 与 `POST /auth/login` 外，业务 API **须** 携带 `Authorization: Bearer <token>`。
+
+### 0.1 登录
+
+```
+POST /api/v1/auth/login
+```
+
+**请求：**
+
+```json
+{
+  "username": "engineer01",
+  "password": "********"
+}
+```
+
+**成功 200：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "access_token": "<jwt>",
+    "token_type": "bearer",
+    "user": {
+      "id": "uuid",
+      "username": "engineer01",
+      "display_name": "张工",
+      "role": "quote_engineer"
+    }
+  }
+}
+```
+
+**失败 401：**
+
+```json
+{
+  "code": 401,
+  "msg": "用户名或密码错误"
+}
+```
+
+### 0.2 当前用户
+
+```
+GET /api/v1/auth/me
+```
+
+**成功 200：** 同 login 响应中的 `user` 对象。
+
+### 0.3 登出
+
+```
+POST /api/v1/auth/logout
+```
+
+**成功 200：** `{ "code": 200, "data": { "ok": true } }` — 服务端无黑名单；前端清除 token。
+
+### 0.4 角色
+
+| role | 说明 |
+|------|------|
+| `quote_engineer` | 默认；RFQ 全流程；知识库 **只读**（search / stats / baselines） |
+| `kb_admin` | 含工程师能力 + 知识库 **写**（import / reindex / engagements/upload） |
+
+### 0.5 授权规则摘要
+
+| 场景 | HTTP |
+|------|------|
+| 未登录访问业务 API | **401** `{ "code": 401, "msg": "未登录" }` |
+| 工程师访问他人 `task_id` | **404**（防 ID 枚举） |
+| 工程师调用 KB 写 API | **403** `{ "code": 403, "msg": "需要资料库管理员权限" }` |
+| `GET /rfq/tasks` | 仅返回 `owner_id = 当前用户` 的任务 |
 
 ---
 
@@ -25,7 +105,7 @@
 ```json
 {
   "code": 400,
-  "msg": "仅支持 .docx 格式文件"
+  "msg": "仅支持 Word RFQ 文件（.docx 或 .doc）"
 }
 ```
 
@@ -45,6 +125,8 @@
 |----|------|
 | 200 | 成功 |
 | 400 | 业务错误（格式不对等） |
+| 401 | 未登录或 token 无效 |
+| 403 | 已登录但权限不足 |
 | 404 | 资源不存在 |
 | 422 | 参数校验失败 |
 | 500 | 服务器内部错误（不暴露 StackTrace） |
@@ -121,7 +203,7 @@ Content-Type: multipart/form-data
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| file | File | 是 | .docx 文件，最大 50MB |
+| file | File | 是 | Word RFQ：**`.docx` 或 `.doc`**，最大 50MB |
 
 **响应：**
 
@@ -733,10 +815,10 @@ RFQ 解析超过 30s 时返回 `task_id`，客户端轮询 `/status`。
 
 - 上传接口将任务写入 **PostgreSQL 任务表**（queued），立即返回 `task_id`
 - **独立 worker** 进程认领（`SKIP LOCKED`）并执行 parsing → retrieving → generating
-- worker 内 **Ollama 并发闸**（`OLLAMA_MAX_CONCURRENT`，默认 1，TBD 1–2）
-- 容器重启后 queued/running 任务可恢复；**不用** FastAPI `BackgroundTasks`
+- worker 内 **Ollama 并发闸**（`OLLAMA_MAX_CONCURRENT`，默认 **1** · 问卷 O-06 已关闭）
+- 容器重启后 queued/running 任务可恢复
 
-**Demo 现状：** 进程内 `BackgroundTasks`（迁移前）。
+> **工程状态：** RFQ 上传路径已迁入 PG 队列 + worker；SQLite/测试环境可用 `TASK_WORKER_INLINE` 同步执行。
 
 ```
 GET /api/v1/rfq/tasks/{task_id}/status
@@ -800,7 +882,7 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 
 | 操作 | 路径来源 | 说明 |
 |------|----------|------|
-| RFQ 上传 | `UPLOAD_PATH` | 写入 `{task_id}_*.docx` |
+| RFQ 上传 | `UPLOAD_PATH` | 写入 `{task_id}_*.{docx,doc}` |
 | Excel / QA 下载 | `OUTPUT_PATH` | `GET .../download/{type}` 读生成文件 |
 | 知识库 ingest | `KNOWLEDGE_BASE_PATH` | 扫描项目子目录；`metadata.source_doc` 为相对路径 |
 | RAG 检索 | PostgreSQL **pgvector** | 与业务表同库；`CREATE EXTENSION vector`；备份见 `pg_dump` |
@@ -815,4 +897,4 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 
 ---
 
-**关联文档：** [test-plan.md](test-plan.md) | [prod.md](../../prod.md) v1.5 | [delivery-traceability.md](delivery-traceability.md) | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)
+**关联文档：** [test-plan.md](test-plan.md) v1.2 | [prod.md](../../prod.md) v1.7 | [delivery-traceability.md](delivery-traceability.md) v1.1 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)

@@ -3,9 +3,11 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from openpyxl import Workbook
 
 from app.config import Settings
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
+from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only
 from app.services.knowledge_index_service import flatten_engagement_chunks
 
 
@@ -62,6 +64,7 @@ def test_prepare_engagement_builds_rfqa_chunks(engagement_folder, tmp_path):
     doc_types = {(c["metadata"] or {}).get("doc_type") for c in chunks}
     assert "rfq" in doc_types
     assert "qa" in doc_types
+    assert_vector_chunks_rfqa_only(chunks)
     assert all(c["metadata"]["engagement_id"] == "test_engagement" for c in chunks)
     assert baseline is None
 
@@ -100,3 +103,44 @@ def test_import_all_mock_embed(engagement_folder, tmp_path, monkeypatch):
     assert result["new_chunks"] >= 1
     assert result["doc_type_counts"]["rfq"] >= 1
     assert result["doc_type_counts"]["qa"] >= 1
+
+
+def _write_min_quote(path: Path) -> None:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "PM"
+    ws.cell(row=5, column=1, value="Project Manager")
+    ws.cell(row=3, column=3, value=10)
+    ws.cell(row=72, column=1, value="PM Travel Expense (Please fill with Money）")
+    wb.save(path)
+    wb.close()
+
+
+def test_prepare_engagement_extracts_baselines_not_vectors(engagement_folder, tmp_path):
+    kb = tmp_path / "kb"
+    kb.mkdir()
+    target = kb / engagement_folder.name
+    target.mkdir()
+    for item in engagement_folder.iterdir():
+        target.joinpath(item.name).write_bytes(item.read_bytes())
+    quote_path = target / "quote_manpower.xlsx"
+    _write_min_quote(quote_path)
+    manifest_path = target / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["documents"].append({"path": "quote_manpower.xlsx", "doc_type": "quote_manpower"})
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    baselines_path = tmp_path / "baselines.json"
+    service = EngagementIngestService(
+        Settings(
+            knowledge_base_path=str(kb),
+            mock_rag=False,
+            manpower_baselines_path=str(baselines_path),
+        )
+    )
+    _manifest, chunks, baseline = service.prepare_engagement(target)
+    assert_vector_chunks_rfqa_only(chunks)
+    assert baseline is not None
+    assert "PM" in baseline["functions"]
+    pm_positions = baseline["functions"]["PM"]["positions"]
+    assert all("expense" not in p["position"].casefold() for p in pm_positions)

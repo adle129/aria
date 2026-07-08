@@ -14,6 +14,7 @@ os.environ["MOCK_RAG"] = "true"
 os.environ["ARIA_UI_PROFILE"] = "experience"
 os.environ["KB_DEBUG_ENABLED"] = "false"
 os.environ["OLLAMA_MODEL"] = "qwen2.5:14b"
+os.environ["AUTH_ENABLED"] = "false"
 os.environ["EMBEDDING_MODEL"] = "nomic-embed-text"
 
 from sqlalchemy import create_engine  # noqa: E402
@@ -58,11 +59,13 @@ def client(upload_dir, monkeypatch):
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
+    from app.models.user import User
 
     Base.metadata.create_all(
         bind=engine,
         tables=[
             Project.__table__,
+            User.__table__,
             RFQTask.__table__,
             TaskJob.__table__,
             Engagement.__table__,

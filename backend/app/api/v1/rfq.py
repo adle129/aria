@@ -2,13 +2,20 @@ from fastapi import APIRouter, Depends, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import resolve_owner_id
 from app.database import get_db
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.schemas.rfq import RFQTaskUpdateRequest
+from app.config import get_settings
 from app.services import generators  # noqa: F401 — register GeneratorRegistry
 from app.services.artifact_service import ArtifactService
+from app.services.dimension_baseline_service import (
+    DimensionBaselineNotFoundError,
+    DimensionBaselineService,
+)
 from app.services.quote_service import QuoteService
 from app.services.rfq_analysis_service import RFQAnalysisService
+from app.services.rfq_upload import RFQ_UPLOAD_REJECT_MSG, is_allowed_rfq_filename
 
 router = APIRouter(prefix="/rfq", tags=["rfq"])
 analysis_service = RFQAnalysisService()
@@ -16,15 +23,31 @@ quote_service = QuoteService()
 artifact_service = ArtifactService()
 
 
+@router.get("/dimension-baseline")
+def get_dimension_baseline():
+    settings = get_settings()
+    try:
+        data = DimensionBaselineService(settings).to_api_payload()
+    except DimensionBaselineNotFoundError:
+        return JSONResponse(
+            status_code=404,
+            content={"code": 404, "msg": "基准维度库不存在"},
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=500, content={"code": 500, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
 @router.post("/upload")
 async def upload_rfq(
     file: UploadFile,
     db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
 ):
-    if not file.filename or not file.filename.lower().endswith(".docx"):
+    if not file.filename or not is_allowed_rfq_filename(file.filename):
         return JSONResponse(
             status_code=400,
-            content={"code": 400, "msg": "仅支持 .docx 格式文件"},
+            content={"code": 400, "msg": RFQ_UPLOAD_REJECT_MSG},
         )
 
     content = await file.read()
@@ -33,7 +56,7 @@ async def upload_rfq(
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
 
-    task = analysis_service.create_task(db, file.filename, stored_path)
+    task = analysis_service.create_task(db, file.filename, stored_path, owner_id=owner_id)
     analysis_service.enqueue_analysis(db, task)
 
     return {
@@ -48,8 +71,13 @@ async def upload_rfq(
 
 
 @router.get("/tasks")
-def list_tasks(limit: int = 20, unique_file: bool = True, db: Session = Depends(get_db)):
-    tasks = RFQTaskRepository(db).list_recent(limit, unique_file_name=unique_file)
+def list_tasks(
+    limit: int = 20,
+    unique_file: bool = True,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    tasks = RFQTaskRepository(db).list_recent(limit, unique_file_name=unique_file, owner_id=owner_id)
     return {
         "code": 200,
         "data": [
@@ -66,16 +94,24 @@ def list_tasks(limit: int = 20, unique_file: bool = True, db: Session = Depends(
 
 
 @router.get("/tasks/{task_id}")
-def get_task(task_id: str, db: Session = Depends(get_db)):
-    task = RFQTaskRepository(db).get_by_id(task_id)
+def get_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    task = RFQTaskRepository(db).get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     return {"code": 200, "data": analysis_service.get_task_payload(task)}
 
 
 @router.get("/tasks/{task_id}/status")
-def get_task_status(task_id: str, db: Session = Depends(get_db)):
-    task = RFQTaskRepository(db).get_by_id(task_id)
+def get_task_status(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    task = RFQTaskRepository(db).get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     return analysis_service.get_status_payload(task, db)
@@ -86,9 +122,10 @@ def update_task(
     task_id: str,
     body: RFQTaskUpdateRequest,
     db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
 ):
     repo = RFQTaskRepository(db)
-    task = repo.get_by_id(task_id)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
 
@@ -103,9 +140,13 @@ def update_task(
 
 
 @router.post("/tasks/{task_id}/generate-excel")
-def generate_excel(task_id: str, db: Session = Depends(get_db)):
+def generate_excel(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
     repo = RFQTaskRepository(db)
-    task = repo.get_by_id(task_id)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     try:
@@ -118,9 +159,13 @@ def generate_excel(task_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/tasks/{task_id}/generate-proposal")
-def generate_proposal(task_id: str, db: Session = Depends(get_db)):
+def generate_proposal(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
     repo = RFQTaskRepository(db)
-    task = repo.get_by_id(task_id)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     try:
@@ -132,9 +177,13 @@ def generate_proposal(task_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/tasks/{task_id}/generate-qa")
-def generate_qa(task_id: str, db: Session = Depends(get_db)):
+def generate_qa(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
     repo = RFQTaskRepository(db)
-    task = repo.get_by_id(task_id)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     try:
@@ -146,9 +195,13 @@ def generate_qa(task_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/tasks/{task_id}/download/qa")
-def download_qa(task_id: str, db: Session = Depends(get_db)):
+def download_qa(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
     repo = RFQTaskRepository(db)
-    task = repo.get_by_id(task_id)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     if task.processing_status != "completed":
@@ -166,8 +219,12 @@ def download_qa(task_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/tasks/{task_id}/manpower-breakdown-preview")
-def manpower_breakdown_preview(task_id: str, db: Session = Depends(get_db)):
-    task = RFQTaskRepository(db).get_by_id(task_id)
+def manpower_breakdown_preview(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    task = RFQTaskRepository(db).get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     return {
@@ -180,9 +237,13 @@ def manpower_breakdown_preview(task_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/tasks/{task_id}/download/excel")
-def download_excel(task_id: str, db: Session = Depends(get_db)):
+def download_excel(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
     repo = RFQTaskRepository(db)
-    task = repo.get_by_id(task_id)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     try:

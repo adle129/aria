@@ -16,17 +16,32 @@ class RFQTaskRepository:
     def get_by_id(self, task_id: str) -> RFQTask | None:
         return self.db.get(RFQTask, task_id)
 
+    def get_by_id_for_owner(self, task_id: str, owner_id: str | None) -> RFQTask | None:
+        task = self.get_by_id(task_id)
+        if not task:
+            return None
+        if owner_id is not None and task.owner_id != owner_id:
+            return None
+        return task
+
     def update(self, task: RFQTask) -> RFQTask:
         self.db.add(task)
         self.db.commit()
         self.db.refresh(task)
         return task
 
-    def list_recent(self, limit: int = 20, unique_file_name: bool = True) -> list[RFQTask]:
+    def list_recent(
+        self,
+        limit: int = 20,
+        unique_file_name: bool = True,
+        owner_id: str | None = None,
+    ) -> list[RFQTask]:
         fetch_limit = limit * 5 if unique_file_name else limit
+        query = self.db.query(RFQTask)
+        if owner_id is not None:
+            query = query.filter(RFQTask.owner_id == owner_id)
         tasks = (
-            self.db.query(RFQTask)
-            .order_by(RFQTask.created_at.desc())
+            query.order_by(RFQTask.created_at.desc())
             .limit(max(1, min(fetch_limit, 100)))
             .all()
         )

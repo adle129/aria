@@ -116,6 +116,20 @@ class PgVectorStore:
                 select(func.count()).select_from(KnowledgeChunk).where(KnowledgeChunk.namespace == ns)
             ) or 0
 
+    def list_source_docs(self, namespace: str | None = None) -> set[str]:
+        self._require_pg()
+        ns = namespace or self.namespace
+        sql = text(
+            """
+            SELECT DISTINCT metadata->>'source_doc' AS source_doc
+            FROM knowledge_chunks
+            WHERE namespace = :ns AND metadata->>'source_doc' IS NOT NULL
+            """
+        )
+        with Session(engine) as session:
+            rows = session.execute(sql, {"ns": ns}).scalars().all()
+        return {str(row) for row in rows if row}
+
     def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
         self._require_pg()
         with Session(engine) as session:

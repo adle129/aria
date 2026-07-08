@@ -81,7 +81,7 @@ def test_knowledge_search_doc_type_filter(client):
 
 
 def test_knowledge_mock_real_schema_parity(monkeypatch):
-    """Mock mode and Real (empty Chroma) return the same RAGHit field set."""
+    """Mock mode and Real (empty pgvector) return the same RAGHit field set."""
     mock_rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
     real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
 

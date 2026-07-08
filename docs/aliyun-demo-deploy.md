@@ -190,7 +190,7 @@ curl -s http://127.0.0.1:${ARIA_DEMO_HTTP_PORT:-8888}/api/v1/health | python3 -m
 | 打开仍是 8D / 其他站点 | 80/8080 常被占用；设 `ARIA_DEMO_HTTP_PORT=8888` 并放行安全组 |
 | 健康检查超时 | `docker compose -f docker-compose.aliyun-demo.yml logs` |
 | 502 / 空白页 | 首次构建约 3–8 分钟，等 frontend `next build` 完成 |
-| 上传 RFQ 失败 | 仅支持 `.docx`；Nginx `client_max_body_size 50M` |
+| 上传 RFQ 失败 | 仅支持 **`.docx` / `.doc`**；Nginx `client_max_body_size 50M` |
 | 内存不足 OOM | 确认 `INSTALL_AI=false`（`docker-compose.aliyun-demo.yml` 已配置） |
 
 ### 界面仍是旧版（仍显示 samples/rfq/ 路径）

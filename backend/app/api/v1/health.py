@@ -28,4 +28,5 @@ def health_check() -> HealthResponse:
         ollama_error=probe["ollama_error"],
         kb_debug_enabled=settings.kb_debug_enabled,
         aria_ui_profile=settings.aria_ui_profile,
+        auth_enabled=settings.auth_enabled,
     )

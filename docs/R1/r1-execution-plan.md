@@ -1,7 +1,7 @@
 # R1 正式实施 — 统一执行计划（Spike 后）
 
-**版本：** v1.0 · 2026-07-06  
-**状态：** **计划已定 · 尚未开工生产代码**  
+**版本：** v1.1 · 2026-07-07  
+**状态：** **计划已定 · Auth MVP 已纳入 Wave 1–2**  
 **用途：** 唯一 **执行顺序** 清单；[dev-tasks.md](dev-tasks.md) 为完整 ID 索引；[spike-follow-up-tasks.md](spike-follow-up-tasks.md) 为 Spike 结论摘要。
 
 > **原则：** 按 **Wave** 顺序执行；同 Wave 内 `#` 可并行；**未写代码前请先对本计划签字/确认**。
@@ -23,12 +23,12 @@
 
 ```mermaid
 flowchart TB
-  W1[Wave1 底座 I01-I09]
-  W2[Wave2 知识库 K01-K09]
+  W1[Wave1 底座 I01-I09 AUTH01-03]
+  W2[Wave2 知识库 K01-K09 AUTH04-07]
   W3[Wave3 解析 F04]
   W4[Wave4 基准+匹配 F01-F05]
   W5[Wave5 状态机+UI F06-U04]
-  W6[Wave6 联调验收 F08-A06]
+  W6[Wave6 联调验收 F08-A验收]
   W1 --> W3
   W1 --> W2
   W2 --> W6
@@ -39,12 +39,12 @@ flowchart TB
 
 | Wave | 主题 | 核心 ID | 预估 |
 |------|------|---------|------|
-| **1** | 任务队列 + pgvector 生产底座 | R1-I01–I09 | Week 1–2 |
-| **2** | 知识库 ingest + vector 检索 | R1-K01–K09, SPK-K* | Week 2–4 |
+| **1** | 任务队列 + pgvector + **Auth 底座** | R1-I01–I09, **R1-AUTH01–03** | Week 1–2 |
+| **2** | 知识库 ingest + **Auth 前端/RBAC** | R1-K01–K09, **R1-AUTH04–07** | Week 2–4 |
 | **3** | RFQ 解析 rules_first 生产化 | R1-F04, SPK-F01–F07 | Week 4–5 |
 | **4** | 维度基准 seed + 匹配 | R1-F01,F03,F05, SPK-F08 | Week 4–5（与 3 末并行） |
 | **5** | dimension_review + 前端 | R1-F06–F07, R1-U01–U03 | Week 5–6 |
-| **6** | confirm + RAG 矩阵 + 验收 | R1-F08–F10, R1-U04–U06, R1-A* | Week 6–8 |
+| **6** | confirm + RAG 矩阵 + 验收 | R1-F08–F10, R1-U04–U06, **R1-AUTH01–AUTH07** | Week 6–8 |
 
 ---
 
@@ -61,6 +61,9 @@ flowchart TB
 | 1.7 | **R1-I04** | Ollama 并发闸 + `queue_position` / ETA | api-design §3 | 1.2 | 待开始 |
 | 1.8 | **R1-I03** | RFQ 流水线迁入 worker | 移除 BackgroundTasks；**SPK-F03** | 1.2, 1.7 | 待开始 |
 | 1.9 | **R1-I09** | I 层 unit + API 测试 | 队列降级、空库拒答 | 1.1–1.8 | 待开始 |
+| 1.10 | **R1-AUTH01** | `users` 表 + User model | Alembic 003 | — | 待开始 |
+| 1.11 | **R1-AUTH02** | Auth API login/me | JWT 401/403 | 1.10 | 待开始 |
+| 1.12 | **R1-AUTH03** | `owner_id` + RFQ repo 过滤 | 404 非 owner | 1.10, 1.1 | 待开始 |
 
 **Gate：** 1.8 完成前，生产环境禁止同步等待 >30s 的 RFQ 解析 HTTP。
 
@@ -81,6 +84,10 @@ flowchart TB
 | 2.9 | **R1-K08** + **K08b** | `/knowledge` 验收台 + baselines Tab | Profile=r1 | 2.5–2.7 | 待开始 |
 | 2.10 | **R1-K09** + **SPK-K04** | 评测 ≥15 条；内部 **12/15** 已达成 | 客户 O-03 签字 | 2.6 | **进行中** |
 | 2.11 | **SPK-K06** | 3 条 vector FAIL 根因文档（P1） | 不强制 hybrid | 2.10 | 待开始 |
+| 2.12 | **R1-AUTH04** | KB 写 API kb_admin 守卫 | 403 engineer | 1.11, 2.2 | 待开始 |
+| 2.13 | **R1-AUTH05** | 前端 Login + AuthContext | Bearer token | 1.11 | 待开始 |
+| 2.14 | **R1-AUTH06** | 排队 UI + 角色化 KB 按钮 | ETA 可见 | 2.13, 1.7 | 待开始 |
+| 2.15 | **R1-AUTH07** | create_admin + auth 测试 | AUTH-01～07 | 2.12–2.14 | 待开始 |
 
 **并行（工程准备）：** R1-E02、R1-E03、R1-E05 可在 Wave 1–2 穿插。
 
@@ -98,10 +105,11 @@ flowchart TB
 | 3.4 | **SPK-F02** / F04-04 | LLM 兜底（overview/milestones/scope 条件触发） | `normalize_llm_json` | 3.3 | 待开始 |
 | 3.5 | **SPK-F07** / F04-05 | 解析测试门禁 | unit + API；客户模板 fixture | 3.4 | 待开始 |
 | 3.6 | **R1-F04-06** | 接入 worker 任务（`parsing` 阶段） | 经 **R1-I03** 调用 3.1–3.4 | 1.8, 3.5 | 待开始 |
-| 3.7 | **SPK-F05** | 里程碑 P1/P4/SOP 规则补全（P1） | 可选；不阻塞 3.6 | 3.3 | 待开始 |
-| 3.8 | **SPK-F06** | §4.2 交付物表规则（P1） | 7 表 deliverables | 3.3 | 待开始 |
+| 3.7 | **R1-F04-07** | **上传支持 `.doc`**（F1.1） | API/UI + LibreOffice；prod §3.1.1a | 3.1 | 待开始 |
+| 3.8 | **SPK-F05** | 里程碑 P1/P4/SOP 规则补全（P1） | 可选；不阻塞 3.6 | 3.3 | 待开始 |
+| 3.9 | **SPK-F06** | §4.2 交付物表规则（P1） | 7 表 deliverables | 3.3 | 待开始 |
 
-**汇总映射：** R1-F04 = 3.1–3.6（3.7–3.8 为 P1 增强）。
+**汇总映射：** R1-F04 = 3.1–3.7（3.8–3.9 为 P1 增强）。
 
 ---
 
@@ -148,7 +156,7 @@ flowchart TB
 | 6.4 | **R1-K08c** | Top-3 ↔ baselines 联动 | 矩阵页入口 | 6.2, 2.5 | 待开始 |
 | 6.5 | **R1-F10** | RFQ 全链路测试 | unit + API + regression | 6.1–6.3 | 待开始 |
 | 6.6 | **R1-U06** | 3 RFQ 样本 E2E 联调 | 无 Mock 欺骗 | 6.5, 2.8 | 待开始 |
-| 6.7 | **R1-A01–A07** | 彩排 + 客户验收 | O-01～O-05 | 6.6 | 待开始 |
+| 6.7 | **R1-AUTH01–AUTH07** | 彩排 + 客户验收签字 | O-01～O-05 | 6.6, **2.15** | 待开始 |
 
 ---
 
@@ -171,6 +179,7 @@ flowchart TB
 |-------|------|------|
 | **R1-F04-01** | `RFQParseService` 骨架 | R1-F04 |
 | **R1-F04-06** | worker 接入 | R1-F04 + R1-I03 |
+| **R1-F04-07** | 上传 `.doc` 支持 | R1-F04 + F1.1 |
 | **R1-F01-01** | seed JSON 文件 | R1-F01 |
 | **R1-F01-02** | Baseline Loader Service | R1-F01 |
 | **R1-F05-01** | `rfq_baseline_match.txt` | R1-F05 |
@@ -184,10 +193,11 @@ flowchart TB
 若只开 **一条线**，按此顺序 **写代码**：
 
 1. **R1-I01 → I02 → I03**（worker，否则后面无法生产化）
-2. **R1-F04-01 → F04-03 → F04-05**（解析 Service + 测试，可先不挂 worker 本地验）
-3. **R1-F01-01 → F01-02 → F03**（seed + API，可与 2 并行）
-4. **R1-F05-01 → F05-02 → F05-04**（匹配，依赖 2 产出 rfq_modules + 3 seed）
-5. **R1-K02 + SPK-K01**（与 1–4 中后段并行，F08 前必须完成）
+2. **R1-AUTH01 → AUTH02 → AUTH03**（与 1 并行；Wave 1 末完成 owner 隔离）
+3. **R1-F04-01 → F04-03 → F04-05**（解析 Service + 测试，可先不挂 worker 本地验）
+4. **R1-F01-01 → F01-02 → F03**（seed + API，可与 3 并行）
+5. **R1-F05-01 → F05-02 → F05-04**（匹配，依赖 3 产出 rfq_modules + 4 seed）
+6. **R1-K02 + SPK-K01**（与 1–5 中后段并行，F08 前必须完成）
 
 ---
 

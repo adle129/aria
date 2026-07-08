@@ -1,7 +1,7 @@
 # ARIA — 测试方案
 
-**版本：** v1.1 · 2026-07-02  
-**基线：** [prod.md](../../prod.md) v1.5 · [delivery-traceability.md](delivery-traceability.md)
+**版本：** v1.2 · 2026-07-07  
+**基线：** [prod.md](../../prod.md) v1.7 · [delivery-traceability.md](delivery-traceability.md) v1.1
 
 ---
 
@@ -47,6 +47,9 @@ aria/
 
 | 模块 | 测试文件 | 重点场景 |
 |------|---------|---------|
+| Auth | `test_auth_service.py` | 密码 hash/verify、role 校验、token 生成 |
+| RFQ Repository | `test_rfq_task_repository.py` | owner 过滤、404 非 owner |
+|------|---------|---------|
 | RFQ 解析 | test_rfq_parser.py | 正常 docx、空文档、文件不存在、非法 JSON 降级 |
 | RAG 服务 | test_rag_service.py | 检索排序、空库、Top-K 限制、comparison 从 hits 派生 |
 | RAG 契约 | test_rag_service.py, test_knowledge_api.py | Mock/Real 同一 RAGHit schema；`similarity_score` 字段名 |
@@ -83,13 +86,15 @@ def test_generate_quote_empty_modules():
 
 | 接口 | 正常场景 | 异常场景 |
 |------|---------|---------|
-| GET /health | 200 + status ok | — |
-| POST /rfq/upload | docx 上传成功 | 非 docx 400、无文件 422 |
-| GET /rfq/tasks/{id} | 存在任务 200 | 不存在 404 |
+| POST /auth/login | 正确账号 200 | 错误密码 401 |
+| GET /auth/me | 已登录 200 | 未登录/过期 401 |
+| GET /rfq/tasks | 仅返回本人任务 | 未登录 401 |
+| GET /rfq/tasks/{id} | 存在且 owner 匹配 200 | 非 owner 404、未登录 401 |
+| POST /rfq/upload | docx/doc 上传成功 | 非 Word RFQ 400、无文件 422 |
 | POST /generate-excel | 正常生成 | task 不存在 404 |
 | POST /knowledge/search | 有结果、RAGHit schema | 空 query 422 |
 | GET /knowledge/stats | 返回统计（含 function_coverage P0） | — |
-| POST /knowledge/import | 触发导入 200 | — |
+| POST /knowledge/import | kb_admin 200 | 工程师 403、未登录 401 |
 
 **RAG Mock/Real parity：** 已实现（`API_tests/test_knowledge_api.py`）。
 
@@ -144,11 +149,13 @@ def test_generate_quote_empty_modules():
 
 | # | 场景 | 步骤 | 期望 |
 |---|------|------|------|
-| IT-01 | RFQ 端到端 | 上传 docx → 等待 → 查看对比表 | 有 modules + similar_projects |
+| IT-01 | RFQ 端到端 | 上传 docx 或 doc → 等待 → 查看对比表 | 有 modules + similar_projects |
 | IT-02 | Excel 生成 | 确认 → 生成 → 下载 | xlsx 可打开，PM+Chassis 有数据 |
 | IT-03 | 知识库导入 | ingest → stats | 文档数 > 0 |
 | IT-04 | 导出确认 | 未确认时导出 | 提示需确认 |
 | IT-05 | docker 启动 | compose up | 全部 running |
+| IT-06 | 登录 | 未登录访问 /rfq/tasks | 跳转登录页 |
+| IT-07 | 任务隔离 | 工程师 A 查看工程师 B 的 task | 404 / 列表不可见 |
 
 ---
 

@@ -27,7 +27,7 @@
 
 > **报价 Excel：** Debug 预览已实现解析；**正式 persist** 待 R1-K04（`manpower_baselines.json`）。空模板可验结构；**知识库查询价值**须客户脱敏 **填好数** 的历史报价（O-02）。
 
-> R1 上传接口仍优先 **.docx**；`.doc` 仅验证期 / IT 转换前用 COM 读取。
+> R1 上传接口支持 **`.docx` + `.doc`**（见 prod §3.1.1a）。`.doc` 在 Docker 经 LibreOffice 转 docx；Windows 验证期可用 Word COM。
 
 ---
 

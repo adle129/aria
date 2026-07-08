@@ -81,7 +81,7 @@ Word/COM 读入 → chunker（136 pieces）
 |------|------|
 | milestones 缺 P1/P4/SOP | 扩展表行正则；或 1 次 milestones LLM fallback |
 | deliverable_tables=1（§4.2 多表未全解析） | 加强 Word 表行解析；M3 前非阻塞 |
-| `.doc` 依赖 Word COM | R1 上传仍优先 `.docx`；`.doc` 验证期/IT 转换前 |
+| `.doc` 依赖 Word COM / LibreOffice | R1 上传 **须支持 `.doc`**（prod §3.1.1a）；生产 Docker 用 LibreOffice；见 **R1-F04-07** |
 | customer 为占位「XX…有限公司」 | 正式 RFQ 有真实客户名；规则仍提取 |
 
 ---

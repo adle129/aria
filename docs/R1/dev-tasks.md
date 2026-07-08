@@ -1,6 +1,6 @@
 # R1 开发任务清单
 
-**版本：** v1.5 · 2026-07-06  
+**版本：** v1.6 · 2026-07-07  
 **索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
@@ -35,6 +35,22 @@
 | R1-I07 | P0-1 | 替换 `chroma_store.py` → pgvector 检索层 | 单测 Mock；生产无 Chroma 依赖 | R1-I06 | | 待开始 |
 | R1-I08 | P0-1 | `insufficient_evidence` 拒答门控 | 禁止 Mock 项目兜底 | rag-design §3.1 | | 待开始 |
 | R1-I09 | P0-1 | unit + API 测试（队列降级、空库拒答） | `run_tests.ps1` 全绿 | R1-I01–I08 | | 待开始 |
+
+---
+
+## R1-AUTH 认证与权限（P0-1 · Week 1–2 · 与 R1-I 并行）
+
+> 来源：客户问卷 SURVEY-05/06（2026-07-07）· [api-design.md §0](../supplementary/api-design.md) · prod NF18–NF22
+
+| ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 负责人 | 状态 |
+|----|--------|------|------------|------|--------|------|
+| R1-AUTH01 | P0-1 | `users` 表 + Alembic + User model | username unique；role enum | — | | 待开始 |
+| R1-AUTH02 | P0-1 | AuthService + `POST/GET /auth/login|me` | JWT；401/403 契约 | R1-AUTH01 | | 待开始 |
+| R1-AUTH03 | P0-1 | `rfq_tasks.owner_id` 迁移 + repo 过滤 | 404 非 owner；list 按 owner | R1-AUTH01, R1-I01 | | 待开始 |
+| R1-AUTH04 | P0-2 | KB 写 API `require_role(kb_admin)` | import/reindex/upload → 403 | R1-AUTH02, R1-K02 | | 待开始 |
+| R1-AUTH05 | P0-2 | 前端 `/login` + AuthContext + axios Bearer | 401 → 跳转登录 | R1-AUTH02 | | 待开始 |
+| R1-AUTH06 | P0-2 | 排队 UI + kb_admin 知识库写按钮 | queue_position/ETA 可见 | R1-AUTH05, R1-I04 | | 待开始 |
+| R1-AUTH07 | P0-2 | `create_admin.py` + auth unit/API 测试 | AUTH-01～07；`run_tests.ps1` 全绿 | R1-AUTH01–06 | | 待开始 |
 
 ---
 
@@ -74,6 +90,7 @@
 | R1-F04 | P0-3 | **RFQ 解析 `rules_first` 生产化** | F1.2–F1.3 | 子任务 **F04-01** 骨架 → SPK-F01–F07 → **F04-06** worker | R1-I03, **SPK-F01–F07** | | 待开始 |
 | R1-F04-01 | P0-3 | `RFQParseService` 骨架 | F1.2 | `parse_rules_first()` 入口 | — | | 待开始 |
 | R1-F04-06 | P0-3 | 解析接入 worker `parsing` | F1.2 | 经 R1-I03 调度 | R1-I03, F04-01 | | 待开始 |
+| R1-F04-07 | P0-3 | **RFQ 上传支持 `.doc`** | **F1.1** | API/UI 接受 `.docx`+`.doc`；`rfq_document_loader`；Docker LibreOffice；unit+API 测试 | R1-F04-01 | | 待开始 |
 | R1-F05 | P0-3 | 维度匹配 Service + Prompt | F1.10b | **F05-01**–**F05-04**；**SPK-F08** | R1-F01, R1-F04 | | 待开始 |
 | R1-F05-01 | P0-3 | `prompts/v1/rfq_baseline_match.txt` | F1.10b | batch LLM schema | R1-F01-01 | | 待开始 |
 | R1-F05-02 | P0-3 | `DimensionMatchService` 骨架 | F1.10b | keywords + module batch | R1-F01-02, F05-01 | | 待开始 |
@@ -194,6 +211,7 @@
 - **报价 Excel 逐行/单元格 pgvector 主路径索引**
 - Hybrid / Rerank（R1 主路径）
 - 运营级 upload 门户（拖拽整目录、断点续传）
+- SSO / AD、部门级 ACL、任务委派（R1 已含 **基础两角色 + 任务隔离**）
 - Web QA 表格在线编辑（Q3 → M4）
 - 财务助手 · OA 对接
 - **F5.6 引用反馈 L1/L2 作为客户交付物**（见 **R1-OPS** · 内部可选）

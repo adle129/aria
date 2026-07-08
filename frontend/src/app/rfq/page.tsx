@@ -34,6 +34,8 @@ interface TaskStatusPayload {
   status: string;
   progress: number;
   message: string;
+  queue_position?: number | null;
+  estimated_wait_seconds?: number | null;
 }
 
 const POLL_INTERVAL_MS = 500;
@@ -60,6 +62,20 @@ function buildKnowledgeVerifyQuery(task: TaskData): string {
   return parts.join(" ").trim() || "MEB 底盘";
 }
 
+function resolveEngagementId(
+  row: Record<string, unknown>,
+  similarProjects?: Array<Record<string, unknown>>,
+): string | null {
+  if (row.engagement_id) return String(row.engagement_id);
+  const rowName = String(row.project_name || "");
+  const hit = (similarProjects || []).find((s) => {
+    const meta = s.metadata as Record<string, unknown> | undefined;
+    return String(meta?.project_name || s.project_name || "") === rowName;
+  });
+  const meta = hit?.metadata as Record<string, unknown> | undefined;
+  return meta?.engagement_id ? String(meta.engagement_id) : null;
+}
+
 export default function RfqPage() {
   const { syncFromPayload, refreshRecentTasks, recentTasks, loadTask: loadTaskFromContext } =
     useTaskContext();
@@ -70,6 +86,8 @@ export default function RfqPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisMessage, setAnalysisMessage] = useState("");
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [estimatedWaitSeconds, setEstimatedWaitSeconds] = useState<number | null>(null);
   const [useRealLlm, setUseRealLlm] = useState<boolean | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [demoSamples, setDemoSamples] = useState<
@@ -112,10 +130,14 @@ export default function RfqPage() {
   const pollTask = useCallback(async (taskId: string) => {
     setAnalysisProgress(0);
     setAnalysisMessage("等待处理...");
+    setQueuePosition(null);
+    setEstimatedWaitSeconds(null);
     for (let i = 0; i < POLL_MAX_ITERATIONS; i++) {
       const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${taskId}/status`);
       const status = statusResp.data;
       setAnalysisProgress(status.progress ?? 0);
+      setQueuePosition(status.queue_position ?? null);
+      setEstimatedWaitSeconds(status.estimated_wait_seconds ?? null);
       setAnalysisMessage(
         status.message || STAGE_LABELS[status.status] || "正在分析...",
       );
@@ -265,7 +287,9 @@ export default function RfqPage() {
   const specialReqs = (task?.rfq_modules?.special_requirements as string[]) || [];
   const projects = (task?.comparison_table?.projects as Array<Record<string, unknown>>) || [];
   const projectNames = projects.map((p) => String(p.project_name || "历史项目"));
-  const allDeliverables = modules.flatMap((m) => (m.deliverables as string[]) || []);
+  const allDeliverables = [
+    ...new Set(modules.flatMap((m) => (m.deliverables as string[]) || [])),
+  ];
   const confidence = (task?.comparison_table as { overall_confidence?: string })?.overall_confidence;
   const isLowConfidence = confidence === "低";
   const functionCoverage = (
@@ -279,7 +303,7 @@ export default function RfqPage() {
     <div>
       <Title level={3}>RFQ 分析</Title>
       <Paragraph type="secondary">
-        报价助手 · 上传客户 RFQ 文档（.docx），解析工程领域（Function）模块、里程碑与交付物，并生成技术维度对比矩阵。
+        报价助手 · 上传客户 RFQ 文档（**.docx / .doc**），解析工程领域（Function）模块、里程碑与交付物，并生成技术维度对比矩阵。
       </Paragraph>
 
       <DemoModuleCapability module="rfq" />
@@ -320,7 +344,15 @@ export default function RfqPage() {
             <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
               {analysisMessage || "正在分析 RFQ..."}
             </Text>
-            {useRealLlm && analysisProgress > 0 && analysisProgress < 50 && (
+            {queuePosition != null && queuePosition > 0 && (
+              <Text type="warning" style={{ display: "block", marginTop: 4, fontSize: 12 }}>
+                排队中：第 {queuePosition} 位
+                {estimatedWaitSeconds != null && estimatedWaitSeconds > 0
+                  ? ` · 预计等待约 ${Math.ceil(estimatedWaitSeconds / 60)} 分钟`
+                  : null}
+              </Text>
+            )}
+            {useRealLlm && analysisProgress > 0 && analysisProgress < 50 && !queuePosition && (
               <Text type="secondary" style={{ fontSize: 12 }}>
                 真实 LLM 模式下解析阶段可能需 1–2 分钟，请耐心等待
               </Text>
@@ -330,7 +362,7 @@ export default function RfqPage() {
         <Spin spinning={uploading} tip={analysisMessage || "正在分析 RFQ..."}>
           <Dragger
             multiple={false}
-            accept=".docx"
+            accept=".docx,.doc"
             showUploadList={false}
             disabled={uploading}
             beforeUpload={(file) => {
@@ -341,7 +373,7 @@ export default function RfqPage() {
             <p className="ant-upload-drag-icon">
               <InboxOutlined />
             </p>
-            <p className="ant-upload-text">点击或拖拽 .docx 文件到此区域</p>
+            <p className="ant-upload-text">点击或拖拽 .docx / .doc 文件到此区域</p>
             <p className="ant-upload-hint">
               {useRealLlm === false
                 ? "Mock 模式：规则提取；支持人工修订对比表"
@@ -548,6 +580,19 @@ export default function RfqPage() {
                         来源文档：{String(row.source_doc || "—")} · 实际人天{" "}
                         {String(row.actual_man_days ?? "—")} · 偏差 {String(row.deviation_rate ?? "—")}
                       </Paragraph>
+                      {(() => {
+                        const eid = resolveEngagementId(row, task.similar_projects);
+                        if (!eid) return null;
+                        return (
+                          <Paragraph style={{ marginBottom: 0 }}>
+                            <Link
+                              href={`/knowledge?tab=baselines&engagement_id=${encodeURIComponent(eid)}`}
+                            >
+                              查看该项目人天基线
+                            </Link>
+                          </Paragraph>
+                        );
+                      })()}
                     </div>
                   );
                 },
@@ -561,6 +606,21 @@ export default function RfqPage() {
                 },
                 { title: "来源", dataIndex: "source_doc" },
                 { title: "摘要", dataIndex: "summary" },
+                {
+                  title: "人天基线",
+                  width: 110,
+                  render: (_, row: Record<string, unknown>) => {
+                    const eid = resolveEngagementId(row, task?.similar_projects);
+                    if (!eid) return "—";
+                    return (
+                      <Link
+                        href={`/knowledge?tab=baselines&engagement_id=${encodeURIComponent(eid)}`}
+                      >
+                        查看
+                      </Link>
+                    );
+                  },
+                },
               ]}
             />
             {task && projects.length > 0 && (

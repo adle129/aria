@@ -187,6 +187,12 @@ class KnowledgeIndexService:
         except PgVectorUnavailableError:
             return 0
 
+    def list_indexed_source_docs(self) -> set[str]:
+        try:
+            return self._store.list_source_docs()
+        except PgVectorUnavailableError:
+            return set()
+
     def index_chunks(
         self,
         chunks: list[dict[str, Any]],

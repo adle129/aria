@@ -26,4 +26,5 @@ def test_health_response_schema_keys(client):
         "ollama_error",
         "kb_debug_enabled",
         "aria_ui_profile",
+        "auth_enabled",
     }

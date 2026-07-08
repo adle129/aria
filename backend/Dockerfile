@@ -39,6 +39,8 @@ RUN pip install --upgrade pip setuptools wheel \
 
 COPY app ./app
 COPY prompts ./prompts
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 RUN mkdir -p /app/data/uploads /app/data/outputs /app/data/knowledge_base \
     /app/data/chroma_db /app/data/templates
