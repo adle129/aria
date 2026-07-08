@@ -104,7 +104,7 @@
       "work_content": "前悬架 M1/M2 数据开发",
       "match_type": "keywords",
       "source_label": "关键词匹配",
-      "source_ref": "RFQ · 命中「前悬」",
+      "source_ref": "RFQ §4.2.1 · 前悬架开发",
       "review_tier": "auto_include",
       "evidence": {
         "rfq_section": "4.2.1",
@@ -140,10 +140,10 @@
 - **主路径：** 维度名来自 **基准库**，LLM **不得** 凭空新增标准维度（仅 `custom_items` 可补充）
 - `in_scope=false` 时 `work_content` **必须** 为 `—`
 - `match_type=module_scope` → `review_tier=needs_review` 且默认 **`in_scope=false`**
-- `source_ref` 为客户可见 RFQ 出处；`source_label` 为中文匹配方式
+- `source_ref` 为客户可见 RFQ 出处（格式：`RFQ §{section} · {章节标题}` 或 `RFQ · 关键词 {kw}`）；`source_label` 为中文匹配方式
 - 规则通道（keywords）可预填，LLM 批处理修正
 
-**工程师交互（F1.10c · 例外驱动）：** 复核 Tab 仅审 `needs_review`；审计 Tab 全量 → `PUT /rfq/tasks/{id}`
+**工程师交互（F1.10c · v1.2 单视图）：** 仅展示 RFQ 相关模块；展开查看全模块行（含 excluded）→ 勾选/编辑 → `PUT /rfq/tasks/{id}` → `POST confirm-dimensions`
 
 ### 3.2 阶段 B — 对比矩阵（确认后 · F1.10d）
 

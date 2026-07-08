@@ -56,6 +56,9 @@ aria/
 | Excel 生成 | test_excel_generator.py | 模板复制、PM/Chassis 填充、空模块 |
 | 置信度 | test_confidence.py | 高/中/低边界值 |
 | Schema | test_schemas.py | 合法/非法参数、边界 top_k |
+| **F1.10 维度匹配** | `test_dimension_match_service.py` | keywords/module_scope、`review_tier`、**evidence 客户可读契约**（无 dict dump / 无「命中」） |
+| **RFQ 分析流水线** | `test_rfq_analysis_service.py` | `dimension_review` 状态、`confirm-dimensions` 前置 |
+| **F1.10c 前端逻辑** | `frontend/src/lib/dimensionReview.test.ts` | 摘要/表格可见行、依据展示、ack 计数（Vitest） |
 
 ### 3.2 示例用例
 
@@ -196,8 +199,9 @@ set -e
 ================================================
   ARIA 测试执行
 ================================================
-【1/2】单元测试 ... ✅ 全部通过
-【2/2】API 测试 ... ✅ 全部通过
+【1/3】单元测试 ... ✅ 全部通过
+【2/3】前端单测 ... ✅ 全部通过
+【3/3】API 测试  ... ✅ 全部通过
 ================================================
 测试汇总：2 组通过 / 0 组失败
 ================================================
@@ -212,7 +216,7 @@ set -e
 | 里程碑 | 验收项 | 自动化建议 |
 |--------|--------|-----------|
 | **R1** | 检索评测 ≥15 条、≥12/15 Pass | 手工表 + 可选 JSON 快照 |
-| **R1** | F1.10：`confirm-dimensions` 契约 + 3 份 RFQ 流程 | API test Mock LLM |
+| **R1** | F1.10：evidence 黄金集 + `dimensionReview` 单测 + `confirm-dimensions` API | unit + Vitest + API test |
 | **R1** | `GET /knowledge/baselines` 与源 Excel 一致 | unit test 解析样本 |
 | **M3** | ScopeMatch 合成 3 组 engagement | unit test `ScopeMatchService` |
 | **M3** | `generate-excel` 响应含 `quote_fill_report` | API test schema |

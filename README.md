@@ -286,10 +286,13 @@ npm run dev
 pip install -r backend/requirements.txt
 pip install -r backend/requirements-ai.txt   # RAG 模块开发时需要
 
-# 一键测试
+# 一键测试（单元 + 前端单测 + API）
 bash run_tests.sh
 # Windows PowerShell:
 # .\run_tests.ps1
+
+# 前端单测（需先在 frontend/ 执行 npm install）
+cd frontend && npm test
 ```
 
 ## 服务说明

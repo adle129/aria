@@ -158,7 +158,7 @@ GET /api/v1/health
 
 ### 2.2 RFQ 模块
 
-#### 工作维度基准库（F1.10a · R1 · 设计已定 · 未实现）
+#### 工作维度基准库（F1.10a · R1 · **已实现**）
 
 只读返回当前生效的基准维度主数据，供 RFQ 确认页渲染与匹配。
 
@@ -296,7 +296,7 @@ PUT /api/v1/rfq/tasks/{task_id}
 | dimension_draft | object | **F1.10：** 基准匹配结果（见 [rfq-dimension-baseline-spec §4](rfq-dimension-baseline-spec.md)）；工程师勾选/编辑 |
 | confirmed | boolean | 用户确认已审阅 |
 
-#### F1.10 确认维度清单并生成对比矩阵（R1 · 设计已定 · 未实现）
+#### F1.10 确认维度清单并生成对比矩阵（R1 · **已实现**）
 
 工程师审阅 `dimension_draft`（勾选 in_scope、编辑工作内容）后确认，触发 RAG 并按 **in_scope 维度** 生成 `comparison_table`。
 

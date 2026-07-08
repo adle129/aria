@@ -187,7 +187,7 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
 | GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（含 `dimension_review`） |
 | PUT | `/api/v1/rfq/tasks/{id}` | 编辑/确认（含 `dimension_draft`） |
-| POST | `/api/v1/rfq/tasks/{id}/confirm-dimensions` | **F1.10** 确认维度并生成矩阵（R1 · 未实现） |
+| POST | `/api/v1/rfq/tasks/{id}/confirm-dimensions` | **F1.10d** 确认维度并生成矩阵（R1 · 已实现） |
 | POST | `/api/v1/rfq/tasks/{id}/generate-excel` | 生成 Excel（M3 含 `quote_fill_report`） |
 | POST | `/api/v1/rfq/tasks/{id}/generate-proposal` | Demo Stub：Mock 方案草案 |
 | POST | `/api/v1/rfq/tasks/{id}/generate-qa` | Demo Stub：Mock QA 清单 |
@@ -225,6 +225,7 @@ class RFQTask(Base):
     # draft → in_review → approved → exported
 
     rfq_modules       = Column(JSON, nullable=True)
+    dimension_draft   = Column(JSON, nullable=True)   # F1.10b/c 基准匹配 + 勾选复核
     similar_projects  = Column(JSON, nullable=True)
     comparison_table  = Column(JSON, nullable=True)
     solution_draft    = Column(JSON, nullable=True)   # Demo Stub / Phase 2 真实

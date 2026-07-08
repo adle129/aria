@@ -91,14 +91,14 @@
 | R1-F04-01 | P0-3 | `RFQParseService` 骨架 | F1.2 | `parse_rules_first()` 入口 | — | | 待开始 |
 | R1-F04-06 | P0-3 | 解析接入 worker `parsing` | F1.2 | 经 R1-I03 调度 | R1-I03, F04-01 | | 待开始 |
 | R1-F04-07 | P0-3 | **RFQ 上传支持 `.doc`** | **F1.1** | API/UI 接受 `.docx`+`.doc`；`rfq_document_loader`；Docker LibreOffice；unit+API 测试 | R1-F04-01 | | 待开始 |
-| R1-F05 | P0-3 | 维度匹配 Service + Prompt | F1.10b | **F05-01**–**F05-04**；**SPK-F08** | R1-F01, R1-F04 | | 待开始 |
-| R1-F05-01 | P0-3 | `prompts/v1/rfq_baseline_match.txt` | F1.10b | batch LLM schema | R1-F01-01 | | 待开始 |
-| R1-F05-02 | P0-3 | `DimensionMatchService` 骨架 | F1.10b | keywords + module batch | R1-F01-02, F05-01 | | 待开始 |
-| R1-F05-04 | P0-3 | 维度匹配 unit + API 测试 | F1.10b | Mock LLM | R1-F05-02 | | 待开始 |
-| R1-F06 | P0-3 | 状态机插入 `dimension_review` | §5.1 | parsing → dimension_review → retrieving | R1-F05 | | 待开始 |
-| R1-F07 | P0-3 | `PUT /rfq/tasks/{id}` 更新 draft | F1.10c | 勾选、work_content、custom_items | R1-F06 | | 待开始 |
-| R1-F08 | P0-3 | `POST .../confirm-dimensions` | F1.10d | 触发 Top-3 RAG + 矩阵（仅 in_scope） | **R1-K02,K03,K07**, R1-F07 | | 待开始 |
-| R1-F09 | P0-3 | 对比矩阵生成对齐 in_scope | F1.5–F1.6 | 复用 comparison_service | R1-F08 | | 待开始 |
+| R1-F05 | P0-3 | 维度匹配 Service + Prompt | F1.10b | **F05-01**–**F05-04**；**SPK-F08** | R1-F01, R1-F04 | | 已完成 |
+| R1-F05-01 | P0-3 | `prompts/v1/rfq_baseline_match.txt` | F1.10b | batch LLM schema | R1-F01-01 | | 已完成 |
+| R1-F05-02 | P0-3 | `DimensionMatchService` 骨架 | F1.10b | keywords + module batch | R1-F01-02, F05-01 | | 已完成 |
+| R1-F05-04 | P0-3 | 维度匹配 unit + API 测试 | F1.10b | Mock LLM | R1-F05-02 | | 已完成 |
+| R1-F06 | P0-3 | 状态机插入 `dimension_review` | §5.1 | parsing → dimension_review → retrieving | R1-F05 | | 已完成 |
+| R1-F07 | P0-3 | `PUT /rfq/tasks/{id}` 更新 draft | F1.10c | 勾选、work_content、custom_items | R1-F06 | | 已完成 |
+| R1-F08 | P0-3 | `POST .../confirm-dimensions` | F1.10d | 触发 Top-3 RAG + 矩阵（仅 in_scope） | **R1-K02,K03,K07**, R1-F07 | | 已完成 |
+| R1-F09 | P0-3 | 对比矩阵生成对齐 in_scope | F1.5–F1.6 | 复用 comparison_service | R1-F08 | | 已完成 |
 | R1-F10 | P0-3 | unit + API + regression | — | Mock LLM/RAG；非法 JSON 不 500 | R1-F01–F09 | | 待开始 |
 
 ---
@@ -107,9 +107,9 @@
 
 | ID | 优先级 | 任务 | 组件 / 页面 | DoD | 依赖 | 负责人 | 状态 |
 |----|--------|------|-------------|-----|------|--------|------|
-| R1-U01 | P0-3 | `DimensionBaselineReview` 新建 | F1.10c | 全量基准表、模块摘要、虚拟滚动 | R1-F06 | | 待开始 |
-| R1-U02 | P0-3 | `/rfq` 两阶段流 | — | dimension_review → 矩阵页 | R1-U01 | | 待开始 |
-| R1-U03 | P0-3 | `TaskContextBar` / 状态文案 | §5.1 | dimension_review 等待勾选 | R1-F06 | | 待开始 |
+| R1-U01 | P0-3 | `DimensionBaselineReview` 新建 | F1.10c | 单视图、模块 Collapse、RFQ 依据 Drawer | R1-F06 | | 已完成 |
+| R1-U02 | P0-3 | `/rfq` 两阶段流 | — | dimension_review → 矩阵页 | R1-U01 | | 已完成 |
+| R1-U03 | P0-3 | `TaskContextBar` / 状态文案 | §5.1 | dimension_review 等待勾选 | R1-F06 | | 已完成 |
 | R1-U04 | P0-3 | 矩阵页仅 in_scope 行 | F1.10d | 复用 ComparisonMatrix | R1-F09 | | 待开始 |
 | R1-U05 | P0-3 | Profile=r1 路由守卫 | formal §5.2 | 未购步隐藏/锁定 | R1-E03 | | 待开始 |
 | R1-U06 | P0-3 | 联调 3 RFQ 样本路径 | — | 端到端无 Mock 欺骗 | R1-F10, R1-K seed 数据 | | 待开始 |
