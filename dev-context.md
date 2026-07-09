@@ -1,9 +1,9 @@
 # ARIA 智能应用平台 — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.11 · 2026-07-07  
+**版本：** v1.12 · 2026-07-09  
 **受众：** 工程师、Cursor Agent  
-**产品基线：** [prod.md](prod.md) v1.7 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
+**产品基线：** [prod.md](prod.md) v1.8 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
 
 > 本文档描述**如何实现** ARIA 平台及首期 **报价助手** 应用，供日常编码与 AI 辅助开发使用。  
 > **当前代码范围：** Demo（Phase 1）已实现并 **冻结于 `main`**，仅供体验与流程参考；**正式版** 在 `release/r1` 基于 Demo **框架与 UI 壳** 按 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) v1.1 逐步实施（多数 R1 API **设计已定 · 未实现**）。
@@ -145,6 +145,9 @@ PROMPT_VERSION=v1
 CHROMA_PATH=/app/data/chroma_db
 UPLOAD_PATH=/app/data/uploads
 OLLAMA_MAX_CONCURRENT=1          # worker 内 LLM 并发闸（正式版，TBD 1 或 2）
+TASK_MAX_QUEUE_SIZE=20           # 上传队列深度上限；满时 429
+TASK_JOB_STALE_SECONDS=900        # running 作业超时（秒）；worker 自动恢复/重试
+TASK_WORKER_INLINE=false          # 测试/SQLite 同步执行 worker
 KNOWLEDGE_BASE_PATH=/app/data/knowledge_base
 TEMPLATE_PATH=/app/data/templates
 ```
@@ -183,8 +186,11 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | GET | `/api/v1/health` | 健康检查 |
 | POST | `/api/v1/rfq/upload` | 上传 Word RFQ（**.docx / .doc**），返回 task_id |
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
-| GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`） |
+| GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`、`include_archived`） |
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
+| POST | `/api/v1/rfq/tasks/{id}/retry` | **F1.11** 失败任务重新解析（无需重传） |
+| DELETE | `/api/v1/rfq/tasks/{id}` | **F1.11** 删除任务及关联文件 |
+| PATCH | `/api/v1/rfq/tasks/{id}/archive` | **F1.11** 归档（默认列表隐藏） |
 | GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（含 `dimension_review`） |
 | PUT | `/api/v1/rfq/tasks/{id}` | 编辑/确认（含 `dimension_draft`） |
 | POST | `/api/v1/rfq/tasks/{id}/confirm-dimensions` | **F1.10d** 确认维度并生成矩阵（R1 · 已实现） |
@@ -292,13 +298,16 @@ generator.generate(context, template_path, output_path)
 - **R1 目标：** 结构化预解析（Heading 章节 + `doc.tables` → IR）→ LLM 填 [`rfq_parse.txt`](backend/prompts/v1/rfq_parse.txt) JSON；不确定填「未知」，禁止编造
 - 失败降级：`{"raw_output": ..., "parse_error": true}`
 
-### 任务队列（R1+ · 部分实现）
+### 任务队列（R1+ · 已实现）
 
 - RFQ 上传写入 PostgreSQL `task_jobs` 表；**独立 worker**（`python -m app.worker`）认领执行
 - `OLLAMA_MAX_CONCURRENT` 默认 **1**（问卷 O-06 已关闭）
+- `task_max_queue_size` 默认 **20**；满时 `POST /rfq/upload` → **429** + `queue_depth`
+- `task_job_stale_seconds` 默认 **900**；`WorkerService.recover_stale_jobs` 超时恢复，经 `mark_failed` 尊重 `max_attempts`
 - 状态 API 返回 `queue_position`、`estimated_wait_seconds`
 - 测试/SQLite 可用 `TASK_WORKER_INLINE=true` 同步执行
-- 详见 [api-design.md §3](docs/supplementary/api-design.md)
+- 任务生命周期：`retry_task` / `delete` / `archived` 字段；Alembic `005_wave6_task_lifecycle`
+- 详见 [api-design.md §2.2 / §3](docs/supplementary/api-design.md) · [prod.md §5.5](prod.md)
 
 ### 认证与权限（R1 · SURVEY-05/06）
 
@@ -320,6 +329,7 @@ generator.generate(context, template_path, output_path)
 
 - `ingest_document(file_path, metadata)`
 - `search_similar_projects(query, top_k) → list[RAGHit]`
+- **R1 优化（2026-07）：** Embedding 批量 `/api/embed`（Ollama ≥0.3）+ 超长文本截断（`DEFAULT_EMBED_MAX_CHARS=2400`）；pgvector upsert 分批（200 条/批）；检索阈值与 metadata 过滤加固
 - `build_comparison_table(rfq_data, similar_docs) → dict` — 从 hits **派生** projects，勿 duplicate 人天等展示字段
 - `calculate_overall_confidence(hits) → float`
 - `get_stats() → dict`

@@ -4,8 +4,8 @@
 
 **产品品牌：** ARIA（**A**ssisted **R**easoning & **I**ntelligence **A**pplications）  
 **中文名：** ARIA 智能应用平台  
-**版本：** v1.7 · 2026-07-07  
-**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 2026-07-04；**使用场景问卷 SURVEY-01~06 确认 2026-07-07**；**F1.1 增补 `.doc` 上传 2026-07-07**）  
+**版本：** v1.8 · 2026-07-09  
+**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 2026-07-04；**使用场景问卷 SURVEY-01~06 确认 2026-07-07**；**F1.1 增补 `.doc` 上传 2026-07-07**；**F1.11 任务生命周期 2026-07-09**）  
 **客户：** EDAG（爱达克）车辆工程服务  
 
 > 品牌与平台定位详见 [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md)。  
@@ -156,6 +156,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | F1.6 | 标注来源引用与置信度 | ✓ | R1 | — | P0 |
 | F1.7 | 差异总结与报价参考概览 | ✓ | R1 | LLM | P1 |
 | F1.8 | RFQ 任务历史列表与切换回看 | ✓（框架） | R1 | — | P0 |
+| F1.11 | **任务生命周期管理**：失败重试、归档、删除；队列满拒绝上传 | — | **R1** | — | P1 |
 | F1.9 | 相似项目展开（RAG 片段 + 来源） | ✓（框架） | R1 | RAG | P1 |
 
 #### 3.1.1a RFQ 上传格式（F1.1）
@@ -429,6 +430,7 @@ R1 须同时支持客户历史 **`.docx`** 与旧版 **`.doc`** RFQ（验证语�
 | Excel 生成 | < 60 秒 | < 30 秒 |
 | 并发用户（浏览） | 1–3 人 | **10–15 人**（团队 10–20 人 · 问卷确认） |
 | RFQ 长任务排队 | — | 单 worker + `OLLAMA_MAX_CONCURRENT=1`；忙时 3–5 人连排 **≤10 分钟**（问卷可接受） |
+| RFQ 队列深度上限 | — | `task_max_queue_size` 默认 **20**；满时上传返回 **429**，提示稍后重试 |
 | RFQ 文件大小上限 | 50 MB | 50 MB |
 
 ### 4.5 可用性与维护
@@ -521,6 +523,22 @@ draft → in_review → approved → exported
 | `/quote` | 建议 `comparison_ready` | 允许加载 task；Excel 生成仍须 review 确认 |
 
 > Stub API（`generate-proposal` / `generate-qa`）**不依赖** `MOCK_LLM` / `MOCK_RAG`，始终返回固定 Mock 结构，便于 UI 联调。
+
+### 5.5 任务生命周期管理（R1 · F1.11）
+
+工程师可对 **本人** 的历史 RFQ 任务进行维护，减轻侧栏列表堆积与失败重传成本。
+
+| 操作 | 说明 | 限制 |
+|------|------|------|
+| **重新解析** | 失败任务（`processing_status=failed`）无需重新上传，一键重入队列 | 原始 RFQ 文件须仍在磁盘；已归档任务不可重试 |
+| **归档** | 从默认任务列表隐藏（`archived=true`），可通过 `include_archived=true` 查看 | 进行中的任务（queued/parsing/retrieving/generating）不可归档 |
+| **删除** | 硬删除任务记录，并清理上传文件与已生成 Excel/QA 附件 | 进行中任务不可删除 |
+
+> **命名区分：** 本节 **任务归档** = 列表隐藏，**不**删除数据盘文件；**archive-to-knowledge**（§11.3 · 合同外）= 定稿项目写入 Engagement 知识库，二者独立。
+
+**队列保护：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）时，`POST /rfq/upload` 返回 **429**，响应含 `queue_depth` 与友好提示。
+
+**僵死任务恢复：** worker 轮询时检测 `running` 超过 `task_job_stale_seconds`（默认 900s）的作业，经 `mark_failed` 尊重 `max_attempts` 后自动重排队或标为 `failed`。
 
 ---
 
@@ -777,6 +795,8 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 - [ ] 检索评测 **≥15 条 query，≥12/15 Pass**（见 [R1 验收说明](docs/R1-知识库验收与检索评测说明（客户版）.md)）
 - [ ] **客户正式工作维度基准清单（~100 项）已导入**并完成 **3 份 RFQ** **基准维度勾选确认 + Top-3 对比矩阵**全流程（R1-β）
 - [ ] Top-3 语义检索 + 条件筛选；**不含** Hybrid/Rerank
+- [ ] 失败任务可 **重新解析**（无需重传）；任务可 **归档/删除**；队列满时上传 **429**
+- [ ] worker 僵死任务超时恢复（`task_job_stale_seconds`）且尊重 `max_attempts`
 - [ ] `/knowledge` 验收台：统计、检索实验室、触发导入、**Web ≤5 套/次**（或 IT 目录批量）
 
 #### M3

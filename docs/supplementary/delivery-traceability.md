@@ -1,6 +1,6 @@
 # 交付能力追溯矩阵
 
-**版本：** v1.1 · 2026-07-07  
+**版本：** v1.2 · 2026-07-09  
 **基线：** [prod.md](../../prod.md) v1.7 · [客户版 v3.8](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.6](../ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md) · [R1 验收说明 v1.6](../R1-知识库验收与检索评测说明（客户版）.md) · **[使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)**
 
 > **用途：** 一页回答「客户说的某能力 → prod 功能 ID → API → 设计规格 → 如何验收」。  
@@ -30,6 +30,9 @@
 | 34 页 PPT 预填 | M5 | F3.1–F3.3 | Rule | POST `.../generate-proposal` · GET `.../download/ppt` | m5-proposal-fill-spec | prod §10.2 M5 |
 | 哪些页已填/未填说明 | M5 | F3.4 | Rule | `proposal_fill_report` | m5-proposal-fill-spec §5 | 附录术语表 |
 | 任务历史、五步导航 | R1–M6 | F1.8, §5.4 | — | GET `/rfq/tasks`（**按 owner 过滤**） | prod §5.4 · dev-context | M6 UAT |
+| 失败重试、归档、删除 | R1 | F1.11, §5.5 | — | POST `.../retry` · PATCH `.../archive` · DELETE `.../tasks/{id}` | api-design §2.2 · prod §5.5 | lifecycle API 测试 |
+| 上传队列深度保护 | R1 | F1.11, §4.4 | — | POST `/rfq/upload`（429 + `queue_depth`） | api-design §2.2 / §3 | test_task_lifecycle_api |
+| worker 僵死任务恢复 | R1 | §5.5 | — | —（worker 内部） | api-design §3 · prod §5.5 | test_worker_service |
 | **登录 + 两角色 RBAC** | R1 | NF18–NF22 | — | POST `/auth/login` · GET `/auth/me` | api-design §0 · prod §4.1.1 | AUTH-01～07 |
 | **RFQ 任务归属隔离** | R1 | NF20 | — | 全部 `/rfq/*` | api-design §0.5 | AUTH-02, AUTH-05 |
 | 培训、备份演练、运维脚本 | M6 | NF16, §4.2 | — | — | deployment-guide · production-deploy-artifacts | 客户易懂版 §3.2 |

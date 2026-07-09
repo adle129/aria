@@ -282,6 +282,9 @@ prompts/
 | **health 显示 `auth_enabled=false`** 但 `.env` 为 `true` | Shell 环境变量覆盖 Compose 插值 | `Remove-Item Env:AUTH_ENABLED`；`docker compose up -d --force-recreate backend worker` |
 | **未登录可访问 `/rfq`** | 认证未真正启用 | 同上；确认 health；`create_dev_users.ps1` 建账号 |
 | 前端空白页 | backend 未就绪 | 等 health check 通过；检查 `NEXT_PUBLIC_API_BASE_URL` |
+| **上传返回 429 队列已满** | `task_jobs` 排队数 ≥ `TASK_MAX_QUEUE_SIZE`（默认 20） | 等待前方任务完成；或清理失败/归档任务；运维可调大上限 |
+| **任务长时间卡在 parsing/retrieving** | worker 无响应或 Ollama 挂起 | 检查 `aria-worker` 日志；worker 每轮会检测超过 `TASK_JOB_STALE_SECONDS`（默认 900s）的 running 作业并自动重排队或标 failed；必要时 `docker compose restart aria-worker` |
+| **Alembic 报找不到 `005_wave6_task_lifecycle`** | 镜像/构建上下文缺少迁移文件，但 DB 已记录该版本 | 确认 `alembic/versions/005_wave6_task_lifecycle.py` 存在后 `docker compose build --no-cache backend` |
 
 ### 6.2 Ollama 诊断
 

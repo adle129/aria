@@ -1,6 +1,6 @@
 # ARIA — 测试方案
 
-**版本：** v1.2 · 2026-07-07  
+**版本：** v1.2 · 2026-07-09  
 **基线：** [prod.md](../../prod.md) v1.7 · [delivery-traceability.md](delivery-traceability.md) v1.1
 
 ---
@@ -58,6 +58,7 @@ aria/
 | Schema | test_schemas.py | 合法/非法参数、边界 top_k |
 | **F1.10 维度匹配** | `test_dimension_match_service.py` | keywords/module_scope、`review_tier`、**evidence 客户可读契约**（无 dict dump / 无「命中」） |
 | **RFQ 分析流水线** | `test_rfq_analysis_service.py` | `dimension_review` 状态、`confirm-dimensions` 前置 |
+| **任务生命周期** | `test_task_lifecycle.py` | retry 状态重置、delete、archived 过滤、stale 恢复、queue 计数 |
 | **F1.10c 前端逻辑** | `frontend/src/lib/dimensionReview.test.ts` | 摘要/表格可见行、依据展示、ack 计数（Vitest） |
 
 ### 3.2 示例用例
@@ -93,13 +94,19 @@ def test_generate_quote_empty_modules():
 | GET /auth/me | 已登录 200 | 未登录/过期 401 |
 | GET /rfq/tasks | 仅返回本人任务 | 未登录 401 |
 | GET /rfq/tasks/{id} | 存在且 owner 匹配 200 | 非 owner 404、未登录 401 |
-| POST /rfq/upload | docx/doc 上传成功 | 非 Word RFQ 400、无文件 422 |
+| POST /rfq/upload | docx/doc 上传成功 | 非 Word RFQ 400、无文件 422、**队列满 429** |
+| POST /rfq/tasks/{id}/retry | failed 任务重入队 200 | 非 failed 400、已归档 400、文件丢失 400、404 |
+| DELETE /rfq/tasks/{id} | 可删除状态 204 | 进行中 409、404；文件清理 |
+| PATCH /rfq/tasks/{id}/archive | 可归档 200 | 进行中 409；`include_archived` 列表可见 |
+| GET /rfq/tasks | 默认不含 archived | `include_archived=true`、limit 参数 |
 | POST /generate-excel | 正常生成 | task 不存在 404 |
 | POST /knowledge/search | 有结果、RAGHit schema | 空 query 422 |
 | GET /knowledge/stats | 返回统计（含 function_coverage P0） | — |
 | POST /knowledge/import | kb_admin 200 | 工程师 403、未登录 401 |
 
 **RAG Mock/Real parity：** 已实现（`API_tests/test_knowledge_api.py`）。
+
+**任务生命周期 API：** `API_tests/test_task_lifecycle_api.py`（75 用例：参数边界、response message、跨 API 集成链）。
 
 ### 4.2 Mock 策略
 

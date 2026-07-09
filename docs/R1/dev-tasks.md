@@ -1,6 +1,6 @@
 # R1 开发任务清单
 
-**版本：** v1.6 · 2026-07-07  
+**版本：** v1.7 · 2026-07-09  
 **索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
@@ -12,7 +12,8 @@
 | 块 | 代码状态 | 内部可继续 |
 |----|----------|------------|
 | R1-E / Profile / 生产门禁 | E03/E05 已实现；E02 规则已同步 | Compose 全链路手验 |
-| R1-I / AUTH | 主体已完成 | 排队 UI  polish |
+| R1-I / AUTH | 主体已完成 | 排队 UI polish |
+| **R1-I10 任务生命周期** | **已完成** | — |
 | R1-K / F1.10 / U | 主体已完成 | `bootstrap_r1_internal.ps1` + ingest + eval |
 | R1-A 验收 | 彩排脚本已编写 | smoke / eval / 内网手验 |
 | **客户 O-01～O-05** | **阻塞 R1-β 签字** | PM 跟进；开发用 `seed_internal_engagement` |
@@ -20,7 +21,9 @@
 **内部一键：** `.\scripts\bootstrap_r1_internal.ps1` → seed → ingest → 15 题 eval → health smoke  
 **R1 正式 UI：** `ARIA_UI_PROFILE=r1` · 见 `.env.r1-dev.example` · 彩排见 [r1-rehearsal-script.md](r1-rehearsal-script.md)
 
-**代码已完成（2026-07-08 对照）：** R1-I01–I09 · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
+**代码已完成（2026-07-09 对照）：** R1-I01–I09 · **R1-I10** · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
+
+**2026-07-09 新增：** R1-I10（Wave 6 任务生命周期）· KB 服务优化（embedding 批量、pgvector upsert 分批）
 
 **仍依赖客户：** R1-F02 · R1-A02–A07 · O-01～O-05
 
@@ -52,6 +55,19 @@
 | R1-I07 | P0-1 | 替换 `chroma_store.py` → pgvector 检索层 | 单测 Mock；生产无 Chroma 依赖 | R1-I06 | | 待开始 |
 | R1-I08 | P0-1 | `insufficient_evidence` 拒答门控 | 禁止 Mock 项目兜底 | rag-design §3.1 | | 待开始 |
 | R1-I09 | P0-1 | unit + API 测试（队列降级、空库拒答） | `run_tests.ps1` 全绿 | R1-I01–I08 | | 待开始 |
+| R1-I10 | P1 | **Wave 6 任务生命周期** | retry/delete/archive API + `archived` 列 + 队列门控 429 + stale 恢复 | R1-I01–I03 | | **已完成** |
+
+---
+
+## R1-I10 任务生命周期（Wave 6 · 2026-07-09）
+
+| ID | 任务 | 产出 | 测试 |
+|----|------|------|------|
+| R1-I10a | `POST .../retry` 失败重解析 | 无需重传；清结果重入队 | `test_task_lifecycle_api` |
+| R1-I10b | `DELETE` / `PATCH .../archive` | 硬删 + 软归档；进行中 409 | 同上 |
+| R1-I10c | `task_max_queue_size` 上传门控 | 429 + `queue_depth` | 同上 |
+| R1-I10d | `recover_stale_jobs` + `max_attempts` | 超时重排队或 failed | `test_worker_service` · `test_task_lifecycle` |
+| R1-I10e | Alembic `005_wave6_task_lifecycle` | `rfq_tasks.archived` | 迁移随 bootstrap |
 
 ---
 

@@ -99,7 +99,7 @@ Excel 人力报价 **不经过** 主大模型；RFQ 解析、Q&A 去重/分类�
 | 单任务耗时（32B Q4 + 4090） | 约 **1–3 min** / 次 |
 | 排队 SLA | 前面 N 人排队时，预计等待 ≈ **N × 2 min**；5 人连排 **≤10 min**（O-07 已关闭） |
 | LLM 并发 | `OLLAMA_MAX_CONCURRENT=1`；**单 worker 副本** |
-| 软件机制 | PostgreSQL 任务队列 + worker + 前端排队位置/ETA |
+| 软件机制 | PostgreSQL 任务队列 + worker + 前端排队位置/ETA；队列深度上限 `TASK_MAX_QUEUE_SIZE=20`（满时 429）；僵死作业 `TASK_JOB_STALE_SECONDS=900` 自动恢复 |
 | 硬件 | **推荐版**（32 核 / 128G / RTX 4090） |
 
 ---

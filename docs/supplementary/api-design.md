@@ -1,9 +1,9 @@
 # ARIA — API 设计规范
 
-**版本：** v1.4  
+**版本：** v1.5  
 **Base URL：** `/api/v1`  
-**日期：** 2026-07-07  
-**基线：** [prod.md](../../prod.md) v1.7 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
+**日期：** 2026-07-09  
+**基线：** [prod.md](../../prod.md) v1.8 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
 
 ---
 
@@ -205,7 +205,19 @@ Content-Type: multipart/form-data
 |------|------|------|------|
 | file | File | 是 | Word RFQ：**`.docx` 或 `.doc`**，最大 50MB |
 
-**响应：**
+**成功响应：** 同下（`code: 200`）。
+
+**队列已满（R1+）：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）：
+
+```json
+{
+  "code": 429,
+  "msg": "当前处理队列已满（N 个任务排队中），请稍后再试",
+  "queue_depth": 20
+}
+```
+
+**响应（成功）：**
 
 ```json
 {
@@ -224,10 +236,16 @@ Content-Type: multipart/form-data
 #### 查询任务列表
 
 ```
-GET /api/v1/rfq/tasks?limit=20&unique_file=true
+GET /api/v1/rfq/tasks?limit=20&unique_file=true&include_archived=false
 ```
 
-**响应 `data` 数组元素：** `task_id`、`file_name`、`status`（review_status）、`processing_status`、`created_at`
+| 参数 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `limit` | int | 20 | 返回条数上限 |
+| `unique_file` | bool | true | 同文件名仅保留最新一条 |
+| `include_archived` | bool | false | **R1+** 为 true 时包含已归档任务 |
+
+**响应 `data` 数组元素：** `task_id`、`file_name`、`status`（review_status）、`processing_status`、`progress`、`created_at`
 
 #### 查询任务
 
@@ -295,6 +313,49 @@ PUT /api/v1/rfq/tasks/{task_id}
 | comparison_table | object | 编辑后的对比表 |
 | dimension_draft | object | **F1.10：** 基准匹配结果（见 [rfq-dimension-baseline-spec §4](rfq-dimension-baseline-spec.md)）；工程师勾选/编辑 |
 | confirmed | boolean | 用户确认已审阅 |
+
+#### 重新解析失败任务（R1 · F1.11）
+
+```
+POST /api/v1/rfq/tasks/{task_id}/retry
+```
+
+**前置：** `processing_status=failed`；`archived=false`；原始 RFQ 文件存在。
+
+**成功：** `200`，`data` 含更新后的 status payload（`processing_status=queued`）。
+
+| HTTP | `msg` 示例 |
+|------|-----------|
+| 404 | 任务 ID 不存在 |
+| 400 | 只有失败状态的任务才能重试 / 已归档任务不支持重试 / 原始 RFQ 文件已丢失，请重新上传 |
+
+#### 删除任务（R1 · F1.11）
+
+```
+DELETE /api/v1/rfq/tasks/{task_id}
+```
+
+**成功：** `204` No Content。删除 DB 记录并清理 `file_path`、`excel_path`、`qa_excel_path`（文件不存在时仍返回 204）。
+
+| HTTP | 说明 |
+|------|------|
+| 404 | 任务不存在或非 owner |
+| 409 | 进行中的任务不可删除，请等待处理完成 |
+
+#### 归档任务（R1 · F1.11）
+
+```
+PATCH /api/v1/rfq/tasks/{task_id}/archive
+```
+
+**成功：** `200`，`code: 200`。设置 `archived=true`；默认列表不再展示；可重复调用（幂等）。
+
+| HTTP | 说明 |
+|------|------|
+| 404 | 任务不存在或非 owner |
+| 409 | 进行中的任务不可归档 |
+
+> **与 archive-to-knowledge 区分：** 本节为 **列表隐藏**；`POST .../archive-to-knowledge`（§2.3.5）为定稿写入知识库（Phase 2 / 变更单）。
 
 #### F1.10 确认维度清单并生成对比矩阵（R1 · **已实现**）
 
@@ -816,6 +877,8 @@ RFQ 解析超过 30s 时返回 `task_id`，客户端轮询 `/status`。
 - 上传接口将任务写入 **PostgreSQL 任务表**（queued），立即返回 `task_id`
 - **独立 worker** 进程认领（`SKIP LOCKED`）并执行 parsing → retrieving → generating
 - worker 内 **Ollama 并发闸**（`OLLAMA_MAX_CONCURRENT`，默认 **1** · 问卷 O-06 已关闭）
+- **队列深度门控：** `task_max_queue_size`（默认 **20**）；满时上传 **429**（见 §2.2）
+- **僵死作业恢复：** worker 每轮轮询前调用 `recover_stale_jobs`；`running` 超过 `task_job_stale_seconds`（默认 **900s**）的作业经 `mark_failed` 处理——未达 `max_attempts` 时重入 `queued` 并同步 RFQ 任务状态，否则标 `failed`
 - 容器重启后 queued/running 任务可恢复
 
 > **工程状态：** RFQ 上传路径已迁入 PG 队列 + worker；SQLite/测试环境可用 `TASK_WORKER_INLINE` 同步执行。
@@ -871,6 +934,9 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 |------|----------------|
 | `CHROMA_PATH` | `/app/data/chroma_db` | **Demo 遗留**；R1 后向量在 PostgreSQL pgvector |
 | `OLLAMA_MAX_CONCURRENT` | `1` | worker 内 LLM 并发上限（TBD） |
+| `TASK_MAX_QUEUE_SIZE` | `20` | 上传队列深度上限；满时 429 |
+| `TASK_JOB_STALE_SECONDS` | `900` | running 作业超时阈值（秒） |
+| `TASK_WORKER_INLINE` | `false` | 测试/SQLite 同步执行 worker |
 | `UPLOAD_PATH` | `/app/data/uploads` |
 | `OUTPUT_PATH` | `/app/data/outputs` |
 | `KNOWLEDGE_BASE_PATH` | `/app/data/knowledge_base` |

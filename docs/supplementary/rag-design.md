@@ -240,7 +240,8 @@ API 契约见 [api-design.md §2.3.4](api-design.md)。
 | 切块 | 1 docx = 1 chunk | RFQ **按章节**；Q_A **按行**；报价 **Sheet→baselines**（不进向量） |
 | metadata | project_name / source_doc / doc_type | §3.1 全量 + **locator** + engagement_id |
 | engagement | 文件夹名当 project | **manifest.json** + `engagements` 表 |
-| embedding | Chroma 默认 ONNX | **Ollama `nomic-embed-text`** → 写入 pgvector |
+| embedding | Chroma 默认 ONNX | **Ollama `nomic-embed-text`** → 写入 pgvector；**批量 `/api/embed`**（Ollama ≥0.3）+ 超长截断（≈2400 字符） |
+| pgvector 写入 | 逐条 insert | **分批 upsert**（200 条/批，`ON CONFLICT`） |
 | 增量 | 文件 hash skip（部分） | 同左 + import 批次表 |
 | LangChain | requirements 声明未使用 | **移除** |
 
