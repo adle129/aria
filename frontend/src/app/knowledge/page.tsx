@@ -25,6 +25,7 @@ import DemoModuleCapability from "@/components/DemoModuleCapability";
 import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
 import { useAuth } from "@/context/AuthContext";
+import { useUiProfile } from "@/hooks/useUiProfile";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -36,12 +37,18 @@ const DOC_TYPE_OPTIONS = [
   { value: "summary", label: "方案 / 摘要" },
 ];
 
-/** Quoting-stage hint for indexed documents (tooltip only). */
-const DOC_TYPE_QUOTING_HINT: Record<string, string> = {
+const DOC_TYPE_QUOTING_HINT_DEMO: Record<string, string> = {
   rfq: "RFQ 分析 · 对标参考",
   summary: "RFQ 分析 · 方案摘要",
   qa: "QA 清单 · Phase 2",
   quote_manpower: "人力报价 · Phase 2",
+};
+
+const DOC_TYPE_QUOTING_HINT_R1: Record<string, string> = {
+  rfq: "RFQ 分析 · 对标参考",
+  summary: "RFQ 分析 · 方案摘要",
+  qa: "RFQ 分析 · Q_A 检索参考",
+  quote_manpower: "人天基线 · 规则解析",
 };
 
 interface KnowledgeStats {
@@ -113,6 +120,8 @@ function formatBytes(n?: number): string {
 
 export default function KnowledgePage() {
   const { authEnabled, isKbAdmin } = useAuth();
+  const { showDemoChrome, isFormalDelivery } = useUiProfile();
+  const docTypeQuotingHint = showDemoChrome ? DOC_TYPE_QUOTING_HINT_DEMO : DOC_TYPE_QUOTING_HINT_R1;
   const canWriteKb = !authEnabled || isKbAdmin;
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
@@ -272,7 +281,7 @@ export default function KnowledgePage() {
         />
       )}
 
-      {stats?.mock_rag && (
+      {stats?.mock_rag && showDemoChrome && (
         <Alert
           type="warning"
           showIcon
@@ -283,6 +292,15 @@ export default function KnowledgePage() {
               <span>当前统计与检索结果为演示环境示例；接入贵司历史资料后将显示真实数据。</span>
             </Space>
           }
+        />
+      )}
+
+      {stats?.mock_rag && isFormalDelivery && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="生产环境不应启用 Mock RAG，请检查部署配置（MOCK_RAG=false）。"
         />
       )}
 
@@ -453,8 +471,9 @@ export default function KnowledgePage() {
                     dataSource={documents}
                     pagination={{ pageSize: 8, hideOnSinglePage: true }}
                     locale={{
-                      emptyText:
-                        "暂无文档；Demo 请将 .docx 放入 knowledge_base/<项目名>/（Phase 2 支持项目包上传）",
+                      emptyText: showDemoChrome
+                        ? "暂无文档；Demo 请将 .docx 放入 knowledge_base/<项目名>/（Phase 2 支持项目包上传）"
+                        : "暂无文档；请通过 IT 目录入库或本页「上传项目包」添加 Engagement",
                     }}
                     columns={[
                       { title: "路径", dataIndex: "path", ellipsis: true },
@@ -466,7 +485,7 @@ export default function KnowledgePage() {
                         render: (v: string, row: KnowledgeDocument) => {
                           const label = DOC_TYPE_OPTIONS.find((o) => o.value === v)?.label || v;
                           const hint =
-                            row.status === "indexed" ? DOC_TYPE_QUOTING_HINT[v] : undefined;
+                            row.status === "indexed" ? docTypeQuotingHint[v] : undefined;
                           return hint ? (
                             <Tooltip title={`报价环节参考：${hint}`}>
                               <span>{label}</span>
@@ -490,6 +509,7 @@ export default function KnowledgePage() {
                           const cfg = STATUS_TAG[v] || { color: "default", label: v };
                           const tag = <Tag color={cfg.color}>{cfg.label}</Tag>;
                           if (
+                            showDemoChrome &&
                             v === "failed" &&
                             (row.doc_type === "quote_manpower" || row.path.endsWith(".xlsx"))
                           ) {
@@ -613,36 +633,40 @@ export default function KnowledgePage() {
             label: "人天基线",
             children: <ManpowerBaselinesPanel engagementId={baselinesEngagementId} />,
           },
-          {
-            key: "modules",
-            label: "原子模块（Phase 2）",
-            children: (
-              <Card>
-                <Alert
-                  type="info"
-                  showIcon
-                  message="正式版功能预览"
-                  description="将支持按工程领域浏览历史方案的原子模块。Demo 阶段仅展示占位说明，下列示例数据不代表贵司真实资料。"
-                />
-                <Table
-                  style={{ marginTop: 16 }}
-                  rowKey="key"
-                  size="small"
-                  pagination={false}
-                  dataSource={[
-                    { key: "Chassis-Suspension-FEA", function: "Chassis", name: "悬架布置与载荷" },
-                    { key: "Chassis-Steering-Layout", function: "Chassis", name: "转向系统布置" },
-                    { key: "PM-Project-Control", function: "PM", name: "项目计划与控制" },
-                  ]}
-                  columns={[
-                    { title: "模块标识", dataIndex: "key" },
-                    { title: "工程领域", dataIndex: "function", width: 100 },
-                    { title: "名称", dataIndex: "name" },
-                  ]}
-                />
-              </Card>
-            ),
-          },
+          ...(showDemoChrome
+            ? [
+                {
+                  key: "modules",
+                  label: "原子模块（Phase 2）",
+                  children: (
+                    <Card>
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="正式版功能预览"
+                        description="将支持按工程领域浏览历史方案的原子模块。Demo 阶段仅展示占位说明，下列示例数据不代表贵司真实资料。"
+                      />
+                      <Table
+                        style={{ marginTop: 16 }}
+                        rowKey="key"
+                        size="small"
+                        pagination={false}
+                        dataSource={[
+                          { key: "Chassis-Suspension-FEA", function: "Chassis", name: "悬架布置与载荷" },
+                          { key: "Chassis-Steering-Layout", function: "Chassis", name: "转向系统布置" },
+                          { key: "PM-Project-Control", function: "PM", name: "项目计划与控制" },
+                        ]}
+                        columns={[
+                          { title: "模块标识", dataIndex: "key" },
+                          { title: "工程领域", dataIndex: "function", width: 100 },
+                          { title: "名称", dataIndex: "name" },
+                        ]}
+                      />
+                    </Card>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
     </div>

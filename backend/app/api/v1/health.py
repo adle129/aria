@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 from app.schemas.common import HealthResponse
+from app.services.health_service import build_production_warnings
 from app.services.ollama_service import probe_ollama
 
 router = APIRouter(tags=["health"])
@@ -29,4 +30,5 @@ def health_check() -> HealthResponse:
         kb_debug_enabled=settings.kb_debug_enabled,
         aria_ui_profile=settings.aria_ui_profile,
         auth_enabled=settings.auth_enabled,
+        production_warnings=build_production_warnings(settings, probe),
     )

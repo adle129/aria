@@ -116,6 +116,33 @@ def test_list_tasks(client, sample_rfq_bytes):
     body = resp.json()
     assert body["code"] == 200
     assert len(body["data"]) >= 1
+    row = body["data"][0]
+    assert "progress" in row
+    assert "status_message" in row
+    assert "project_name" in row
+    assert "customer" in row
+    assert "file_name" in row
+
+
+def test_list_tasks_keeps_same_filename_when_unique_file_false(client, sample_rfq_bytes):
+    files = {
+        "file": (
+            "same_name.docx",
+            sample_rfq_bytes,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    }
+    first = client.post("/api/v1/rfq/upload", files=files).json()["data"]["task_id"]
+    second = client.post("/api/v1/rfq/upload", files=files).json()["data"]["task_id"]
+    assert first != second
+
+    deduped = client.get("/api/v1/rfq/tasks", params={"unique_file": True}).json()["data"]
+    same_name_deduped = [t for t in deduped if t["file_name"] == "same_name.docx"]
+    assert len(same_name_deduped) == 1
+
+    all_rows = client.get("/api/v1/rfq/tasks", params={"unique_file": False}).json()["data"]
+    same_name_all = [t for t in all_rows if t["file_name"] == "same_name.docx"]
+    assert {t["task_id"] for t in same_name_all} >= {first, second}
 
 
 def test_upload_and_poll_until_completed(client, sample_rfq_bytes):

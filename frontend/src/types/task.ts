@@ -56,6 +56,10 @@ export interface TaskSummary {
   file_name: string;
   status: string;
   processing_status: string;
+  progress?: number;
+  status_message?: string | null;
+  project_name?: string | null;
+  customer?: string | null;
   created_at?: string;
 }
 
@@ -90,6 +94,7 @@ export interface TaskPayload {
   task_id: string;
   file_name?: string;
   processing_status: string;
+  status_message?: string | null;
   status: string;
   rfq_modules?: Record<string, unknown>;
   dimension_draft?: DimensionDraft;

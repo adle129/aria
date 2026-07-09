@@ -27,4 +27,5 @@ def test_health_response_schema_keys(client):
         "kb_debug_enabled",
         "aria_ui_profile",
         "auth_enabled",
+        "production_warnings",
     }

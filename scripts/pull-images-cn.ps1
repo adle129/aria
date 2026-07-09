@@ -5,10 +5,11 @@
 $ErrorActionPreference = "Stop"
 
 # Mirror registry list — pick one that works on your network
+# Prefer 1ms.run: daocloud often returns EOF on manifest HEAD during BuildKit resolve
 $Mirrors = @(
     "docker.1ms.run",
-    "docker.m.daocloud.io",
-    "docker.xuanyuan.me"
+    "docker.xuanyuan.me",
+    "docker.m.daocloud.io"
 )
 
 $Images = @(

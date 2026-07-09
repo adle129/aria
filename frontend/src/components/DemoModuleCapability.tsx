@@ -3,6 +3,7 @@
 import { Alert, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { fetchHealth, type HealthData } from "@/api/client";
+import { useUiProfile } from "@/hooks/useUiProfile";
 
 const { Text } = Typography;
 
@@ -108,13 +109,19 @@ function capabilityTag(type: CapabilityType, health: HealthData | null, usesRag?
 }
 
 export default function DemoModuleCapability({ module }: { module: DemoModule }) {
+  const { showDemoChrome: demoChrome } = useUiProfile();
   const [health, setHealth] = useState<HealthData | null>(null);
 
   useEffect(() => {
+    if (!demoChrome) return;
     fetchHealth()
       .then(setHealth)
       .catch(() => setHealth(null));
-  }, []);
+  }, [demoChrome]);
+
+  if (!demoChrome) {
+    return null;
+  }
 
   const items = MODULE_CONFIG[module].items;
 

@@ -13,7 +13,7 @@ x-backend-environment: &backend-environment
   TASK_JOB_AVG_SECONDS: ${TASK_JOB_AVG_SECONDS:-120}
   RAG_SIMILARITY_THRESHOLD: ${RAG_SIMILARITY_THRESHOLD:-0.65}
   PROMPT_VERSION: ${PROMPT_VERSION:-v1}
-  CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
+  TASK_WORKER_INLINE: ${TASK_WORKER_INLINE:-false}
   UPLOAD_PATH: ${UPLOAD_PATH:-/app/data/uploads}
   OUTPUT_PATH: ${OUTPUT_PATH:-/app/data/outputs}
   KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH:-/app/data/knowledge_base}

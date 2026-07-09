@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     task_worker_inline: bool = False
     task_worker_poll_seconds: float = 2.0
     task_job_avg_seconds: int = 120
+    task_job_stale_seconds: int = 900
 
     # UI / deployment (see docs/R1/kb-debug-ui-spec.md)
     aria_ui_profile: str = "experience"  # dev | experience | r1 | full

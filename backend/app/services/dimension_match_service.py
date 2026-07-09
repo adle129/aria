@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from app.config import Settings
 from app.services.dimension_baseline_service import (
@@ -400,7 +400,11 @@ class DimensionMatchService:
                 summary[code]["needs_review_count"] += 1
         return list(summary.values())
 
-    def match_rfq_to_baseline(self, rfq_modules: dict[str, Any]) -> dict[str, Any]:
+    def match_rfq_to_baseline(
+        self,
+        rfq_modules: dict[str, Any],
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> dict[str, Any]:
         baseline = self.baseline_service.load()
         corpus = _rfq_corpus(rfq_modules)
         corpus_raw = _rfq_corpus_raw(rfq_modules)
@@ -413,11 +417,18 @@ class DimensionMatchService:
         ]
 
         if not self.settings.mock_llm:
+            llm_batch_starts: list[int] = []
             for i in range(0, len(rows), self.BATCH_SIZE):
+                batch_rule = items[i : i + self.BATCH_SIZE]
+                if any(it.get("confidence") == "low" for it in batch_rule):
+                    llm_batch_starts.append(i)
+
+            total_batches = len(llm_batch_starts)
+            for batch_no, i in enumerate(llm_batch_starts, start=1):
+                if on_progress is not None:
+                    on_progress(batch_no, total_batches)
                 batch = rows[i : i + self.BATCH_SIZE]
                 batch_rule = items[i : i + self.BATCH_SIZE]
-                if not any(it.get("confidence") == "low" for it in batch_rule):
-                    continue
                 llm_items = self._llm_batch(rfq_modules, batch)
                 items[i : i + self.BATCH_SIZE] = self._merge_llm_items(batch_rule, llm_items)
 

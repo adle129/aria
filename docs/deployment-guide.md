@@ -282,8 +282,8 @@ MOCK_LLM=false
 ```json
 {
   "registry-mirrors": [
-    "https://docker.m.daocloud.io",
-    "https://docker.1ms.run"
+    "https://docker.1ms.run",
+    "https://docker.m.daocloud.io"
   ],
   "ipv6": false
 }
@@ -292,8 +292,10 @@ MOCK_LLM=false
 完整示例见 [docker-desktop-engine.example.json](docker-desktop-engine.example.json)。配置后使用项目根目录标准命令：
 
 ```bash
-docker compose up --build
+docker compose up -d --build --pull=never
 ```
+
+**镜像源与 AUTH 常见故障**（DaoCloud EOF、`AUTH_ENABLED` 被 Shell 覆盖、登录不跳转）见 [README.md](../README.md#docker-常见问题与方案) 归档条目。
 
 后端 `pip install` 若出现哈希校验失败，执行 `docker compose build --no-cache backend`；Phase 0 可用 `docker-compose.dev.yml` 跳过 AI 大包以缩短构建时间。详见 [README.md](../README.md)。
 

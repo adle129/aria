@@ -169,3 +169,22 @@ def test_match_invalid_llm_json_degrades(monkeypatch, match_service):
     draft = match_service.match_rfq_to_baseline(rfq_modules)
     assert len(draft["items"]) >= 20
     assert "review_summary" in draft
+
+
+def test_match_rfq_reports_llm_batch_progress(match_service, monkeypatch):
+    calls: list[tuple[int, int]] = []
+
+    def fake_llm_batch(_rfq_modules, batch):
+        return []
+
+    monkeypatch.setattr(match_service, "_llm_batch", fake_llm_batch)
+    match_service.settings = Settings(mock_llm=False, dimension_baseline_path=str(SEED))
+
+    draft = match_service.match_rfq_to_baseline(
+        BIW_RFQ_FIXTURE,
+        on_progress=lambda done, total: calls.append((done, total)),
+    )
+    assert len(draft["items"]) >= 1
+    assert calls
+    assert calls[0] == (1, len(calls))
+    assert calls[-1][0] == calls[-1][1]

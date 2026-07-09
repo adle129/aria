@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   apiClient,
+  clearStoredTaskId,
   fetchHealth,
   fetchMe,
   getStoredToken,
@@ -83,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setStoredToken(null);
     setUser(null);
+    clearStoredTaskId();
   }, []);
 
   const value = useMemo(

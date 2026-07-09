@@ -1,5 +1,13 @@
 import axios from "axios";
 
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    silentError?: boolean;
+    /** When true, show toast for task-not-found 404 (manual user action). */
+    showError?: boolean;
+  }
+}
+
 const baseURL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
@@ -47,6 +55,25 @@ apiClient.interceptors.request.use((config) => {
 
 let authRedirectPending = false;
 
+function isTaskNotFoundError(status: number | undefined, msg: string, url: string): boolean {
+  return (
+    status === 404 &&
+    msg === "任务 ID 不存在" &&
+    /\/rfq\/tasks\/[^/?]+(\/(status|manpower-breakdown-preview))?$/.test(url)
+  );
+}
+
+export function shouldShowApiError(
+  status: number | undefined,
+  msg: string,
+  config: { silentError?: boolean; showError?: boolean; url?: string } | undefined,
+): boolean {
+  if (config?.silentError) return false;
+  const url = config?.url ?? "";
+  if (isTaskNotFoundError(status, msg, url) && !config?.showError) return false;
+  return true;
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -67,7 +94,7 @@ apiClient.interceptors.response.use(
       window.location.href = `/login?next=${next}`;
       return Promise.reject(error);
     }
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && shouldShowApiError(status, msg, error.config)) {
       import("antd").then(({ message }) => message.error(msg));
     }
     return Promise.reject(error);
@@ -119,3 +146,8 @@ export function buildApiUrl(path: string): string {
 }
 
 export const LAST_TASK_ID_KEY = "aria_last_task_id";
+
+export function clearStoredTaskId(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(LAST_TASK_ID_KEY);
+}

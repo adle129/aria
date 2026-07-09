@@ -27,8 +27,17 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 MOCK_LLM="$(grep -E '^MOCK_LLM=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r" ' || echo false)"
+MOCK_RAG="$(grep -E '^MOCK_RAG=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r" ' || echo false)"
+ARIA_UI_PROFILE_VAL="$(grep -E '^ARIA_UI_PROFILE=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r" ' || echo r1)"
 OLLAMA_URL="$(grep -E '^OLLAMA_BASE_URL=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r" ' || echo http://localhost:11434)"
 OLLAMA_URL="${OLLAMA_URL/host.docker.internal/localhost}"
+
+if [[ "${ARIA_UI_PROFILE_VAL,,}" == "r1" ]]; then
+  if [[ "${MOCK_LLM,,}" == "true" || "${MOCK_RAG,,}" == "true" ]]; then
+    echo "ERROR: ARIA_UI_PROFILE=r1 requires MOCK_LLM=false and MOCK_RAG=false in $ENV_FILE" >&2
+    exit 1
+  fi
+fi
 
 if [[ "${MOCK_LLM,,}" != "true" ]]; then
   if ! curl -sf "${OLLAMA_URL}/api/tags" >/dev/null; then
@@ -59,7 +68,8 @@ for c in aria-postgres aria-backend aria-worker aria-frontend aria-nginx; do
   fi
 done
 
-echo "ARIA started (profile=${ARIA_UI_PROFILE:-r1})."
+echo "ARIA started (profile=${ARIA_UI_PROFILE_VAL:-r1})."
 echo "  App:    http://localhost"
 echo "  Health: http://localhost/api/v1/health"
-echo "  Admin:  python deploy/scripts/create_admin.py  (first deploy)"
+echo "  Admin:  docker exec aria-backend python scripts/create_admin.py --username admin --password '***' --display-name Admin --role kb_admin"
+echo "  Smoke:  python scripts/r1_e2e_smoke.py --base-url http://localhost/api/v1 --username USER --password PASS"

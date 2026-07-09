@@ -35,7 +35,9 @@ if (-not $SkipPreflight) {
     }
 }
 
-$Args = @("-f", $ComposeFile, "up", "--build")
+# Prefer local base images (node/python). DaoCloud mirror often EOF on manifest HEAD.
+# Pre-pull when missing: .\scripts\pull-images-cn.ps1
+$Args = @("-f", $ComposeFile, "up", "--build", "--pull", "never")
 if ($Detached) { $Args += "-d" }
 if ($ComposeArgs) { $Args += $ComposeArgs }
 

@@ -111,8 +111,8 @@ Docker Desktop → **Settings** → **Docker Engine**，将 JSON 设为（保留
   },
   "experimental": false,
   "registry-mirrors": [
-    "https://docker.m.daocloud.io",
-    "https://docker.1ms.run"
+    "https://docker.1ms.run",
+    "https://docker.m.daocloud.io"
   ],
   "ipv6": false
 }
@@ -217,10 +217,58 @@ python -m pytest unit_tests API_tests -v
 | 问题 | 原因 | 推荐处理 |
 |------|------|---------|
 | `registry-1.docker.io` / IPv6 超时 | Docker Hub 直连失败 | 配置上方 **registry-mirrors + ipv6:false** |
+| `docker.m.daocloud.io` … `20-alpine` … **EOF** | DaoCloud 对 BuildKit manifest HEAD 不稳定 | 见下方 **「DaoCloud EOF / node 镜像」** |
 | `pip HASHES DO NOT MATCH` | PyPI 下载慢/镜像不一致 | `docker compose build --no-cache backend` 后重试；依赖已拆分为 core + ai 两步安装 |
 | `docker.m.daocloud.io` **401**（cn Dockerfile） | 部分镜像需登录 | 改用 **Docker Engine 镜像加速** + 标准 `docker-compose.yml` |
 | 构建 30+ 分钟仍无容器 | 正常或网络慢 | 另开终端 `docker compose ps`；或 `-Profile dev-fast`（非 R1） |
+| `.env` 里 `AUTH_ENABLED=true` 但 health 仍为 `false` | **Shell 环境变量覆盖 `.env`** | 见下方 **「AUTH 未生效」** |
+| 访问 `/rfq` 不跳转 `/login` | 同上，`auth_enabled=false` | 修复 AUTH 后 `force-recreate backend worker` |
 | pytest 快速迭代 | 不需 Docker 等价栈 | `.\scripts\start.ps1 -Local`（**非 R1 验收**） |
+
+**DaoCloud EOF / `node:20-alpine` 构建失败（2026-07 归档）**
+
+典型报错：
+
+```text
+target frontend: failed to solve: node:20-alpine: failed to resolve source metadata ...
+failed to do request: Head "https://docker.m.daocloud.io/v2/library/node/manifests/20-alpine?ns=docker.io": EOF
+```
+
+处理顺序：
+
+1. **Docker Engine 镜像顺序**：把 `docker.1ms.run` 放在 `daocloud` 之前（见 [docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)），Apply & Restart。
+2. **预拉基础镜像并打 tag**：
+
+```powershell
+.\scripts\pull-images-cn.ps1
+docker compose build --pull=never frontend
+docker compose up -d --build --pull=never
+```
+
+3. `scripts/up.ps1` / `start.ps1` 已默认带 `--pull never`，避免 BuildKit 反复向失效镜像源发 HEAD。
+
+**AUTH 未生效 / 登录页不出现（2026-07 归档）**
+
+Docker Compose：**当前 Shell 会话的环境变量优先于项目 `.env`**。若曾设 `$env:AUTH_ENABLED="false"`，即使 `.env` 已改为 `true`，容器内仍可能是 `false`。
+
+诊断：
+
+```powershell
+$env:AUTH_ENABLED                                    # 宿主机会话
+docker exec aria-backend printenv AUTH_ENABLED       # 运行中容器
+curl http://localhost/api/v1/health                  # 期望 auth_enabled=true
+```
+
+修复：
+
+```powershell
+Remove-Item Env:AUTH_ENABLED -ErrorAction SilentlyContinue
+# 或：$env:AUTH_ENABLED = "true"
+docker compose up -d --no-build --force-recreate backend worker
+.\scripts\create_dev_users.ps1   # engineer / engineer123 · kbadmin / admin123
+```
+
+R1 UI 手验：合并 [.env.docker.example](.env.docker.example) 与 [.env.r1-dev.example](.env.r1-dev.example)（`ARIA_UI_PROFILE=r1`、`AUTH_ENABLED=true`）。改 `NEXT_PUBLIC_ARIA_UI_PROFILE` 后须重建 frontend。
 
 **方案 A — Docker Engine 镜像加速（推荐，已验证可用）**
 
@@ -234,7 +282,7 @@ docker compose up --build
 
 ```powershell
 .\scripts\pull-images-cn.ps1
-docker compose up --build
+docker compose up -d --build --pull=never
 ```
 
 **方案 C — 国内镜像 Compose（Engine 加速仍失败时备用）**

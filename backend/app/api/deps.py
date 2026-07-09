@@ -1,13 +1,28 @@
+"""API dependencies for auth, RBAC, and R1 profile gates."""
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.database import get_db
 from app.models.user import USER_ROLE_KB_ADMIN, User
 from app.services.auth_service import AuthService
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+R1_UNDELIVERED_MSG = "R1 里程碑未包含此功能（方案/QA/报价属后续合同阶段）"
+
+
+def is_r1_profile(settings: Settings | None = None) -> bool:
+    s = settings or get_settings()
+    return (s.aria_ui_profile or "").strip().lower() == "r1"
+
+
+def block_r1_undelivered_milestone(settings: Settings = Depends(get_settings)) -> None:
+    """Reject Demo / M3–M5 stub endpoints when UI profile is r1."""
+    if is_r1_profile(settings):
+        raise HTTPException(status_code=404, detail={"code": 404, "msg": R1_UNDELIVERED_MSG})
 
 
 def get_current_user(

@@ -17,6 +17,7 @@ from app.services.rfq_parse_service import RFQParseService
 from app.services.rfq_parser import RFQParser
 from app.services.rfq_upload import validate_rfq_upload_filename
 from app.services.task_job_service import TaskJobService
+from app.utils.datetime_utils import to_api_utc_iso
 from app.utils.paths import resolve_data_path, resolve_task_file_path
 
 
@@ -94,16 +95,30 @@ class RFQAnalysisService:
             task.status_message = "正在匹配基准维度库..."
             repo.update(task)
 
-            dimension_draft = self.dimension_match.match_rfq_to_baseline(rfq_modules)
+            def on_match_progress(done: int, total: int) -> None:
+                if total <= 0:
+                    return
+                task.progress = str(35 + int(5 * done / total))
+                task.status_message = f"正在匹配基准维度库（{done}/{total}）..."
+                repo.update(task)
+
+            dimension_draft = self.dimension_match.match_rfq_to_baseline(
+                rfq_modules,
+                on_progress=on_match_progress,
+            )
             task.dimension_draft = dimension_draft
             task.processing_status = "dimension_review"
             task.progress = "40"
             task.status_message = "等待工程师确认基准维度清单"
             repo.update(task)
         except Exception as exc:
+            err = str(exc)
             task.processing_status = "failed"
-            task.error_msg = str(exc)
-            task.status_message = "分析失败"
+            task.error_msg = err
+            if "timeout" in err.lower() or "timed out" in err.lower():
+                task.status_message = "分析失败：本地模型响应超时"
+            else:
+                task.status_message = "分析失败"
             repo.update(task)
             raise
 
@@ -205,6 +220,7 @@ class RFQAnalysisService:
             "task_id": task.id,
             "file_name": task.file_name,
             "processing_status": task.processing_status,
+            "status_message": task.status_message,
             "status": task.review_status,
             "rfq_modules": task.rfq_modules,
             "dimension_draft": task.dimension_draft,
@@ -218,8 +234,8 @@ class RFQAnalysisService:
             "qa_excel_path": task.qa_excel_path,
             "qa_excel_ready": bool(task.qa_excel_path and Path(task.qa_excel_path).exists()),
             "error_msg": task.error_msg,
-            "created_at": task.created_at.isoformat() if task.created_at else None,
-            "updated_at": task.updated_at.isoformat() if task.updated_at else None,
+            "created_at": to_api_utc_iso(task.created_at),
+            "updated_at": to_api_utc_iso(task.updated_at),
         }
 
     def get_status_payload(self, task: RFQTask, db: Session | None = None) -> dict[str, Any]:

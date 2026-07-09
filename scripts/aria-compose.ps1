@@ -132,9 +132,18 @@ function Wait-AriaComposeHealthy {
 function Invoke-AriaDbInit {
     param([string]$BackendPath)
     Push-Location $BackendPath
+    $env:PYTHONPATH = $BackendPath
     try {
-        python -c "from app.database import init_db; init_db(); print('DB init OK')"
-        if ($LASTEXITCODE -ne 0) { throw "init_db failed" }
+        $dbUrl = $env:DATABASE_URL
+        if ($dbUrl -and $dbUrl -match "^postgresql") {
+            Write-Host "    alembic upgrade head (PostgreSQL)"
+            alembic upgrade head
+            if ($LASTEXITCODE -ne 0) { throw "alembic upgrade failed" }
+        }
+        else {
+            python -c "from app.database import init_db; init_db(); print('DB init OK')"
+            if ($LASTEXITCODE -ne 0) { throw "init_db failed" }
+        }
     }
     finally {
         Pop-Location

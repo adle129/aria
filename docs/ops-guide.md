@@ -277,8 +277,11 @@ prompts/
 | JSON 解析失败 | LLM 输出格式异常 | 查看 backend 日志；重试；检查 Prompt 版本 |
 | 相似项目检索为空 | 知识库未导入 / pgvector 空 / 低于拒答阈值 | 执行 ingest；检查 stats；确认 query 与评测集 |
 | Excel 下载打不开 | 模板文件缺失 | 检查 `/data/aria/app/templates/quote_template.xlsx`（生产） |
-| docker-compose 启动失败 | 端口冲突 / .env 缺失 | 检查 3000/8000/5432 端口；复制 .env.template |
-| 前端空白页 | backend 未就绪 | 等 health check 通过；检查 NEXT_PUBLIC_API_URL |
+| docker-compose 启动失败 | 端口冲突 / .env 缺失 | 检查 3000/8000/5432 端口；复制 `.env.docker.example` |
+| **frontend 构建失败** `node:20-alpine` **EOF** | DaoCloud 镜像源 manifest 超时 | `.\scripts\pull-images-cn.ps1` 后 `docker compose build --pull=never frontend`；见 [README § Docker 常见问题](../README.md#docker-常见问题与方案) |
+| **health 显示 `auth_enabled=false`** 但 `.env` 为 `true` | Shell 环境变量覆盖 Compose 插值 | `Remove-Item Env:AUTH_ENABLED`；`docker compose up -d --force-recreate backend worker` |
+| **未登录可访问 `/rfq`** | 认证未真正启用 | 同上；确认 health；`create_dev_users.ps1` 建账号 |
+| 前端空白页 | backend 未就绪 | 等 health check 通过；检查 `NEXT_PUBLIC_API_BASE_URL` |
 
 ### 6.2 Ollama 诊断
 

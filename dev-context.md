@@ -523,7 +523,7 @@ test: 知识库搜索异常路径
 - Ollama 不入容器：`OLLAMA_BASE_URL` 访问宿主机
 - 容器名：`aria-backend`、`aria-frontend`
 - 数据库：`aria_db` / `aria_admin`
-- **Docker（国内）：** 优先 Docker Desktop `registry-mirrors` + `ipv6:false`，见 [docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)
+- **Docker（国内）：** 优先 Docker Desktop `registry-mirrors` + `ipv6:false`，见 [docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)；DaoCloud EOF / `AUTH_ENABLED` 覆盖见 [README § Docker 常见问题](README.md#docker-常见问题与方案)
 - **Docker 构建：** 依赖分 `requirements.txt` / `requirements-ai.txt`；Phase 0 可用 `docker-compose.dev.yml`（`INSTALL_AI=false`）
 
 ---

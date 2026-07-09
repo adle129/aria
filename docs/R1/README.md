@@ -25,6 +25,7 @@
 | [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) | **R1「签完即用」** 内部共识（金标准 ≥5 + bulk 档位） |
 | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) | **客户历史项目库 bulk 导入** 工作量 · 试点 · 验收档位 A/B/C |
 | [r1-customer-one-pager.md](r1-customer-one-pager.md) | **客户一页纸**「R1 您将得到什么」 |
+| [r1-rehearsal-script.md](r1-rehearsal-script.md) | **内部彩排脚本**（含 §7 本地 UI / 登录 / 镜像故障） |
 | [../supplementary/manpower-baselines-spec.md](../supplementary/manpower-baselines-spec.md) | **人力报价 baselines · 三层交付 · 不向量化主路径** |
 
 ---

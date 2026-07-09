@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import resolve_owner_id
+from app.api.deps import block_r1_undelivered_milestone, resolve_owner_id
 from app.database import get_db
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.schemas.rfq import ConfirmDimensionsRequest, RFQTaskUpdateRequest
@@ -16,6 +16,7 @@ from app.services.dimension_baseline_service import (
 from app.services.quote_service import QuoteService
 from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.rfq_upload import RFQ_UPLOAD_REJECT_MSG, is_allowed_rfq_filename
+from app.utils.datetime_utils import to_api_utc_iso
 
 router = APIRouter(prefix="/rfq", tags=["rfq"])
 analysis_service = RFQAnalysisService()
@@ -78,19 +79,25 @@ def list_tasks(
     owner_id: str | None = Depends(resolve_owner_id),
 ):
     tasks = RFQTaskRepository(db).list_recent(limit, unique_file_name=unique_file, owner_id=owner_id)
-    return {
-        "code": 200,
-        "data": [
+    rows = []
+    for t in tasks:
+        mods = t.rfq_modules if isinstance(t.rfq_modules, dict) else {}
+        project_name = mods.get("project_name")
+        customer = mods.get("customer")
+        rows.append(
             {
                 "task_id": t.id,
                 "file_name": t.file_name,
                 "status": t.review_status,
                 "processing_status": t.processing_status,
-                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "progress": int(t.progress or "0"),
+                "status_message": t.status_message,
+                "project_name": str(project_name) if project_name else None,
+                "customer": str(customer) if customer else None,
+                "created_at": to_api_utc_iso(t.created_at),
             }
-            for t in tasks
-        ],
-    }
+        )
+    return {"code": 200, "data": rows}
 
 
 @router.get("/tasks/{task_id}")
@@ -168,7 +175,7 @@ def confirm_dimensions(
     }
 
 
-@router.post("/tasks/{task_id}/generate-excel")
+@router.post("/tasks/{task_id}/generate-excel", dependencies=[Depends(block_r1_undelivered_milestone)])
 def generate_excel(
     task_id: str,
     db: Session = Depends(get_db),
@@ -187,7 +194,7 @@ def generate_excel(
     return {"code": 200, "data": result}
 
 
-@router.post("/tasks/{task_id}/generate-proposal")
+@router.post("/tasks/{task_id}/generate-proposal", dependencies=[Depends(block_r1_undelivered_milestone)])
 def generate_proposal(
     task_id: str,
     db: Session = Depends(get_db),
@@ -205,7 +212,7 @@ def generate_proposal(
     return {"code": 200, "data": {**result, "task": payload}}
 
 
-@router.post("/tasks/{task_id}/generate-qa")
+@router.post("/tasks/{task_id}/generate-qa", dependencies=[Depends(block_r1_undelivered_milestone)])
 def generate_qa(
     task_id: str,
     db: Session = Depends(get_db),
@@ -223,7 +230,7 @@ def generate_qa(
     return {"code": 200, "data": {**result, "task": payload}}
 
 
-@router.get("/tasks/{task_id}/download/qa")
+@router.get("/tasks/{task_id}/download/qa", dependencies=[Depends(block_r1_undelivered_milestone)])
 def download_qa(
     task_id: str,
     db: Session = Depends(get_db),
@@ -247,7 +254,7 @@ def download_qa(
     )
 
 
-@router.get("/tasks/{task_id}/manpower-breakdown-preview")
+@router.get("/tasks/{task_id}/manpower-breakdown-preview", dependencies=[Depends(block_r1_undelivered_milestone)])
 def manpower_breakdown_preview(
     task_id: str,
     db: Session = Depends(get_db),
@@ -265,7 +272,7 @@ def manpower_breakdown_preview(
     }
 
 
-@router.get("/tasks/{task_id}/download/excel")
+@router.get("/tasks/{task_id}/download/excel", dependencies=[Depends(block_r1_undelivered_milestone)])
 def download_excel(
     task_id: str,
     db: Session = Depends(get_db),

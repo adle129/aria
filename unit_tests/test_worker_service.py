@@ -79,20 +79,32 @@ def test_process_one_marks_failed_when_handler_raises(db_session, monkeypatch):
     assert "parse failed" in (processed.error_message or "")
 
 
-def test_recover_stale_jobs_resets_to_queued(db_session):
+def test_recover_stale_jobs_marks_failed(db_session):
     from datetime import timedelta, timezone
+
+    task = RFQTask(
+        file_name="stale.docx",
+        file_path="/tmp/stale.docx",
+        processing_status="parsing",
+        progress="40",
+        status_message="正在匹配基准维度库（1/1）...",
+    )
+    db_session.add(task)
+    db_session.commit()
 
     stale = TaskJob(
         job_type="rfq_analysis",
-        ref_id="task-stale",
+        ref_id=task.id,
         status="running",
-        started_at=datetime.now(timezone.utc) - timedelta(hours=3),
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=20),
     )
     TaskJobRepository(db_session).create(stale)
 
-    worker = WorkerService(Settings(database_url="sqlite://"))
+    worker = WorkerService(Settings(database_url="sqlite://", task_job_stale_seconds=900))
     reset = worker.recover_stale_jobs(db_session)
     assert reset == 1
-    reloaded = TaskJobRepository(db_session).get_by_id(stale.id)
-    assert reloaded.status == "queued"
-    assert reloaded.worker_id is None
+    reloaded_job = TaskJobRepository(db_session).get_by_id(stale.id)
+    assert reloaded_job.status == "failed"
+    db_session.refresh(task)
+    assert task.processing_status == "failed"
+    assert "超时" in (task.error_msg or "")

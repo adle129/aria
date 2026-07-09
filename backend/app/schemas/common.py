@@ -25,3 +25,4 @@ class HealthResponse(BaseModel):
     kb_debug_enabled: bool = False
     aria_ui_profile: str = "experience"
     auth_enabled: bool = False
+    production_warnings: list[str] = Field(default_factory=list)

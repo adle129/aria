@@ -259,16 +259,6 @@ class KBDebugService:
             raise EmbeddingError(str(exc)) from exc
 
     def index_file(self, filename: str, corpus_path: Path | None = None, *, clear: bool = True) -> dict[str, Any]:
-        probe = probe_ollama(
-            self.settings.ollama_base_url,
-            self.settings.ollama_model,
-            self.settings.embedding_model,
-        )
-        if not probe["embedding_model_ready"]:
-            raise EmbeddingError(
-                probe.get("ollama_error")
-                or f"Embedding model not ready: {self.settings.embedding_model}"
-            )
         cached = self._load_cache()
         if not cached or cached.get("target_file") != filename:
             self.preview_file(filename, corpus_path)
@@ -296,16 +286,6 @@ class KBDebugService:
         return state
 
     def _index_corpus_folder(self, folder: Path, *, clear: bool = True) -> dict[str, Any]:
-        probe = probe_ollama(
-            self.settings.ollama_base_url,
-            self.settings.ollama_model,
-            self.settings.embedding_model,
-        )
-        if not probe["embedding_model_ready"]:
-            raise EmbeddingError(
-                probe.get("ollama_error")
-                or f"Embedding model not ready: {self.settings.embedding_model}"
-            )
         return self._index.index_corpus_folder(folder, clear=clear)
 
     def search(
@@ -349,41 +329,9 @@ class KBDebugService:
         return record
 
     def run_eval(self, queries: list[dict[str, Any]], *, top_k: int = 3) -> dict[str, Any]:
-        results: list[dict[str, Any]] = []
-        passed = 0
-        for idx, item in enumerate(queries):
-            q = str(item.get("query") or "").strip()
-            if len(q) < 2:
-                continue
-            hits = self.search(q, top_k=top_k, doc_type_filter=item.get("expected_doc_types"))
-            ok = False
-            expected_doc = item.get("expected_source_doc")
-            expected_area = item.get("expected_area")
-            if hits:
-                top = hits[0]
-                meta = top.get("metadata") or {}
-                if expected_doc and expected_doc in str(meta.get("source_doc", "")):
-                    ok = True
-                elif expected_area and expected_area in str(meta.get("area", "")):
-                    ok = True
-                elif not expected_doc and not expected_area:
-                    ok = top.get("similarity_score", 0) >= float(item.get("min_score", 0.3))
-            if ok:
-                passed += 1
-            results.append(
-                {
-                    "index": idx,
-                    "query": q,
-                    "expected_source_doc": expected_doc,
-                    "expected_area": expected_area,
-                    "pass": ok,
-                    "hits": hits,
-                }
-            )
-        total = len(results)
-        return {
-            "total": total,
-            "passed": passed,
-            "pass_rate": round(passed / total, 2) if total else 0.0,
-            "results": results,
-        }
+        from app.services.retrieval_eval_service import evaluate_retrieval_queries
+
+        def search(q: str, doc_types: list[str] | None) -> list[dict[str, Any]]:
+            return self.search(q, top_k=top_k, doc_type_filter=doc_types)
+
+        return evaluate_retrieval_queries(search, queries, top_k=top_k)

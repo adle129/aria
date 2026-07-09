@@ -7,6 +7,23 @@
 > 状态枚举：`待开始` · `进行中` · `已完成` · `阻塞`  
 > 写 PR 前对照 [pre-development-open-items.md §1](../supplementary/pre-development-open-items.md) Gate。
 
+**2026-07-08 内部进度（未签约 · 不依赖客户交付物）：**
+
+| 块 | 代码状态 | 内部可继续 |
+|----|----------|------------|
+| R1-E / Profile / 生产门禁 | E03/E05 已实现；E02 规则已同步 | Compose 全链路手验 |
+| R1-I / AUTH | 主体已完成 | 排队 UI  polish |
+| R1-K / F1.10 / U | 主体已完成 | `bootstrap_r1_internal.ps1` + ingest + eval |
+| R1-A 验收 | 彩排脚本已编写 | smoke / eval / 内网手验 |
+| **客户 O-01～O-05** | **阻塞 R1-β 签字** | PM 跟进；开发用 `seed_internal_engagement` |
+
+**内部一键：** `.\scripts\bootstrap_r1_internal.ps1` → seed → ingest → 15 题 eval → health smoke  
+**R1 正式 UI：** `ARIA_UI_PROFILE=r1` · 见 `.env.r1-dev.example` · 彩排见 [r1-rehearsal-script.md](r1-rehearsal-script.md)
+
+**代码已完成（2026-07-08 对照）：** R1-I01–I09 · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
+
+**仍依赖客户：** R1-F02 · R1-A02–A07 · O-01～O-05
+
 ---
 
 ## R1-E 工程准备（P0-0 · Week 0–1）
@@ -15,9 +32,9 @@
 |----|--------|------|------------|------|--------|------|
 | R1-E01 | P0-0 | 从 `main` 创建 `release/r1` | 分支存在；README 注明 Demo 冻结 | I-04 | | 已完成 |
 | R1-E02 | P0-0 | 同步 `.cursor/rules` + `dev-context.md`（pgvector、无 LangChain、R1 Profile） | 规则与 prod v1.6 一致 | I-05 | | 待开始 |
-| R1-E03 | P0-0 | 实现 `ARIA_UI_PROFILE=r1` | 侧栏仅 RFQ + 知识库；proposal/qa/quote 不可误触 Mock | api-design | | 待开始 |
+| R1-E03 | P0-0 | 实现 `ARIA_UI_PROFILE=r1` | 五步可见；未购步锁定；`/proposal` `/qa` `/quote` 路由守卫 | api-design | | **已完成** |
 | R1-E04 | P0-0 | R1 PR 检查项：traceability 行号 + 测试路径 | `.github/pull_request_template.md` | delivery-traceability | | 已完成 |
-| R1-E05 | P0-0 | 生产 Compose 验证：`MOCK_LLM`/`MOCK_RAG`=false 门禁 | `.env.production.example` 注释对齐 | deployment-guide | | 待开始 |
+| R1-E05 | P0-0 | 生产 Compose 验证：`MOCK_LLM`/`MOCK_RAG`=false 门禁 | `.env.production.example` 注释对齐 | deployment-guide | | **进行中** |
 | R1-E06 | P0-0 | Git 流程文档 + 团队对齐 | [git-workflow.md](git-workflow.md)；PR 模板 | R1-E01 | | 已完成 |
 
 ---
@@ -111,7 +128,7 @@
 | R1-U02 | P0-3 | `/rfq` 两阶段流 | — | dimension_review → 矩阵页 | R1-U01 | | 已完成 |
 | R1-U03 | P0-3 | `TaskContextBar` / 状态文案 | §5.1 | dimension_review 等待勾选 | R1-F06 | | 已完成 |
 | R1-U04 | P0-3 | 矩阵页仅 in_scope 行 | F1.10d | 复用 ComparisonMatrix | R1-F09 | | 待开始 |
-| R1-U05 | P0-3 | Profile=r1 路由守卫 | formal §5.2 | 未购步隐藏/锁定 | R1-E03 | | 待开始 |
+| R1-U05 | P0-3 | Profile=r1 路由守卫 + 未购步锁定 UI | formal §5.2 | 侧栏/Stepper 灰色锁定 + 路由重定向 | R1-E03 | | **已完成** |
 | R1-U06 | P0-3 | 联调 3 RFQ 样本路径 | — | 端到端无 Mock 欺骗 | R1-F10, R1-K seed 数据 | | 待开始 |
 
 ---

@@ -6,17 +6,21 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.database import SessionLocal
 from app.models.task_job import TaskJob
+from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.ollama_concurrency import get_ollama_gate
 from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.task_job_service import TaskJobService
 
 logger = logging.getLogger(__name__)
+
+IN_FLIGHT_RFQ_STATUSES = frozenset({"queued", "pending", "parsing", "retrieving", "generating"})
 
 
 class WorkerService:
@@ -27,8 +31,36 @@ class WorkerService:
         self.analysis_service = RFQAnalysisService(self.settings)
 
     def recover_stale_jobs(self, db: Session) -> int:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
-        return TaskJobRepository(db).reset_stale_running(older_than=cutoff)
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.settings.task_job_stale_seconds)
+        job_repo = TaskJobRepository(db)
+        task_repo = RFQTaskRepository(db)
+        jobs = list(
+            db.scalars(
+                select(TaskJob).where(
+                    TaskJob.status == "running",
+                    TaskJob.started_at.isnot(None),
+                    TaskJob.started_at < cutoff,
+                )
+            )
+        )
+        if not jobs:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        for job in jobs:
+            job.status = "failed"
+            job.error_message = "任务执行超时（worker 无响应）"
+            job.finished_at = now
+            job.updated_at = now
+            if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
+                task = task_repo.get_by_id(job.ref_id)
+                if task and task.processing_status in IN_FLIGHT_RFQ_STATUSES:
+                    task.processing_status = "failed"
+                    task.error_msg = "分析超时：本地模型响应过慢或处理中断，请重新上传"
+                    task.status_message = "分析失败"
+                    task_repo.update(task)
+            job_repo.update(job)
+        return len(jobs)
 
     def process_job(self, db: Session, job: TaskJob) -> None:
         if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
@@ -73,6 +105,13 @@ class WorkerService:
         poll = max(0.5, float(self.settings.task_worker_poll_seconds))
         logger.info("Worker %s started (poll=%ss)", self.worker_id, poll)
         while True:
+            db = SessionLocal()
+            try:
+                recovered = self.recover_stale_jobs(db)
+                if recovered:
+                    logger.info("Recovered %s stale running jobs", recovered)
+            finally:
+                db.close()
             processed = self.run_once()
             if not processed:
                 time.sleep(poll)
