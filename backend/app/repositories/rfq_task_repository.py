@@ -30,16 +30,23 @@ class RFQTaskRepository:
         self.db.refresh(task)
         return task
 
+    def delete(self, task: RFQTask) -> None:
+        self.db.delete(task)
+        self.db.commit()
+
     def list_recent(
         self,
         limit: int = 20,
         unique_file_name: bool = True,
         owner_id: str | None = None,
+        include_archived: bool = False,
     ) -> list[RFQTask]:
         fetch_limit = limit * 5 if unique_file_name else limit
         query = self.db.query(RFQTask)
         if owner_id is not None:
             query = query.filter(RFQTask.owner_id == owner_id)
+        if not include_archived:
+            query = query.filter(RFQTask.archived.is_(False))
         tasks = (
             query.order_by(RFQTask.created_at.desc())
             .limit(max(1, min(fetch_limit, 100)))

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Column, DateTime, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, String, Text
 
 from app.database import Base
 
@@ -35,6 +35,7 @@ class RFQTask(Base):
     qa_excel_path = Column(String, nullable=True)
     ppt_path = Column(String, nullable=True)
     error_msg = Column(Text, nullable=True)
+    archived = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

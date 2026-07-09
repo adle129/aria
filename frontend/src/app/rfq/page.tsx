@@ -15,7 +15,7 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiClient, clearStoredTaskId, fetchHealth } from "@/api/client";
+import { apiClient, clearStoredTaskId, fetchHealth, retryTask } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
 import DimensionBaselineReview, { type DimensionDraft } from "@/components/DimensionBaselineReview";
 import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/ComparisonMatrix";
@@ -424,6 +424,31 @@ export default function RfqPage() {
     return false;
   };
 
+  const handleRetry = useCallback(async () => {
+    if (!task) return;
+    const taskId = task.task_id;
+    setUploading(true);
+    setMatrixRows([]);
+    setConfirmed(false);
+    setDimensionDraft(null);
+    setAnalysisProgress(0);
+    setAnalysisMessage("");
+    try {
+      await retryTask(taskId);
+      message.success("已重新排队，正在分析...");
+      await refreshRecentTasks();
+      const result = await pollTask(taskId);
+      if (result === "timeout") {
+        setUploading(false);
+        return;
+      }
+    } catch {
+      // error shown by interceptor
+    } finally {
+      setUploading(false);
+    }
+  }, [task, pollTask, refreshRecentTasks]);
+
   const triggerUploadPicker = useCallback(() => {
     uploadInputRef.current?.click();
   }, []);
@@ -648,7 +673,7 @@ export default function RfqPage() {
             这份 RFQ 没能解析完成
           </Title>
           <Paragraph type="secondary" style={{ marginBottom: 24 }}>
-            可能是文档格式不标准或内容过短。您可以重新上传，或从左侧打开其他任务。
+            可能是文档格式不标准或内容过短。您可以重新解析（使用同一文件）或重新上传。
           </Paragraph>
           {task.error_msg ? (
             <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 24 }}>
@@ -656,9 +681,10 @@ export default function RfqPage() {
             </Paragraph>
           ) : null}
           <Space>
-            <Button type="primary" onClick={triggerUploadPicker}>
-              重新上传
+            <Button type="primary" loading={uploading} onClick={() => void handleRetry()}>
+              重新解析
             </Button>
+            <Button onClick={triggerUploadPicker}>重新上传</Button>
           </Space>
         </div>
       );

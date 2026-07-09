@@ -14,7 +14,6 @@ from app.services.dimension_match_service import DimensionMatchService
 from app.services.llm_service import LLMService
 from app.services.rag_service import RAGService
 from app.services.rfq_parse_service import RFQParseService
-from app.services.rfq_parser import RFQParser
 from app.services.rfq_upload import validate_rfq_upload_filename
 from app.services.task_job_service import TaskJobService
 from app.utils.datetime_utils import to_api_utc_iso
@@ -24,7 +23,6 @@ from app.utils.paths import resolve_data_path, resolve_task_file_path
 class RFQAnalysisService:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
-        self.parser = RFQParser()
         self.parse_service = RFQParseService(self.settings)
         self.llm = LLMService(self.settings)
         self.rag = RAGService(self.settings)
@@ -74,6 +72,32 @@ class RFQAnalysisService:
 
             run_inline_job(db, job, self.settings)
             db.refresh(task)
+
+    def retry_task(self, db: Session, task: RFQTask) -> RFQTask:
+        """Re-queue a failed task for reprocessing without re-uploading the file."""
+        from pathlib import Path as _Path
+
+        if not _Path(task.file_path).exists():
+            raise ValueError("原始 RFQ 文件已丢失，请重新上传")
+
+        repo = RFQTaskRepository(db)
+        task.processing_status = "queued"
+        task.error_msg = None
+        task.progress = "0"
+        task.status_message = "重新排队中..."
+        task.review_status = "draft"
+        task.rfq_modules = None
+        task.dimension_draft = None
+        task.similar_projects = None
+        task.comparison_table = None
+        task.solution_draft = None
+        task.qa_items = None
+        task.excel_path = None
+        task.qa_excel_path = None
+        repo.update(task)
+        self.enqueue_analysis(db, task)
+        db.refresh(task)
+        return task
 
     def analyze_task(self, db: Session, task_id: str) -> None:
         repo = RFQTaskRepository(db)

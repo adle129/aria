@@ -79,7 +79,7 @@ def test_process_one_marks_failed_when_handler_raises(db_session, monkeypatch):
     assert "parse failed" in (processed.error_message or "")
 
 
-def test_recover_stale_jobs_marks_failed(db_session):
+def test_recover_stale_jobs_marks_failed_when_max_attempts_reached(db_session):
     from datetime import timedelta, timezone
 
     task = RFQTask(
@@ -92,10 +92,13 @@ def test_recover_stale_jobs_marks_failed(db_session):
     db_session.add(task)
     db_session.commit()
 
+    # attempts == max_attempts → should permanently fail
     stale = TaskJob(
         job_type="rfq_analysis",
         ref_id=task.id,
         status="running",
+        attempts=3,
+        max_attempts=3,
         started_at=datetime.now(timezone.utc) - timedelta(minutes=20),
     )
     TaskJobRepository(db_session).create(stale)
@@ -108,3 +111,35 @@ def test_recover_stale_jobs_marks_failed(db_session):
     db_session.refresh(task)
     assert task.processing_status == "failed"
     assert "超时" in (task.error_msg or "")
+
+
+def test_recover_stale_jobs_requeues_when_under_max_attempts(db_session):
+    from datetime import timedelta, timezone
+
+    task = RFQTask(
+        file_name="stale2.docx",
+        file_path="/tmp/stale2.docx",
+        processing_status="parsing",
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    # attempts=1 < max_attempts=3 → should re-queue
+    stale = TaskJob(
+        job_type="rfq_analysis",
+        ref_id=task.id,
+        status="running",
+        attempts=1,
+        max_attempts=3,
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+    )
+    TaskJobRepository(db_session).create(stale)
+
+    worker = WorkerService(Settings(database_url="sqlite://", task_job_stale_seconds=900))
+    reset = worker.recover_stale_jobs(db_session)
+    assert reset == 1
+    reloaded_job = TaskJobRepository(db_session).get_by_id(stale.id)
+    assert reloaded_job.status == "queued"
+    db_session.refresh(task)
+    assert task.processing_status == "queued"
+    assert task.error_msg is None

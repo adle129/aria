@@ -13,11 +13,11 @@ import {
   UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Dropdown, Input, Layout, Menu, Pagination, Segmented, Space, Tag, Typography, type MenuProps } from "antd";
+import { Alert, Button, Dropdown, Input, Layout, Menu, Pagination, Segmented, Space, Tag, Typography, message, type MenuProps } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { fetchHealth, type HealthData } from "@/api/client";
+import { archiveTask, deleteTask, fetchHealth, type HealthData } from "@/api/client";
 import RfqRecentTasksTable from "@/components/rfq/RfqRecentTasksTable";
 import TaskContextBar from "@/components/TaskContextBar";
 import ChangePasswordModal from "@/components/ChangePasswordModal";
@@ -198,6 +198,26 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
     }
   };
 
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      message.success("任务已删除");
+      void refreshRecentTasks();
+    } catch {
+      // error shown by interceptor
+    }
+  };
+
+  const handleArchiveTask = async (taskId: string) => {
+    try {
+      await archiveTask(taskId);
+      message.success("任务已归档");
+      void refreshRecentTasks();
+    } catch {
+      // error shown by interceptor
+    }
+  };
+
   return (
     <div
       style={{
@@ -249,6 +269,8 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
           activeTaskId={task?.task_id}
           loading={loading || openingTaskId !== null}
           onOpen={(id) => void openTask(id)}
+          onDelete={(id) => void handleDeleteTask(id)}
+          onArchive={(id) => void handleArchiveTask(id)}
         />
       </div>
       {filteredTasks.length > PAGE_SIZE && (

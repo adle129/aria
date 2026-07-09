@@ -1,7 +1,7 @@
 "use client";
 
-import { CopyOutlined } from "@ant-design/icons";
-import { Spin, Typography, message } from "antd";
+import { CopyOutlined, DeleteOutlined, EllipsisOutlined, InboxOutlined } from "@ant-design/icons";
+import { Dropdown, Modal, Spin, Typography, message } from "antd";
 import { copyToClipboard, formatTaskShortId } from "@/lib/clipboard";
 import { formatRelativeTime } from "@/lib/taskStatus";
 import RfqStatusTag from "@/components/rfq/RfqStatusTag";
@@ -9,11 +9,15 @@ import type { TaskSummary } from "@/types/task";
 
 const { Text } = Typography;
 
+const IN_PROGRESS_STATUSES = new Set(["queued", "parsing", "retrieving", "generating"]);
+
 interface RfqRecentTasksTableProps {
   tasks: TaskSummary[];
   activeTaskId?: string;
   loading?: boolean;
   onOpen: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
+  onArchive?: (taskId: string) => void;
 }
 
 function taskSubtitle(task: TaskSummary): string {
@@ -25,6 +29,8 @@ export default function RfqRecentTasksTable({
   activeTaskId,
   loading,
   onOpen,
+  onDelete,
+  onArchive,
 }: RfqRecentTasksTableProps) {
   if (loading && tasks.length === 0) {
     return (
@@ -48,6 +54,32 @@ export default function RfqRecentTasksTable({
         const active = task.task_id === activeTaskId;
         const subtitle = taskSubtitle(task);
         const shortId = formatTaskShortId(task.task_id);
+        const inProgress = IN_PROGRESS_STATUSES.has(task.processing_status);
+
+        const menuItems = [
+          ...(onArchive
+            ? [
+                {
+                  key: "archive",
+                  icon: <InboxOutlined />,
+                  label: "归档",
+                  disabled: inProgress,
+                },
+              ]
+            : []),
+          ...(onDelete
+            ? [
+                {
+                  key: "delete",
+                  icon: <DeleteOutlined />,
+                  label: "删除",
+                  danger: true,
+                  disabled: inProgress,
+                },
+              ]
+            : []),
+        ];
+
         return (
           <button
             key={task.task_id}
@@ -144,6 +176,48 @@ export default function RfqRecentTasksTable({
                 <Text type="secondary" style={{ fontSize: 11 }}>
                   · {formatRelativeTime(task.created_at)}
                 </Text>
+                {menuItems.length > 0 && (
+                  <Dropdown
+                    menu={{
+                      items: menuItems,
+                      onClick: ({ key, domEvent }) => {
+                        domEvent.stopPropagation();
+                        if (key === "delete") {
+                          Modal.confirm({
+                            title: "删除任务",
+                            content: `确认删除「${task.file_name}」？删除后无法恢复。`,
+                            okText: "删除",
+                            okType: "danger",
+                            cancelText: "取消",
+                            onOk: () => onDelete?.(task.task_id),
+                          });
+                        } else if (key === "archive") {
+                          onArchive?.(task.task_id);
+                        }
+                      },
+                    }}
+                    trigger={["click"]}
+                    placement="bottomRight"
+                  >
+                    <button
+                      type="button"
+                      title="更多操作"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        padding: "0 2px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        color: "#8C8C8C",
+                        fontSize: 14,
+                      }}
+                    >
+                      <EllipsisOutlined />
+                    </button>
+                  </Dropdown>
+                )}
               </span>
             </div>
           </button>

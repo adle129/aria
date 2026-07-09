@@ -81,18 +81,27 @@ def test_knowledge_search_doc_type_filter(client):
 
 
 def test_knowledge_mock_real_schema_parity(monkeypatch):
-    """Mock mode and Real (empty pgvector) return the same RAGHit field set."""
+    """Mock mode returns valid RAGHit field set; real mode delegates to index service."""
     mock_rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
-    real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
 
     query = "MEB chassis"
     mock_hits = mock_rag.search_similar_projects(query, top_k=3)
-    real_hits = real_rag.search_similar_projects(query, top_k=3)
     assert len(mock_hits) >= 1
-    assert real_hits == []
     required_keys = {"content", "metadata", "similarity_score"}
     meta_keys = {"project_name", "source_doc", "doc_type"}
     for hit in mock_hits:
         assert required_keys <= set(hit.keys())
         assert meta_keys <= set((hit.get("metadata") or {}).keys())
+
+    # Real mode with empty index (mocked) returns empty list.
+    from app.services import knowledge_index_service
+
+    monkeypatch.setattr(
+        knowledge_index_service.KnowledgeIndexService,
+        "search",
+        lambda self, query, **kwargs: [],
+    )
+    real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
+    real_hits = real_rag.search_similar_projects(query, top_k=3)
+    assert real_hits == []
 

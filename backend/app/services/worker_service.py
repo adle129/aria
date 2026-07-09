@@ -32,7 +32,6 @@ class WorkerService:
 
     def recover_stale_jobs(self, db: Session) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.settings.task_job_stale_seconds)
-        job_repo = TaskJobRepository(db)
         task_repo = RFQTaskRepository(db)
         jobs = list(
             db.scalars(
@@ -46,20 +45,21 @@ class WorkerService:
         if not jobs:
             return 0
 
-        now = datetime.now(timezone.utc)
         for job in jobs:
-            job.status = "failed"
-            job.error_message = "任务执行超时（worker 无响应）"
-            job.finished_at = now
-            job.updated_at = now
+            self.job_service.mark_failed(db, job, "任务执行超时（worker 无响应）")
             if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
                 task = task_repo.get_by_id(job.ref_id)
                 if task and task.processing_status in IN_FLIGHT_RFQ_STATUSES:
-                    task.processing_status = "failed"
-                    task.error_msg = "分析超时：本地模型响应过慢或处理中断，请重新上传"
-                    task.status_message = "分析失败"
+                    if job.status == "queued":
+                        task.processing_status = "queued"
+                        task.error_msg = None
+                        task.progress = "0"
+                        task.status_message = "任务超时，正在重新排队..."
+                    else:
+                        task.processing_status = "failed"
+                        task.error_msg = "分析超时：本地模型响应过慢或处理中断"
+                        task.status_message = "分析失败"
                     task_repo.update(task)
-            job_repo.update(job)
         return len(jobs)
 
     def process_job(self, db: Session, job: TaskJob) -> None:

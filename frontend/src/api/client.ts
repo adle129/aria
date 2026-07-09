@@ -201,3 +201,18 @@ export function clearStoredTaskId(): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(LAST_TASK_ID_KEY);
 }
+
+export async function retryTask(taskId: string): Promise<{ status: string }> {
+  const { data } = await apiClient.post<{ code: number; data: { status: string } }>(
+    `/rfq/tasks/${taskId}/retry`,
+  );
+  return data.data;
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  await apiClient.delete(`/rfq/tasks/${taskId}`);
+}
+
+export async function archiveTask(taskId: string): Promise<void> {
+  await apiClient.patch(`/rfq/tasks/${taskId}/archive`);
+}

@@ -35,7 +35,7 @@ def test_knowledge_search_insufficient_evidence_empty_index(client, monkeypatch)
     get_settings.cache_clear()
 
     class FakeIndex:
-        def search(self, **_kwargs):
+        def search(self, query=None, **_kwargs):
             return []
 
     monkeypatch.setattr(
