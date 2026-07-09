@@ -12,7 +12,6 @@ from app.repositories.engagement_repository import EngagementRepository
 from app.schemas.engagement import EngagementManifest
 from app.services.engagement_manifest_service import resolve_manifest
 from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only, summarize_doc_type_counts
-from app.services.ingest.chunk_benchmarks import summarize_doc_type_counts
 from app.services.ingest.engagement_preview import build_engagement_preview
 from app.services.ingest.quote_baseline_extractor import extract_manpower_baselines
 from app.services.knowledge_index_service import (

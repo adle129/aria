@@ -162,7 +162,8 @@ class KnowledgeIndexService:
         self._store = PgVectorStore(namespace=namespace)
 
     def _state_path(self) -> Path:
-        return Path(self.settings.chroma_path).parent / INDEX_STATE_FILE
+        # Store index state alongside the knowledge base, not under legacy chroma_path.
+        return Path(self.settings.knowledge_base_path).parent / INDEX_STATE_FILE
 
     def _read_state(self) -> dict[str, Any]:
         path = self._state_path()

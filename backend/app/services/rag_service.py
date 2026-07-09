@@ -127,15 +127,12 @@ class RAGService:
             return hits[:top_k]
 
         index = self._index_service()
-        try:
-            hits = index.search(
-                query,
-                top_k=top_k,
-                function_filter=function_filter,
-                doc_type_filter=doc_type_filter,
-            )
-        except Exception:
-            return []
+        hits = index.search(
+            query,
+            top_k=top_k,
+            function_filter=function_filter,
+            doc_type_filter=doc_type_filter,
+        )
         return hits
 
     def build_comparison_table(
@@ -258,30 +255,43 @@ class RAGService:
         for hit in hits:
             meta = hit.get("metadata") or {}
             name = meta.get("project_name") or "未知项目"
-            matched = next(
-                (p for p in MOCK_COMPARISON_TABLE["projects"] if p["project_name"] == name),
-                None,
-            )
             engagement_id = meta.get("engagement_id")
-            if matched:
-                project = dict(matched)
-                project["similarity_score"] = hit.get("similarity_score", matched["similarity_score"])
-                if engagement_id:
-                    project["engagement_id"] = engagement_id
-            else:
-                project = {
+
+            if self.settings.mock_rag:
+                # In mock mode use the pre-built mock project data if name matches.
+                matched = next(
+                    (p for p in MOCK_COMPARISON_TABLE["projects"] if p["project_name"] == name),
+                    None,
+                )
+                if matched:
+                    project = dict(matched)
+                    project["similarity_score"] = hit.get(
+                        "similarity_score", matched["similarity_score"]
+                    )
+                    if engagement_id:
+                        project["engagement_id"] = engagement_id
+                    projects.append(project)
+                    continue
+
+            # Production: build project entry from real chunk metadata.
+            projects.append(
+                {
                     "project_name": name,
                     "similarity_score": hit.get("similarity_score", 0.5),
                     "source_doc": meta.get("source_doc", ""),
                     "engagement_id": engagement_id,
+                    "customer": meta.get("customer", ""),
+                    "year": meta.get("year"),
+                    "functions": list(meta.get("functions") or []),
                     "dimensions": {},
                     "actual_man_days": "—",
                     "deviation_rate": "—",
                     "summary": (hit.get("content") or "")[:120],
                 }
-            projects.append(project)
-        if self.settings.mock_rag:
-            return projects or list(MOCK_COMPARISON_TABLE["projects"])
+            )
+
+        if self.settings.mock_rag and not projects:
+            return list(MOCK_COMPARISON_TABLE["projects"])
         return projects
 
     def _build_recommendation(self, hits: list[dict[str, Any]]) -> str:
@@ -294,14 +304,19 @@ class RAGService:
         ]
         if names:
             return f"建议参考 {'、'.join(names)}"
-        return MOCK_COMPARISON_TABLE["recommendation"]
+        return "已找到相似项目，请参考对比矩阵"
 
     def get_stats(self) -> dict[str, Any]:
         if self.settings.mock_rag:
             return {**MOCK_KNOWLEDGE_STATS, "mock_rag": True}
 
         kb = Path(self.knowledge_base_path)
-        docx_files = list(kb.rglob("*.docx")) if kb.exists() else []
+        doc_extensions = {"*.docx", "*.doc", "*.xlsx", "*.xls"}
+        doc_files = (
+            [f for ext in doc_extensions for f in kb.rglob(ext)]
+            if kb.exists()
+            else []
+        )
         project_dirs = (
             [p for p in kb.iterdir() if p.is_dir() and not p.name.startswith(".")]
             if kb.exists()
@@ -311,7 +326,7 @@ class RAGService:
         chunk_count = index.indexed_count()
         state = index.last_index_state()
         return {
-            "total_documents": len(docx_files),
+            "total_documents": len(doc_files),
             "total_chunks": chunk_count,
             "total_projects": len(project_dirs),
             "last_import_at": state.get("last_index_at"),

@@ -16,6 +16,15 @@ try:
 except ImportError:  # pragma: no cover
     Vector = None  # type: ignore[misc, assignment]
 
+try:
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    _HAS_PG_INSERT = True
+except ImportError:  # pragma: no cover
+    _HAS_PG_INSERT = False
+
+_UPSERT_BATCH_SIZE = 200
+
 
 class PgVectorUnavailableError(RuntimeError):
     pass
@@ -59,6 +68,29 @@ class PgVectorStore:
                     """
                 )
             )
+        PgVectorStore._ensure_hnsw_index()
+
+    @staticmethod
+    def _ensure_hnsw_index() -> None:
+        """Create HNSW approximate-nearest-neighbor index for cosine search (pgvector ≥0.5)."""
+        if Vector is None:
+            return
+        try:
+            # HNSW index creation cannot run inside a transaction block.
+            with engine.connect() as conn:
+                conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+                conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS idx_kc_embedding_cosine
+                        ON knowledge_chunks
+                        USING hnsw (embedding vector_cosine_ops)
+                        WITH (m = 16, ef_construction = 64)
+                        """
+                    )
+                )
+        except Exception:  # noqa: BLE001 — older pgvector / unsupported backend
+            pass
 
     def _require_pg(self) -> None:
         if not self.is_available():
@@ -93,19 +125,56 @@ class PgVectorStore:
         ns = namespace or self.namespace
         if not (len(chunk_ids) == len(contents) == len(embeddings) == len(metadatas)):
             raise ValueError("upsert_batch length mismatch")
-        with Session(engine) as session:
-            for cid, content, emb, meta in zip(chunk_ids, contents, embeddings, metadatas, strict=True):
-                if len(emb) != EMBEDDING_DIMENSION:
-                    raise ValueError(f"embedding dim {len(emb)} != {EMBEDDING_DIMENSION}")
-                row = session.get(KnowledgeChunk, cid)
-                if row is None:
-                    row = KnowledgeChunk(chunk_id=cid, namespace=ns)
-                    session.add(row)
-                row.namespace = ns
-                row.content = content
-                row.embedding = emb
-                row.chunk_metadata = meta
-            session.commit()
+
+        for emb in embeddings:
+            if len(emb) != EMBEDDING_DIMENSION:
+                raise ValueError(f"embedding dim {len(emb)} != {EMBEDDING_DIMENSION}")
+
+        if _HAS_PG_INSERT:
+            # Bulk INSERT ... ON CONFLICT: O(1) round-trips instead of O(N).
+            with Session(engine) as session:
+                for start in range(0, len(chunk_ids), _UPSERT_BATCH_SIZE):
+                    sl = slice(start, start + _UPSERT_BATCH_SIZE)
+                    rows = [
+                        {
+                            "chunk_id": cid,
+                            "namespace": ns,
+                            "content": content,
+                            "embedding": emb,
+                            "chunk_metadata": meta,
+                        }
+                        for cid, content, emb, meta in zip(
+                            chunk_ids[sl], contents[sl], embeddings[sl], metadatas[sl]
+                        )
+                    ]
+                    stmt = pg_insert(KnowledgeChunk).values(rows)
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=["chunk_id"],
+                        set_={
+                            "namespace": stmt.excluded.namespace,
+                            "content": stmt.excluded.content,
+                            "embedding": stmt.excluded.embedding,
+                            "chunk_metadata": stmt.excluded.chunk_metadata,
+                        },
+                    )
+                    session.execute(stmt)
+                session.commit()
+        else:
+            # Fallback for non-PostgreSQL backends (unit tests with SQLite).
+            with Session(engine) as session:
+                for cid, content, emb, meta in zip(
+                    chunk_ids, contents, embeddings, metadatas, strict=True
+                ):
+                    row = session.get(KnowledgeChunk, cid)
+                    if row is None:
+                        row = KnowledgeChunk(chunk_id=cid, namespace=ns)
+                        session.add(row)
+                    row.namespace = ns
+                    row.content = content
+                    row.embedding = emb
+                    row.chunk_metadata = meta
+                session.commit()
+
         return len(chunk_ids)
 
     def count(self, namespace: str | None = None) -> int:
