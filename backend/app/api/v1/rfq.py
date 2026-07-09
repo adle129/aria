@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends, UploadFile
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import block_r1_undelivered_milestone, resolve_owner_id
+from app.config import get_settings
 from app.database import get_db
 from app.repositories.rfq_task_repository import RFQTaskRepository
+from app.repositories.task_job_repository import TaskJobRepository
 from app.schemas.rfq import ConfirmDimensionsRequest, RFQTaskUpdateRequest
-from app.config import get_settings
 from app.services import generators  # noqa: F401 — register GeneratorRegistry
 from app.services.artifact_service import ArtifactService
 from app.services.dimension_baseline_service import (
@@ -17,6 +20,8 @@ from app.services.quote_service import QuoteService
 from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.rfq_upload import RFQ_UPLOAD_REJECT_MSG, is_allowed_rfq_filename
 from app.utils.datetime_utils import to_api_utc_iso
+
+_IN_PROGRESS_STATUSES = frozenset({"queued", "parsing", "retrieving", "generating"})
 
 router = APIRouter(prefix="/rfq", tags=["rfq"])
 analysis_service = RFQAnalysisService()
@@ -51,6 +56,18 @@ async def upload_rfq(
             content={"code": 400, "msg": RFQ_UPLOAD_REJECT_MSG},
         )
 
+    settings = get_settings()
+    queue_depth = TaskJobRepository(db).count_queued()
+    if queue_depth >= settings.task_max_queue_size:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "code": 429,
+                "msg": f"当前处理队列已满（{queue_depth} 个任务排队中），请稍后再试",
+                "queue_depth": queue_depth,
+            },
+        )
+
     content = await file.read()
     try:
         file_id, stored_path = analysis_service.save_upload(file.filename, content)
@@ -75,10 +92,16 @@ async def upload_rfq(
 def list_tasks(
     limit: int = 20,
     unique_file: bool = True,
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     owner_id: str | None = Depends(resolve_owner_id),
 ):
-    tasks = RFQTaskRepository(db).list_recent(limit, unique_file_name=unique_file, owner_id=owner_id)
+    tasks = RFQTaskRepository(db).list_recent(
+        limit,
+        unique_file_name=unique_file,
+        owner_id=owner_id,
+        include_archived=include_archived,
+    )
     rows = []
     for t in tasks:
         mods = t.rfq_modules if isinstance(t.rfq_modules, dict) else {}
@@ -252,6 +275,66 @@ def download_qa(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename,
     )
+
+
+@router.post("/tasks/{task_id}/retry")
+def retry_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    repo = RFQTaskRepository(db)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
+    if not task:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
+    if task.processing_status != "failed":
+        return JSONResponse(status_code=400, content={"code": 400, "msg": "只有失败状态的任务才能重试"})
+    if task.archived:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": "已归档任务不支持重试"})
+    try:
+        updated = analysis_service.retry_task(db, task)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": analysis_service.get_status_payload(updated, db)}
+
+
+@router.delete("/tasks/{task_id}", status_code=204)
+def delete_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    repo = RFQTaskRepository(db)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
+    if not task:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
+    if task.processing_status in _IN_PROGRESS_STATUSES:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": "进行中的任务不可删除，请等待处理完成"})
+    for path_str in (task.file_path, task.excel_path, task.qa_excel_path):
+        if path_str:
+            try:
+                Path(path_str).unlink(missing_ok=True)
+            except OSError:
+                pass
+    repo.delete(task)
+    return Response(status_code=204)
+
+
+@router.patch("/tasks/{task_id}/archive")
+def archive_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    repo = RFQTaskRepository(db)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
+    if not task:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
+    if task.processing_status in _IN_PROGRESS_STATUSES:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": "进行中的任务不可归档"})
+    task.archived = True
+    repo.update(task)
+    return {"code": 200}
 
 
 @router.get("/tasks/{task_id}/manpower-breakdown-preview", dependencies=[Depends(block_r1_undelivered_milestone)])
