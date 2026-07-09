@@ -114,9 +114,11 @@ def test_generate_quote_empty_modules():
 
 | 样本 | 期望 |
 |------|------|
-| rfq_sample_1.docx | functions 含 Chassis；modules ≥ 3 |
-| rfq_sample_2.docx | functions 含 PM + BIW |
-| rfq_sample_3.docx | timeline_months 在 12–24 范围 |
+| `samples/rfq/mock_chassis_rfq.docx` | functions 含 Chassis；modules ≥ 1 |
+| `samples/rfq/demo_multifunction_rfq.docx` | functions 含 PM + Chassis；modules ≥ 2 |
+| 合成 docx（regression 内动态生成） | `timeline_months` = 18 |
+
+> R1 暂无第三份客户 RFQ；客户 O-04 样本到位后可追加 `fixtures/*.expected.json`，不阻塞回归门禁。
 
 ### 5.2 执行
 

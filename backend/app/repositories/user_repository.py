@@ -18,3 +18,12 @@ class UserRepository:
 
     def get_by_username(self, username: str) -> User | None:
         return self.db.query(User).filter(User.username == username).first()
+
+    def list_all(self) -> list[User]:
+        return self.db.query(User).order_by(User.created_at).all()
+
+    def save(self, user: User) -> User:
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user

@@ -83,12 +83,60 @@ def test_jwt_roundtrip(auth_db, auth_service):
         display_name="Admin",
         role=USER_ROLE_KB_ADMIN,
     )
-    token = auth_service.create_access_token(user)
+    token, expires_at = auth_service.create_access_token(user)
+    assert expires_at > __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
     resolved = auth_service.resolve_user_from_token(auth_db, token)
     assert resolved is not None
     assert resolved.id == user.id
 
     assert auth_service.resolve_user_from_token(auth_db, "bad.token.here") is None
+
+
+def test_change_password(auth_db, auth_service):
+    user = auth_service.create_user(
+        auth_db, username="pwchange", password="old123!", display_name="改密者"
+    )
+    auth_service.change_password(auth_db, user, "old123!", "new456!")
+    assert auth_service.authenticate(auth_db, "pwchange", "new456!") is not None
+    assert auth_service.authenticate(auth_db, "pwchange", "old123!") is None
+
+
+def test_change_password_wrong_old(auth_db, auth_service):
+    user = auth_service.create_user(
+        auth_db, username="pwwrong", password="real123", display_name="错误测试"
+    )
+    with pytest.raises(ValueError, match="原密码错误"):
+        auth_service.change_password(auth_db, user, "wrong!", "newpass")
+
+
+def test_list_and_update_users(auth_db, auth_service):
+    auth_service.create_user(auth_db, username="u1", password="p1", display_name="用户一")
+    auth_service.create_user(
+        auth_db, username="u2", password="p2", display_name="用户二", role=USER_ROLE_KB_ADMIN
+    )
+    users = auth_service.list_users(auth_db)
+    assert len(users) == 2
+
+    updated = auth_service.update_user(
+        auth_db, users[0].id, display_name="改名后", is_active=False
+    )
+    assert updated.display_name == "改名后"
+    assert updated.is_active is False
+
+
+def test_update_user_not_found(auth_db, auth_service):
+    with pytest.raises(ValueError, match="用户不存在"):
+        auth_service.update_user(auth_db, "nonexistent-id")
+
+
+def test_user_detail_includes_is_active(auth_db, auth_service):
+    user = auth_service.create_user(
+        auth_db, username="detail_u", password="p", display_name="详情"
+    )
+    detail = auth_service.user_detail(user)
+    assert detail["is_active"] is True
+    assert "created_at" in detail
+    assert "password_hash" not in detail
 
 
 def test_user_public(auth_db, auth_service):

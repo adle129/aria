@@ -52,10 +52,15 @@ describe("isQuotingStepDelivered", () => {
 });
 
 describe("isTaskContextBarVisible", () => {
-  it("hides on knowledge and login", () => {
+  it("hides on knowledge, login and admin pages", () => {
     expect(isTaskContextBarVisible("/knowledge")).toBe(false);
     expect(isTaskContextBarVisible("/knowledge/debug")).toBe(false);
     expect(isTaskContextBarVisible("/login")).toBe(false);
+    expect(isTaskContextBarVisible("/admin/users")).toBe(false);
+    expect(isTaskContextBarVisible("/admin")).toBe(false);
+  });
+
+  it("shows on rfq pages", () => {
     expect(isTaskContextBarVisible("/rfq")).toBe(true);
   });
 });

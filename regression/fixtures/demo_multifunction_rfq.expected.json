@@ -1,0 +1,8 @@
+{
+  "parse_strategy": "rules_first",
+  "result": {
+    "functions_in_scope_contains": ["PM", "Chassis"],
+    "modules": { "min_count": 2 },
+    "timeline_months": { "min": 12, "max": 36 }
+  }
+}

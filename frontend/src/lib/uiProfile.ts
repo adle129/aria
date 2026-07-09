@@ -46,7 +46,12 @@ export function shouldBlockPath(profile: UiProfile, pathname: string): boolean {
 }
 
 export function isTaskContextBarVisible(pathname: string): boolean {
-  if (pathname === "/" || pathname.startsWith("/knowledge") || pathname.startsWith("/login")) {
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/knowledge") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/admin")
+  ) {
     return false;
   }
   return true;

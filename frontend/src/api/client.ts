@@ -28,7 +28,19 @@ export interface AuthUser {
 export interface LoginResult {
   access_token: string;
   token_type: string;
+  expires_at: string;
   user: AuthUser;
+}
+
+export interface TokenRefreshResult {
+  access_token: string;
+  token_type: string;
+  expires_at: string;
+}
+
+export interface UserDetail extends AuthUser {
+  is_active: boolean;
+  created_at: string | null;
 }
 
 export function getStoredToken(): string | null {
@@ -132,6 +144,44 @@ export async function login(username: string, password: string): Promise<LoginRe
 
 export async function fetchMe(): Promise<AuthUser> {
   const { data } = await apiClient.get<{ code: number; data: AuthUser }>("/auth/me");
+  return data.data;
+}
+
+export async function refreshToken(): Promise<TokenRefreshResult> {
+  const { data } = await apiClient.post<{ code: number; data: TokenRefreshResult }>("/auth/refresh");
+  return data.data;
+}
+
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  await apiClient.post("/auth/change-password", {
+    old_password: oldPassword,
+    new_password: newPassword,
+  });
+}
+
+export async function listUsers(): Promise<UserDetail[]> {
+  const { data } = await apiClient.get<{ code: number; data: UserDetail[] }>("/auth/users");
+  return data.data;
+}
+
+export async function createUser(payload: {
+  username: string;
+  password: string;
+  display_name: string;
+  role: string;
+}): Promise<UserDetail> {
+  const { data } = await apiClient.post<{ code: number; data: UserDetail }>("/auth/users", payload);
+  return data.data;
+}
+
+export async function updateUser(
+  userId: string,
+  patch: { display_name?: string; role?: string; is_active?: boolean },
+): Promise<UserDetail> {
+  const { data } = await apiClient.patch<{ code: number; data: UserDetail }>(
+    `/auth/users/${userId}`,
+    patch,
+  );
   return data.data;
 }
 

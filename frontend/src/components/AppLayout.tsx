@@ -6,19 +6,22 @@ import {
   DatabaseOutlined,
   FileSearchOutlined,
   FileTextOutlined,
+  KeyOutlined,
   LogoutOutlined,
   QuestionCircleOutlined,
   SearchOutlined,
   UserOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
-import { Button, Input, Layout, Menu, Pagination, Segmented, Space, Tag, Typography } from "antd";
+import { Alert, Button, Dropdown, Input, Layout, Menu, Pagination, Segmented, Space, Tag, Typography, type MenuProps } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { fetchHealth, type HealthData } from "@/api/client";
 import RfqRecentTasksTable from "@/components/rfq/RfqRecentTasksTable";
 import TaskContextBar from "@/components/TaskContextBar";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import ChangePasswordModal from "@/components/ChangePasswordModal";
+import { AuthProvider, useAuth, useTokenExpiryWarning } from "@/context/AuthContext";
 import { TaskProvider, useTaskContext } from "@/context/TaskContext";
 import { useUiProfile } from "@/hooks/useUiProfile";
 import {
@@ -268,6 +271,8 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { loading: authLoading, authEnabled, user, logout } = useAuth();
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const minsUntilExpiry = useTokenExpiryWarning();
   const [health, setHealth] = useState<HealthData | null>(null);
 
   useEffect(() => {
@@ -307,7 +312,25 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
     return null;
   }
 
-  const menuItems = buildMenuItems(profile, health);
+  const isKbAdmin = user?.role === "kb_admin";
+  const menuItems = [
+    ...buildMenuItems(profile, health),
+    ...(authEnabled && isKbAdmin
+      ? [
+          {
+            type: "group" as const,
+            label: "管理",
+            children: [
+              {
+                key: "/admin/users",
+                icon: <UserOutlined />,
+                label: <Link href="/admin/users">用户管理</Link>,
+              },
+            ],
+          },
+        ]
+      : []),
+  ];
   const showTaskContextBar = isTaskContextBarVisible(pathname);
   const siderWidth = pathname.startsWith("/rfq") ? 280 : 200;
 
@@ -348,11 +371,38 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
           {health?.mock_rag && formalDelivery && <Tag color="red">RAG 配置异常</Tag>}
           {authEnabled && user && (
             <Space size={8}>
-              <Tag icon={<UserOutlined />}>{user.display_name || user.username}</Tag>
+              {minsUntilExpiry !== null && minsUntilExpiry <= 30 && minsUntilExpiry > 0 && (
+                <Tag icon={<WarningOutlined />} color="warning">
+                  登录将在 {minsUntilExpiry} 分钟后过期
+                </Tag>
+              )}
               {user.role === "kb_admin" && <Tag color="blue">资料库管理员</Tag>}
-              <Button type="text" size="small" icon={<LogoutOutlined />} onClick={() => void logout()}>
-                退出
-              </Button>
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: "change-password",
+                      icon: <KeyOutlined />,
+                      label: "修改密码",
+                      onClick: () => setPwModalOpen(true),
+                    },
+                    { type: "divider" },
+                    {
+                      key: "logout",
+                      icon: <LogoutOutlined />,
+                      label: "退出登录",
+                      danger: true,
+                      onClick: () => void logout(),
+                    },
+                  ] satisfies MenuProps["items"],
+                }}
+                trigger={["click"]}
+              >
+                <Button type="text" size="small" icon={<UserOutlined />}>
+                  {user.display_name || user.username}
+                </Button>
+              </Dropdown>
+              <ChangePasswordModal open={pwModalOpen} onClose={() => setPwModalOpen(false)} />
             </Space>
           )}
         </div>

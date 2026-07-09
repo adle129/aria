@@ -222,3 +222,113 @@ def test_health_includes_auth_enabled(auth_client):
     resp = auth_client.get("/api/v1/health")
     assert resp.status_code == 200
     assert resp.json()["auth_enabled"] is True
+
+
+def test_login_response_includes_expires_at(auth_client):
+    resp = auth_client.post(
+        "/api/v1/auth/login",
+        json={"username": "eng01", "password": "pass123"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert "expires_at" in data
+    assert data["expires_at"]
+
+
+def test_refresh_token(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.post(
+        "/api/v1/auth/refresh",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert "access_token" in data
+    assert "expires_at" in data
+
+
+def test_change_password_ok(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": "pass123", "new_password": "newpass456"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["ok"] is True
+
+    new_token_resp = auth_client.post(
+        "/api/v1/auth/login",
+        json={"username": "eng01", "password": "newpass456"},
+    )
+    assert new_token_resp.status_code == 200
+
+
+def test_change_password_wrong_old(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": "bad_old", "new_password": "newpass456"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["msg"] == "原密码错误"
+
+
+def test_change_password_requires_auth(auth_client):
+    resp = auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": "x", "new_password": "y12345678"},
+    )
+    assert resp.status_code == 401
+
+
+def test_admin_list_users(auth_client):
+    token = _login(auth_client, "kbadmin", "admin123")
+    resp = auth_client.get(
+        "/api/v1/auth/users",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    users = resp.json()["data"]
+    assert any(u["username"] == "eng01" for u in users)
+    assert any("is_active" in u for u in users)
+
+
+def test_engineer_cannot_list_users(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/auth/users",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_admin_create_and_update_user(auth_client):
+    token = _login(auth_client, "kbadmin", "admin123")
+
+    create_resp = auth_client.post(
+        "/api/v1/auth/users",
+        json={"username": "neweng", "password": "init123!", "display_name": "新工程师", "role": "quote_engineer"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create_resp.status_code == 200
+    user_id = create_resp.json()["data"]["id"]
+
+    update_resp = auth_client.patch(
+        f"/api/v1/auth/users/{user_id}",
+        json={"is_active": False},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert update_resp.status_code == 200
+    assert update_resp.json()["data"]["is_active"] is False
+
+
+def test_admin_create_user_duplicate(auth_client):
+    token = _login(auth_client, "kbadmin", "admin123")
+    resp = auth_client.post(
+        "/api/v1/auth/users",
+        json={"username": "eng01", "password": "x123456789", "display_name": "重复"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 409
