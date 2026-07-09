@@ -85,7 +85,7 @@
 | R1-K07 | P0-2 | 触发全量/增量 Re-index API | F5.1 | IT 目录 + Web 双路径；**向量仅 RFQ/Q_A** | R1-K02 | | 待开始 |
 | R1-K08 | P0-2 | `/knowledge` 页扩展 | F5.3–F5.4 | 统计、检索实验室（**资料类型 → 关键词 → Area**）、上传、进度 | R1-K05–K07 | | 待开始 |
 | R1-K08b | P0-2 | **`/knowledge` 基线预览 Tab** | F5.10 | engagement 列表 + Function 人天钻取 + 对照导出 | R1-K05 | | 待开始 |
-| R1-K08c | P0-3 | **RFQ Top-3 ↔ baselines 联动** | F1.4 | 矩阵/对标页「查看该项目 baselines」 | R1-K05, R1-F09 | | 待开始 |
+| R1-K08c | P0-3 | **RFQ Top-3 ↔ baselines 联动** | F1.4 | 矩阵/对标页「查看该项目 baselines」 | R1-K05, R1-F09 | | **已完成** |
 | R1-K09 | P0-2 | 检索评测支撑 | §10.2 | ≥15 query + Pass 记录表；**spike 内部 12/15 PASS**（见 SPK-K04） | R1-K03 | | **进行中** |
 | R1-K10 | P0-2 | **知识库 Debug UI（DEV 专用）** | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | API+UI+Ollama index；`run_kb_debug_validation.py` | R1-E03, ingest spike | | **已实现** |
 

@@ -27,6 +27,11 @@ import WorkflowSteps from "@/components/WorkflowSteps";
 import { useUiProfile } from "@/hooks/useUiProfile";
 import { TASK_CHANGED_EVENT, notifyTaskChanged, useTaskContext } from "@/context/TaskContext";
 import { RFQ_BEGIN_NEW_EVENT, RFQ_BEGIN_NEW_FLAG, resolveRfqWorkspaceStage } from "@/lib/rfqWorkspace";
+import {
+  buildBaselinesKnowledgeHref,
+  resolveEngagementId,
+  resolveProjectBaselinesEngagementIds,
+} from "@/lib/rfqBaselinesLink";
 import { PROCESSING_STATUS_LABELS } from "@/lib/taskStatus";
 import type { ArtifactsStatus, TaskPayload } from "@/types/task";
 const { Paragraph, Title, Text } = Typography;
@@ -79,20 +84,6 @@ function buildKnowledgeVerifyQuery(task: TaskData): string {
     parts.push(...mods.functions_in_scope.slice(0, 2).map(String));
   }
   return parts.join(" ").trim() || "MEB 底盘";
-}
-
-function resolveEngagementId(
-  row: Record<string, unknown>,
-  similarProjects?: Array<Record<string, unknown>>,
-): string | null {
-  if (row.engagement_id) return String(row.engagement_id);
-  const rowName = String(row.project_name || "");
-  const hit = (similarProjects || []).find((s) => {
-    const meta = s.metadata as Record<string, unknown> | undefined;
-    return String(meta?.project_name || s.project_name || "") === rowName;
-  });
-  const meta = hit?.metadata as Record<string, unknown> | undefined;
-  return meta?.engagement_id ? String(meta.engagement_id) : null;
 }
 
 export default function RfqPage() {
@@ -533,6 +524,10 @@ export default function RfqPage() {
 
   const projects = (task?.comparison_table?.projects as Array<Record<string, unknown>>) || [];
   const projectNames = projects.map((p) => String(p.project_name || "历史项目"));
+  const projectBaselinesEngagementIds = resolveProjectBaselinesEngagementIds(
+    projects,
+    task?.similar_projects,
+  );
   const confidence = (task?.comparison_table as { overall_confidence?: string })?.overall_confidence;
   const isLowConfidence = confidence === "低";
   const insufficientEvidence = Boolean(
@@ -735,6 +730,7 @@ export default function RfqPage() {
               <ComparisonMatrix
                 matrixRows={matrixRows}
                 projectNames={projectNames}
+                projectBaselinesEngagementIds={projectBaselinesEngagementIds}
                 editable
                 onNewProjectChange={handleNewProjectChange}
               />
@@ -811,9 +807,7 @@ export default function RfqPage() {
                         if (!eid) return null;
                         return (
                           <Paragraph style={{ marginBottom: 0 }}>
-                            <Link
-                              href={`/knowledge?tab=baselines&engagement_id=${encodeURIComponent(eid)}`}
-                            >
+                            <Link href={buildBaselinesKnowledgeHref(eid)}>
                               查看该项目人天基线
                             </Link>
                           </Paragraph>
@@ -839,11 +833,7 @@ export default function RfqPage() {
                     const eid = resolveEngagementId(row, task?.similar_projects);
                     if (!eid) return "—";
                     return (
-                      <Link
-                        href={`/knowledge?tab=baselines&engagement_id=${encodeURIComponent(eid)}`}
-                      >
-                        查看
-                      </Link>
+                      <Link href={buildBaselinesKnowledgeHref(eid)}>查看</Link>
                     );
                   },
                 },
