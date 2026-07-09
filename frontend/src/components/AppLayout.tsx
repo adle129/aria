@@ -32,15 +32,9 @@ import {
   type UiProfile,
 } from "@/lib/uiProfile";
 import { RFQ_BEGIN_NEW_EVENT, RFQ_BEGIN_NEW_FLAG } from "@/lib/rfqWorkspace";
+import { matchesInboxFilter, type InboxFilterKey } from "@/lib/taskStatus";
 
 const { Header, Sider, Content } = Layout;
-type InboxFilterKey = "all" | "in_progress" | "done";
-
-function matchesInboxFilter(status: string, filter: InboxFilterKey): boolean {
-  if (filter === "all") return true;
-  if (filter === "done") return status === "completed";
-  return ["queued", "pending", "parsing", "retrieving", "generating", "dimension_review"].includes(status);
-}
 
 const QUOTING_STEP_DEFS = [
   { step: "rfq" as const, key: "/rfq", icon: <FileSearchOutlined />, title: "RFQ 分析" },
@@ -236,8 +230,9 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
             { label: "全部", value: "all" },
             { label: "进行中", value: "in_progress" },
             { label: "已完成", value: "done" },
+            { label: "失败", value: "failed" },
           ]}
-          style={{ marginTop: 8, width: "100%" }}
+          style={{ marginTop: 8, width: "100%", fontSize: 11 }}
         />
         {filteredTasks.length !== recentTasks.length && (
           <Typography.Text type="secondary" style={{ fontSize: 11, marginTop: 6, display: "block" }}>

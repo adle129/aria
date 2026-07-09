@@ -6,6 +6,7 @@ import {
   formatTaskListStatus,
   getProcessingStatusTagColor,
   getProcessingStatusTagStyle,
+  matchesInboxFilter,
 } from "@/lib/taskStatus";
 
 describe("formatProcessingStatus", () => {
@@ -79,5 +80,27 @@ describe("formatRecentTaskLabel", () => {
     expect(label).toContain("RFQ_模板.doc");
     expect(label).toContain("解析中");
     expect(label).toContain("6276ca76");
+  });
+});
+
+describe("matchesInboxFilter", () => {
+  it("includes only failed tasks in failed filter", () => {
+    expect(matchesInboxFilter("failed", "failed")).toBe(true);
+    expect(matchesInboxFilter("completed", "failed")).toBe(false);
+    expect(matchesInboxFilter("parsing", "failed")).toBe(false);
+    expect(matchesInboxFilter("dimension_review", "failed")).toBe(false);
+  });
+
+  it("excludes failed from in_progress and done", () => {
+    expect(matchesInboxFilter("failed", "in_progress")).toBe(false);
+    expect(matchesInboxFilter("failed", "done")).toBe(false);
+    expect(matchesInboxFilter("parsing", "in_progress")).toBe(true);
+    expect(matchesInboxFilter("completed", "done")).toBe(true);
+  });
+
+  it("shows all statuses under all filter", () => {
+    expect(matchesInboxFilter("failed", "all")).toBe(true);
+    expect(matchesInboxFilter("completed", "all")).toBe(true);
+    expect(matchesInboxFilter("queued", "all")).toBe(true);
   });
 });

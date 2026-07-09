@@ -25,6 +25,21 @@ export const PROCESSING_STATUS_TAG_STYLE: Record<string, { color: string; backgr
 
 const IN_FLIGHT_STATUSES = new Set(["queued", "pending", "parsing", "retrieving", "generating"]);
 
+export type InboxFilterKey = "all" | "in_progress" | "done" | "failed";
+
+const INBOX_IN_PROGRESS_STATUSES = new Set([
+  ...IN_FLIGHT_STATUSES,
+  "dimension_review",
+]);
+
+export function matchesInboxFilter(status: string, filter: InboxFilterKey): boolean {
+  if (filter === "all") return true;
+  if (filter === "failed") return status === "failed";
+  if (filter === "done") return status === "completed";
+  if (filter === "in_progress") return INBOX_IN_PROGRESS_STATUSES.has(status);
+  return false;
+}
+
 export function getProcessingStatusTagColor(
   status: string,
 ): "default" | "processing" | "warning" | "success" | "error" {
