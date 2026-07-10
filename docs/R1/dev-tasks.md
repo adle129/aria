@@ -123,7 +123,7 @@
 |----|--------|------|------------|------|------|
 | R1-KH00 | P0-0 | **索引一致性与资源调度 ADR** | 定稿 generation pointer、namespace/迁移、job 幂等、Ollama 全局闸、取消/checkpoint、200→202 兼容策略 | — | **已完成** |
 | R1-KH01 | P0-1 | **铜级缺件口径对齐** | 缺 Q&A/报价项目可落盘；RFQ 可独立参与 R1 Top-3；导入报告标明 M3/M4 影响；删除 `rfq+qa` 硬门禁冲突 | R1-K02 | **已完成** |
-| R1-KH02 | P0-1 | **索引任务化 + 单飞锁** | `kb_index` job；API 202 + job_id；服务端重复请求复用当前 job；双管理员不可并行 rebuild | R1-KH00, R1-I01–I03, R1-K07 | 待开始 |
+| R1-KH02 | P0-1 | **索引任务化 + 单飞锁** | `kb_index` job；API 202 + job_id；服务端重复请求复用当前 job；双管理员不可并行 rebuild | R1-KH00, R1-I01–I03, R1-K07 | **已完成** |
 | R1-KH03 | P0-1 | **Blue/Green 索引原子切换** | generation schema 迁移；staging 构建/校验后事务切 active；失败/重启保留旧索引；读路径只查 active | R1-KH00, R1-KH02, R1-I05 | 待开始 |
 | R1-KH04 | P0-1 | **跨进程 Ollama 调度与优先级** | ADR 选定 advisory lock/租约表；交互检索 > RFQ > KB 增量 > 全量；覆盖 backend/worker；索引分批让路 | R1-KH00, R1-KH02, R1-I04 | 待开始 |
 | R1-KH05 | P0-1 | **磁盘保护与 507 契约** | 数据盘/tmp 预检；80% warning、90% 写保护；ENOSPC→507；health 暴露容量；既有查询不受写保护影响 | R1-E05 | 待开始 |
@@ -181,6 +181,8 @@
 | R1-KH09c | KH09 | 恢复演练 Gate | 空环境恢复后验证 Top-3、baselines、批次审计和 hash；形成报告 | KH09b |
 
 **KH00/KH01 进度（2026-07-10）：** [KH00 ADR](kh00-architecture-decisions.md) 已批准；KH01 已完成 RFQ-only Service、上传/导入契约、单元/API/前端测试和全量回归。
+
+**KH02 进度（2026-07-10）：** 已完成 Alembic job 扩展、PostgreSQL single-flight、worker handler、202/status/list/active/cancel API、旧 200 feature flag、运维 enqueue 脚本和前端轮询面板。取消后的 staging 清理与旧 active 不变由 KH03 generation 实现后关闭。
 
 ### Phase B 详细拆分
 

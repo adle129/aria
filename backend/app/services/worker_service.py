@@ -6,7 +6,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -14,6 +14,8 @@ from app.database import SessionLocal
 from app.models.task_job import TaskJob
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.repositories.task_job_repository import TaskJobRepository
+from app.services.engagement_ingest_service import EngagementIngestCancelled
+from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.ollama_concurrency import get_ollama_gate
 from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.task_job_service import TaskJobService
@@ -38,7 +40,7 @@ class WorkerService:
                 select(TaskJob).where(
                     TaskJob.status == "running",
                     TaskJob.started_at.isnot(None),
-                    TaskJob.started_at < cutoff,
+                    func.coalesce(TaskJob.heartbeat_at, TaskJob.started_at) < cutoff,
                 )
             )
         )
@@ -62,18 +64,22 @@ class WorkerService:
                     task_repo.update(task)
         return len(jobs)
 
-    def process_job(self, db: Session, job: TaskJob) -> None:
+    def process_job(self, db: Session, job: TaskJob) -> dict | None:
         if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
             gate = get_ollama_gate(self.settings)
             with gate.acquire():
                 self.analysis_service.analyze_task(db, job.ref_id)
-            return
+            return None
+        if job.job_type == TaskJobService.JOB_KB_INDEX:
+            return KnowledgeIndexJobService(self.settings).execute(db, job)
         raise ValueError(f"Unsupported job_type: {job.job_type}")
 
     def handle_job(self, db: Session, job: TaskJob) -> None:
         try:
-            self.process_job(db, job)
-            self.job_service.mark_completed(db, job)
+            result = self.process_job(db, job)
+            self.job_service.mark_completed(db, job, result)
+        except EngagementIngestCancelled:
+            self.job_service.mark_cancelled(db, job)
         except Exception as exc:
             logger.exception("Job %s failed", job.id)
             self.job_service.mark_failed(db, job, str(exc))
@@ -122,6 +128,7 @@ def run_inline_job(db: Session, job: TaskJob, settings: Settings | None = None) 
     now = datetime.now(timezone.utc)
     job.status = "running"
     job.started_at = now
+    job.heartbeat_at = now
     job.worker_id = "inline"
     job.attempts = (job.attempts or 0) + 1
     repo.update(job)

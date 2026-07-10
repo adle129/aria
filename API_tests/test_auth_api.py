@@ -193,29 +193,13 @@ def test_engineer_cannot_reindex(auth_client, monkeypatch):
 def test_kb_admin_can_reindex(auth_client, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
     get_settings.cache_clear()
-
-    class FakeIngest:
-        def __init__(self, settings, db=None):
-            pass
-
-        def import_all(self):
-            return {
-                "new_documents": 0,
-                "new_chunks": 0,
-                "skipped": 0,
-                "failed_files": [],
-                "last_import_at": "2026-07-07T00:00:00Z",
-                "engagements_indexed": 0,
-                "doc_type_counts": {},
-            }
-
-    monkeypatch.setattr("app.api.v1.knowledge.EngagementIngestService", FakeIngest)
     token = _login(auth_client, "kbadmin", "admin123")
     resp = auth_client.post(
         "/api/v1/knowledge/reindex",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 202
+    assert resp.json()["data"]["job_id"]
 
 
 def test_health_includes_auth_enabled(auth_client):

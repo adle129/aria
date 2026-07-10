@@ -11,6 +11,8 @@ from app.database import Base
 from app.models.rfq_task import RFQTask
 from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
+from app.services.engagement_ingest_service import EngagementIngestCancelled
+from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.worker_service import WorkerService
 
 
@@ -77,6 +79,47 @@ def test_process_one_marks_failed_when_handler_raises(db_session, monkeypatch):
     assert processed is not None
     assert processed.status == "failed"
     assert "parse failed" in (processed.error_message or "")
+
+
+def test_process_one_completes_kb_index_job(db_session, monkeypatch):
+    job = TaskJob(
+        job_type="kb_index",
+        ref_id="production",
+        status="queued",
+        max_attempts=1,
+    )
+    TaskJobRepository(db_session).create(job)
+    monkeypatch.setattr(
+        KnowledgeIndexJobService,
+        "execute",
+        MagicMock(return_value={"new_chunks": 42}),
+    )
+
+    processed = WorkerService(Settings(database_url="sqlite://")).process_one(db_session)
+
+    assert processed is not None
+    assert processed.status == "completed"
+    assert processed.result_summary == {"new_chunks": 42}
+
+
+def test_process_one_cancels_kb_index_at_safe_boundary(db_session, monkeypatch):
+    job = TaskJob(
+        job_type="kb_index",
+        ref_id="production",
+        status="queued",
+        max_attempts=1,
+    )
+    TaskJobRepository(db_session).create(job)
+    monkeypatch.setattr(
+        KnowledgeIndexJobService,
+        "execute",
+        MagicMock(side_effect=EngagementIngestCancelled()),
+    )
+
+    processed = WorkerService(Settings(database_url="sqlite://")).process_one(db_session)
+
+    assert processed is not None
+    assert processed.status == "cancelled"
 
 
 def test_recover_stale_jobs_marks_failed_when_max_attempts_reached(db_session):

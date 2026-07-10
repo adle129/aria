@@ -8,7 +8,9 @@ from app.database import get_db
 from app.schemas.knowledge import EngagementUploadPackResult, KnowledgeSearchRequest
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
 from app.services.engagement_upload_service import EngagementUploadError, EngagementUploadService
+from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.rag_service import RAGService
+from app.services.task_job_service import TaskJobService
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -92,33 +94,133 @@ async def engagements_upload(
     return {"code": 200, "data": data}
 
 
-@router.post("/import")
-def knowledge_import(
-    db: Session = Depends(get_db),
-    _admin=Depends(require_kb_admin),
+def _enqueue_knowledge_index(
+    *,
+    db: Session,
+    mode: str,
+    batch_id: str | None,
+    admin,
 ):
     settings = get_settings()
+    service = KnowledgeIndexJobService(settings)
+    job, reused = service.enqueue(
+        db,
+        mode=mode,
+        batch_id=batch_id,
+        triggered_by=getattr(admin, "id", None),
+    )
+    if settings.mock_rag and not reused:
+        result = RAGService(settings).import_documents()
+        TaskJobService(settings).mark_completed(db, job, result)
+    data = service.serialize(db, job)
+    data["reused"] = reused
+    return JSONResponse(
+        status_code=202,
+        content={
+            "code": 202,
+            "data": {
+                "job_id": data["job_id"],
+                "status": data["status"],
+                "reused": reused,
+                "queue_position": data["queue_position"],
+                "estimated_wait_seconds": data["estimated_wait_seconds"],
+            },
+        },
+    )
+
+
+def _run_legacy_knowledge_index(db: Session):
+    settings = get_settings()
     if settings.mock_rag:
-        rag = RAGService(settings)
-        return {"code": 200, "data": rag.import_documents()}
+        return {"code": 200, "data": RAGService(settings).import_documents()}
     try:
         data = EngagementIngestService(settings, db).import_all()
     except EngagementIngestError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}
+
+
+@router.post("/import")
+def knowledge_import(
+    batch_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    if not get_settings().kb_async_index_enabled:
+        return _run_legacy_knowledge_index(db)
+    return _enqueue_knowledge_index(
+        db=db,
+        mode="incremental",
+        batch_id=batch_id,
+        admin=admin,
+    )
 
 
 @router.post("/reindex")
 def knowledge_reindex(
     db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    if not get_settings().kb_async_index_enabled:
+        return _run_legacy_knowledge_index(db)
+    return _enqueue_knowledge_index(
+        db=db,
+        mode="full",
+        batch_id=None,
+        admin=admin,
+    )
+
+
+@router.get("/imports")
+def knowledge_import_jobs(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
     _admin=Depends(require_kb_admin),
 ):
-    settings = get_settings()
-    if settings.mock_rag:
-        rag = RAGService(settings)
-        return {"code": 200, "data": rag.import_documents()}
-    try:
-        data = EngagementIngestService(settings, db).import_all()
-    except EngagementIngestError as exc:
-        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
-    return {"code": 200, "data": data}
+    service = KnowledgeIndexJobService(get_settings())
+    return {
+        "code": 200,
+        "data": {
+            "jobs": [
+                service.serialize(db, job)
+                for job in service.list(db, limit=limit, offset=offset)
+            ]
+        },
+    }
+
+
+@router.get("/imports/active")
+def knowledge_active_import(
+    db: Session = Depends(get_db),
+    _admin=Depends(require_kb_admin),
+):
+    service = KnowledgeIndexJobService(get_settings())
+    job = service.get_active(db)
+    return {"code": 200, "data": service.serialize(db, job) if job else None}
+
+
+@router.get("/imports/{job_id}")
+def knowledge_import_status(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_kb_admin),
+):
+    service = KnowledgeIndexJobService(get_settings())
+    job = service.get(db, job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "索引任务不存在"})
+    return {"code": 200, "data": service.serialize(db, job)}
+
+
+@router.post("/imports/{job_id}/cancel")
+def knowledge_import_cancel(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_kb_admin),
+):
+    service = KnowledgeIndexJobService(get_settings())
+    job = service.get(db, job_id)
+    if job is None:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "索引任务不存在"})
+    return {"code": 200, "data": service.serialize(db, service.cancel(db, job))}

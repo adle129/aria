@@ -634,6 +634,7 @@ POST /api/v1/knowledge/import
 ```
 
 同一 production namespace 已有 queued/running job 时返回同一 `job_id`，`reused=true`。
+`KB_ASYNC_INDEX_ENABLED=false` 仅用于一个发布周期内回退旧 200 响应；前端同时兼容 200/202，生产默认 `true`。
 状态查询与控制：
 
 ```
@@ -676,7 +677,7 @@ POST /api/v1/knowledge/engagements/upload
 **限制：** 单次请求 **≤5 套**；单 ZIP / 请求体 / Nginx 限额必须使用同一配置口径；默认值在部署前按内网样本确认。
 **校验：** Unicode NFC、大小写不敏感类型识别、POSIX 相对路径；ZIP 文件数、解压后总量、压缩比、链接与路径穿越；历史 Excel 默认 `.xlsx`。
 **落盘：** 流式写 `${ARIA_DATA_ROOT}/app/.staging`，校验成功后 atomic rename；保存 `original_filename`、`uploaded_at`、`uploaded_by`、`content_hash`。
-响应：每套 `status`（ok / failed）、`missing[]`（缺 Q&A、缺报价等）、写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
+响应：每套 `status=stored`、`stored`、`tier`、`indexable`、`missing[]`、`automation_impacts[]` 与写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
 
 上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
 

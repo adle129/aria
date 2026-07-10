@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     task_job_avg_seconds: int = 120
     task_job_stale_seconds: int = 900
     task_max_queue_size: int = 20
+    kb_async_index_enabled: bool = True
 
     # UI / deployment (see docs/R1/kb-debug-ui-spec.md)
     aria_ui_profile: str = "experience"  # dev | experience | r1 | full

@@ -54,6 +54,7 @@ def test_knowledge_baselines_filter_by_engagement(client, upload_dir, monkeypatc
 
 def test_knowledge_reindex_mock_mode(client):
     resp = client.post("/api/v1/knowledge/reindex")
-    assert resp.status_code == 200
+    assert resp.status_code == 202
     data = resp.json()["data"]
-    assert "new_documents" in data
+    assert data["job_id"]
+    assert data["status"] == "completed"

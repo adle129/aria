@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -23,6 +24,10 @@ from app.services.manpower_baselines_store import ManpowerBaselinesStore
 
 
 class EngagementIngestError(ValueError):
+    pass
+
+
+class EngagementIngestCancelled(RuntimeError):
     pass
 
 
@@ -118,11 +123,19 @@ class EngagementIngestService:
                 }
         return manifest, chunks, baseline_project
 
-    def import_all(self) -> dict[str, Any]:
+    def import_all(
+        self,
+        *,
+        progress_callback: Callable[[str, int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
         if self.settings.mock_rag:
             raise EngagementIngestError("MOCK_RAG=true：生产 ingest 需 MOCK_RAG=false")
 
         folders = self.list_engagement_folders()
+        total = len(folders)
+        if progress_callback:
+            progress_callback("scanning", 0, total)
         all_chunks: list[dict[str, Any]] = []
         baseline_projects: list[dict[str, Any]] = []
         failed_files: list[dict[str, str]] = []
@@ -130,7 +143,9 @@ class EngagementIngestService:
         new_documents = 0
         skipped = 0
 
-        for folder in folders:
+        for position, folder in enumerate(folders, start=1):
+            if cancel_check and cancel_check():
+                raise EngagementIngestCancelled("知识库索引任务已取消")
             try:
                 manifest, chunks, baseline = self.prepare_engagement(folder)
                 all_chunks.extend(chunks)
@@ -191,6 +206,8 @@ class EngagementIngestService:
                     )
                 except Exception:
                     pass
+            if progress_callback:
+                progress_callback("parsing", position, total)
 
         if not all_chunks:
             now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -204,6 +221,10 @@ class EngagementIngestService:
                 "engagements": engagement_reports,
             }
 
+        if cancel_check and cancel_check():
+            raise EngagementIngestCancelled("知识库索引任务已取消")
+        if progress_callback:
+            progress_callback("embedding", total, total)
         index = KnowledgeIndexService(self.settings, namespace=self.namespace)
         state = index.index_chunks(all_chunks, clear=True, corpus_path=str(self.kb_root.resolve()))
         if baseline_projects:
@@ -222,6 +243,8 @@ class EngagementIngestService:
                 report["status"] = "indexed"
 
         doc_type_counts = summarize_doc_type_counts(all_chunks)
+        if progress_callback:
+            progress_callback("finalizing", total, total)
 
         return {
             "new_documents": new_documents,

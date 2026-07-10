@@ -12,6 +12,7 @@ from app.repositories.task_job_repository import TaskJobRepository
 
 class TaskJobService:
     JOB_RFQ_ANALYSIS = "rfq_analysis"
+    JOB_KB_INDEX = "kb_index"
 
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
@@ -46,14 +47,57 @@ class TaskJobService:
         )
         return repo.create(job)
 
-    def mark_completed(self, db: Session, job: TaskJob) -> TaskJob:
+    def mark_completed(
+        self,
+        db: Session,
+        job: TaskJob,
+        result_summary: dict[str, Any] | None = None,
+    ) -> TaskJob:
         repo = TaskJobRepository(db)
         now = datetime.now(timezone.utc)
         job.status = "completed"
+        job.phase = "completed"
+        job.progress_current = job.progress_total
+        job.heartbeat_at = now
         job.finished_at = now
+        job.result_summary = result_summary
         job.error_message = None
         job.updated_at = now
         return repo.update(job)
+
+    def update_progress(
+        self,
+        db: Session,
+        job: TaskJob,
+        *,
+        phase: str,
+        current: int,
+        total: int,
+    ) -> TaskJob:
+        job.phase = phase
+        job.progress_current = max(0, current)
+        job.progress_total = max(0, total)
+        job.heartbeat_at = datetime.now(timezone.utc)
+        return TaskJobRepository(db).update(job)
+
+    def request_cancel(self, db: Session, job: TaskJob) -> TaskJob:
+        if job.status in {"completed", "failed", "cancelled"}:
+            return job
+        now = datetime.now(timezone.utc)
+        job.cancel_requested_at = now
+        if job.status == "queued":
+            job.status = "cancelled"
+            job.phase = "cancelled"
+            job.finished_at = now
+        return TaskJobRepository(db).update(job)
+
+    def mark_cancelled(self, db: Session, job: TaskJob) -> TaskJob:
+        now = datetime.now(timezone.utc)
+        job.status = "cancelled"
+        job.phase = "cancelled"
+        job.finished_at = now
+        job.heartbeat_at = now
+        return TaskJobRepository(db).update(job)
 
     def mark_failed(self, db: Session, job: TaskJob, error: str) -> TaskJob:
         repo = TaskJobRepository(db)
@@ -67,6 +111,7 @@ class TaskJobService:
             job.status = "queued"
             job.worker_id = None
             job.started_at = None
+            job.heartbeat_at = None
         return repo.update(job)
 
     def get_queue_info(self, db: Session, job: TaskJob | None) -> dict[str, int | None]:

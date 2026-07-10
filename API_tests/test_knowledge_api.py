@@ -51,11 +51,11 @@ def test_knowledge_search_function_filter(client):
 
 def test_knowledge_import(client):
     response = client.post("/api/v1/knowledge/import")
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()["data"]
-    assert "new_documents" in data
-    assert "failed_files" in data
-    assert isinstance(data["failed_files"], list)
+    assert data["job_id"]
+    assert data["status"] == "completed"
+    assert data["reused"] is False
 
 
 def test_knowledge_documents(client):

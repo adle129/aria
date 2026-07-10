@@ -53,13 +53,13 @@ def test_knowledge_search_insufficient_evidence_empty_index(client, monkeypatch)
     assert data["insufficient_evidence"] is True
 
 
-def test_knowledge_reindex_empty_kb_production_mode(client, monkeypatch):
+def test_knowledge_reindex_queues_job_in_production_mode(client, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
     get_settings.cache_clear()
 
     response = client.post("/api/v1/knowledge/reindex")
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()["data"]
-    assert data["new_chunks"] == 0
-    assert data["engagements_indexed"] == 0
-    assert isinstance(data["failed_files"], list)
+    assert data["status"] == "queued"
+    assert data["job_id"]
+    assert data["reused"] is False

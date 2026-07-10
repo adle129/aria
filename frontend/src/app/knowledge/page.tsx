@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
 import EngagementUploadPanel from "@/components/EngagementUploadPanel";
+import KnowledgeIndexJobPanel from "@/components/KnowledgeIndexJobPanel";
 import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
 import { useAuth } from "@/context/AuthContext";
@@ -81,14 +82,6 @@ interface RAGHitRow {
   };
 }
 
-interface ImportResult {
-  new_documents: number;
-  new_chunks: number;
-  skipped: number;
-  failed_files: Array<{ path: string; error: string }>;
-  last_import_at?: string;
-}
-
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
   indexed: { color: "green", label: "已索引" },
   pending: { color: "default", label: "待索引" },
@@ -134,8 +127,6 @@ export default function KnowledgePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [docsLoading, setDocsLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
-  const [lastImport, setLastImport] = useState<ImportResult | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
   const [activeTab, setActiveTab] = useState("docs");
   const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
@@ -166,6 +157,11 @@ export default function KnowledgePage() {
       setDocsLoading(false);
     }
   }, []);
+
+  const handleIndexCompleted = useCallback(async () => {
+    setWizardStep(2);
+    await Promise.all([loadStats(), loadDocuments()]);
+  }, [loadDocuments, loadStats]);
 
   useEffect(() => {
     void loadStats();
@@ -223,31 +219,6 @@ export default function KnowledgePage() {
       message.error("检索失败");
     } finally {
       setSearchLoading(false);
-    }
-  };
-
-  const runImport = async () => {
-    setImportLoading(true);
-    try {
-      const resp = await apiClient.post<{ code: number; data: ImportResult }>("/knowledge/import");
-      const data = resp.data.data;
-      setLastImport(data);
-      const failedCount = data.failed_files?.length ?? 0;
-      if (failedCount > 0) {
-        message.warning(
-          `索引完成：新增 ${data.new_documents} 篇，跳过 ${data.skipped} 篇，失败 ${failedCount} 篇`,
-        );
-      } else {
-        message.success(
-          `索引更新完成：新增 ${data.new_documents} 篇文档，${data.new_chunks} 个可检索片段，跳过 ${data.skipped} 篇`,
-        );
-      }
-      setWizardStep(2);
-      await Promise.all([loadStats(), loadDocuments()]);
-    } catch {
-      message.error("索引更新失败");
-    } finally {
-      setImportLoading(false);
     }
   };
 
@@ -352,22 +323,8 @@ export default function KnowledgePage() {
         />
       )}
 
-      {lastImport && (lastImport.failed_files?.length ?? 0) > 0 && (
-        <Alert
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={`${lastImport.failed_files.length} 个文件索引失败`}
-          description={
-            <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-              {lastImport.failed_files.map((f) => (
-                <li key={f.path}>
-                  <Text code>{f.path}</Text> — {f.error}
-                </li>
-              ))}
-            </ul>
-          }
-        />
+      {canWriteKb && (
+        <KnowledgeIndexJobPanel onCompleted={handleIndexCompleted} />
       )}
 
       <Tabs
@@ -384,15 +341,6 @@ export default function KnowledgePage() {
                     <Button onClick={() => void loadStats()} loading={statsLoading}>
                       刷新统计
                     </Button>
-                    {canWriteKb && (
-                      <Button
-                        type="primary"
-                        loading={importLoading}
-                        onClick={() => void runImport()}
-                      >
-                        更新知识库索引
-                      </Button>
-                    )}
                     <Button onClick={() => void loadDocuments()} loading={docsLoading}>
                       刷新文档清单
                     </Button>
