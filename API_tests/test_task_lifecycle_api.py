@@ -20,10 +20,17 @@ from app.repositories.rfq_task_repository import RFQTaskRepository
 # Helpers
 # ---------------------------------------------------------------------------
 
-# A stable file that is committed to git and always exists on disk,
-# used as a stand-in for task.file_path so Path.exists() checks pass.
-import os as _os
-_STABLE_FILE = _os.path.join(_os.path.dirname(__file__), "conftest.py")
+from pathlib import Path as _Path
+
+# Disposable stand-in for task.file_path; recreated after delete tests unlink it.
+_STABLE_FILE = _Path(__file__).parent / "_test_fixtures" / "stable_rfq.docx"
+
+
+def _ensure_stable_file() -> str:
+    _STABLE_FILE.parent.mkdir(exist_ok=True)
+    if not _STABLE_FILE.is_file():
+        _STABLE_FILE.write_bytes(b"fake-docx-for-lifecycle-api-tests")
+    return str(_STABLE_FILE)
 
 
 def _db(client):
@@ -33,7 +40,7 @@ def _db(client):
 def _make_task(db, *, processing_status="failed", file_path=None, **kwargs):
     task = RFQTask(
         file_name=kwargs.pop("file_name", "test.docx"),
-        file_path=file_path if file_path is not None else _STABLE_FILE,
+        file_path=file_path if file_path is not None else _ensure_stable_file(),
         processing_status=processing_status,
         **kwargs,
     )
@@ -309,7 +316,7 @@ class TestDeleteComprehensive:
         db = _db(client)
         task = RFQTask(
             file_name="t.docx",
-            file_path=_STABLE_FILE,
+            file_path=_ensure_stable_file(),
             processing_status="completed",
             excel_path=str(excel_file),
         )
