@@ -221,6 +221,8 @@ def test_generate_quote_empty_modules():
 
 **KH04 已执行：** `test_ollama_lease_repository.py` 覆盖优先级、释放和 TTL 回收；`test_embedding_service.py` 覆盖 KB 分批重取租约；`test_llm_service.py` 覆盖 RFQ 优先级；`test_knowledge_api.py` 覆盖 query timeout→503。PostgreSQL backend/worker 双容器互斥作为集成 smoke。
 
+**KH05 已执行：** `test_disk_guard_service.py` 覆盖 warning/write protection、required+reserve 和 ENOSPC；health API 校验 data/tmp 字段；上传与 import API 注入容量不足并断言结构化 507；`kbCapacity.test.ts` 覆盖前端告警和“读服务仍可用”文案。
+
 ### 8.3 知识库前端测试
 
 | 测试文件 | 覆盖 |

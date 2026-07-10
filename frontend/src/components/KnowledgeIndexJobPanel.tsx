@@ -11,6 +11,7 @@ import {
   Typography,
   message,
 } from "antd";
+import axios from "axios";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/api/client";
 import {
@@ -21,6 +22,7 @@ import {
   type KnowledgeIndexFailure,
   type KnowledgeIndexJobStatus,
 } from "@/lib/knowledgeIndexJob";
+import { formatCapacityBytes } from "@/lib/kbCapacity";
 
 const { Text } = Typography;
 
@@ -45,6 +47,13 @@ interface KnowledgeIndexJob {
 
 interface KnowledgeIndexJobPanelProps {
   onCompleted: () => void | Promise<void>;
+  writeProtected?: boolean;
+}
+
+interface CapacityErrorData {
+  required_bytes: number;
+  available_bytes: number;
+  action: string;
 }
 
 const STATUS_COLOR: Record<KnowledgeIndexJobStatus, string> = {
@@ -56,9 +65,14 @@ const STATUS_COLOR: Record<KnowledgeIndexJobStatus, string> = {
   cancelled: "default",
 };
 
-export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJobPanelProps) {
+export default function KnowledgeIndexJobPanel({
+  onCompleted,
+  writeProtected = false,
+}: KnowledgeIndexJobPanelProps) {
   const [job, setJob] = useState<KnowledgeIndexJob | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [capacityError, setCapacityError] =
+    useState<CapacityErrorData | null>(null);
   const completedJobs = useRef(new Set<string>());
 
   const acceptJob = useCallback(
@@ -119,7 +133,12 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
   }, [job, loadJob]);
 
   const start = async () => {
+    if (writeProtected) {
+      message.error("数据盘处于写保护，暂时无法更新索引");
+      return;
+    }
     setSubmitting(true);
+    setCapacityError(null);
     try {
       const resp = await apiClient.post<{
         code: number;
@@ -142,7 +161,10 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
         message.info("已有索引任务，已显示当前进度");
       }
       await loadJob(resp.data.data.job_id);
-    } catch {
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 507) {
+        setCapacityError(error.response.data?.data ?? null);
+      }
       return;
     } finally {
       setSubmitting(false);
@@ -191,7 +213,7 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
             type="primary"
             size="small"
             loading={submitting}
-            disabled={active}
+            disabled={active || writeProtected}
             onClick={() => void start()}
           >
             更新知识库索引
@@ -199,6 +221,15 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
         </Space>
       }
     >
+      {capacityError && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="更新索引所需空间不足"
+          description={`需要保留 ${formatCapacityBytes(capacityError.required_bytes)}，当前可用 ${formatCapacityBytes(capacityError.available_bytes)}。${capacityError.action}`}
+        />
+      )}
       {!job ? (
         <Text type="secondary">当前没有索引任务。上传项目包后可启动更新。</Text>
       ) : (

@@ -16,9 +16,11 @@ import {
   message,
 } from "antd";
 import type { UploadFile } from "antd/es/upload/interface";
+import axios from "axios";
 import { useMemo, useState } from "react";
 import { apiClient } from "@/api/client";
 import { uploadNeedsEngagementId } from "@/lib/engagementUpload";
+import { formatCapacityBytes } from "@/lib/kbCapacity";
 
 const { Paragraph, Text } = Typography;
 
@@ -34,6 +36,13 @@ export interface EngagementPackResult {
   path?: string;
   files?: string[];
   errors?: Array<{ file?: string; error?: string }>;
+}
+
+interface CapacityErrorData {
+  required_bytes: number;
+  available_bytes: number;
+  usage_percent: number;
+  action: string;
 }
 
 const TIER_COLOR: Record<string, string> = {
@@ -56,20 +65,30 @@ const MISSING_LABEL: Record<string, string> = {
 
 interface EngagementUploadPanelProps {
   onUploaded?: () => void;
+  writeProtected?: boolean;
 }
 
-export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPanelProps) {
+export default function EngagementUploadPanel({
+  onUploaded,
+  writeProtected = false,
+}: EngagementUploadPanelProps) {
   const [engagementId, setEngagementId] = useState("");
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [lastResults, setLastResults] = useState<EngagementPackResult[] | null>(null);
+  const [capacityError, setCapacityError] =
+    useState<CapacityErrorData | null>(null);
 
   const fileNames = useMemo(() => fileList.map((f) => f.name), [fileList]);
   const needsEngagementId = uploadNeedsEngagementId(fileNames);
   const zipCount = fileNames.filter((n) => n.toLowerCase().endsWith(".zip")).length;
 
   const handleUpload = async () => {
+    if (writeProtected) {
+      message.error("数据盘处于写保护，暂时无法上传");
+      return;
+    }
     if (!fileList.length) {
       message.warning("请选择 ZIP 或项目文件");
       return;
@@ -113,6 +132,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
     form.append("replace_existing", String(replaceExisting));
 
     setUploading(true);
+    setCapacityError(null);
     try {
       const resp = await apiClient.post<{
         code: number;
@@ -137,8 +157,10 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
       setFileList([]);
       setReplaceExisting(false);
       onUploaded?.();
-    } catch {
-      // apiClient interceptor
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 507) {
+        setCapacityError(error.response.data?.data ?? null);
+      }
     } finally {
       setUploading(false);
     }
@@ -152,6 +174,16 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
         ZIP；散文件模式每次 1 套。
       </Paragraph>
 
+      {capacityError && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="上传所需空间不足"
+          description={`需要 ${formatCapacityBytes(capacityError.required_bytes)}，可用 ${formatCapacityBytes(capacityError.available_bytes)}（使用率 ${capacityError.usage_percent}%）。${capacityError.action}`}
+        />
+      )}
+
       {needsEngagementId && (
         <Space style={{ marginBottom: 12 }} wrap>
           <Text>Engagement ID：</Text>
@@ -159,6 +191,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
             style={{ width: 280 }}
             placeholder="如 dev_chassis_2024"
             value={engagementId}
+            disabled={writeProtected}
             onChange={(e) => setEngagementId(e.target.value)}
           />
         </Space>
@@ -166,6 +199,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
 
       <Upload.Dragger
         multiple
+        disabled={writeProtected}
         fileList={fileList}
         beforeUpload={() => false}
         onChange={({ fileList: next }) => setFileList(next)}
@@ -183,7 +217,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
           type="primary"
           icon={<UploadOutlined />}
           loading={uploading}
-          disabled={!fileList.length}
+          disabled={!fileList.length || writeProtected}
           onClick={() => void handleUpload()}
         >
           上传并落盘
@@ -193,7 +227,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
         </Button>
         <Checkbox
           checked={replaceExisting}
-          disabled={uploading}
+          disabled={uploading || writeProtected}
           onChange={(event) => setReplaceExisting(event.target.checked)}
         >
           替换同 ID 项目

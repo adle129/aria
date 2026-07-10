@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
+from app.services.disk_guard_service import DiskGuardService
 from app.services.engagement_ingest_service import EngagementIngestService
 from app.services.task_job_service import TaskJobService
 
@@ -81,6 +82,8 @@ class KnowledgeIndexJobService:
         return self.jobs.request_cancel(db, job)
 
     def execute(self, db: Session, job: TaskJob) -> dict[str, Any]:
+        DiskGuardService(self.settings).assert_writable(include_temp=True)
+
         def report_progress(phase: str, current: int, total: int) -> None:
             self.jobs.update_progress(
                 db,

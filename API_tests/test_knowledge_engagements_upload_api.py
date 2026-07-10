@@ -116,3 +116,31 @@ def test_engagements_upload_missing_engagement_id_400(client, upload_dir):
         files=[("files", ("RFQ.docx", b"data", "application/octet-stream"))],
     )
     assert resp.status_code == 400
+
+
+def test_engagements_upload_returns_507_with_recovery_action(
+    client, upload_dir, monkeypatch
+):
+    from app.services.disk_guard_service import (
+        DiskCapacityError,
+        DiskGuardService,
+    )
+
+    def fail_capacity(*_args, **_kwargs):
+        raise DiskCapacityError(
+            volume="data",
+            required_bytes=200,
+            available_bytes=20,
+            usage_percent=94,
+        )
+
+    monkeypatch.setattr(DiskGuardService, "assert_writable", fail_capacity)
+    response = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        data={"engagement_id": "disk_full"},
+        files=[("files", ("RFQ.docx", b"data", "application/octet-stream"))],
+    )
+
+    assert response.status_code == 507
+    assert response.json()["data"]["available_bytes"] == 20
+    assert "联系系统管理员" in response.json()["data"]["action"]

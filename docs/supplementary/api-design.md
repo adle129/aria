@@ -152,9 +152,21 @@ GET /api/v1/health
   "mock_llm": true,
   "mock_rag": true,
   "data_volume": {
+    "volume": "data",
     "total_bytes": 4398046511104,
+    "used_bytes": 879609302221,
     "free_bytes": 3518437208883,
-    "used_percent": 20.0,
+    "usage_percent": 20.0,
+    "warning": false,
+    "write_protected": false
+  },
+  "temp_volume": {
+    "volume": "tmp",
+    "total_bytes": 4398046511104,
+    "used_bytes": 879609302221,
+    "free_bytes": 3518437208883,
+    "usage_percent": 20.0,
+    "warning": false,
     "write_protected": false
   },
   "kb_index": {
@@ -688,11 +700,13 @@ POST /api/v1/knowledge/engagements/upload
 ```json
 {
   "code": 507,
-  "msg": "数据盘空间不足，无法安全上传；请清理空间或联系 IT 扩容",
+  "msg": "数据盘空间不足，写入操作已暂停；现有检索和下载仍可使用",
   "data": {
+    "volume": "data",
     "required_bytes": 2147483648,
-    "free_bytes": 1073741824,
-    "path": "/app/data"
+    "available_bytes": 1073741824,
+    "usage_percent": 92.0,
+    "action": "请清理或扩容数据盘后重试；如无法处理，请联系系统管理员"
   }
 }
 ```

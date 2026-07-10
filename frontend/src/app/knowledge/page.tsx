@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
 import EngagementUploadPanel from "@/components/EngagementUploadPanel";
+import KbCapacityAlert from "@/components/KbCapacityAlert";
 import KnowledgeIndexJobPanel from "@/components/KnowledgeIndexJobPanel";
 import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
@@ -114,9 +115,10 @@ function formatBytes(n?: number): string {
 
 export default function KnowledgePage() {
   const { authEnabled, isKbAdmin } = useAuth();
-  const { showDemoChrome, isFormalDelivery } = useUiProfile();
+  const { health, showDemoChrome, isFormalDelivery } = useUiProfile();
   const docTypeQuotingHint = showDemoChrome ? DOC_TYPE_QUOTING_HINT_DEMO : DOC_TYPE_QUOTING_HINT_R1;
   const canWriteKb = !authEnabled || isKbAdmin;
+  const writeProtected = health?.data_volume?.write_protected === true;
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [results, setResults] = useState<RAGHitRow[]>([]);
@@ -314,8 +316,11 @@ export default function KnowledgePage() {
         </Paragraph>
       </Card>
 
+      {canWriteKb && <KbCapacityAlert volume={health?.data_volume} />}
+
       {canWriteKb && (
         <EngagementUploadPanel
+          writeProtected={writeProtected}
           onUploaded={() => {
             setWizardStep(1);
             void loadDocuments();
@@ -324,7 +329,10 @@ export default function KnowledgePage() {
       )}
 
       {canWriteKb && (
-        <KnowledgeIndexJobPanel onCompleted={handleIndexCompleted} />
+        <KnowledgeIndexJobPanel
+          onCompleted={handleIndexCompleted}
+          writeProtected={writeProtected}
+        />
       )}
 
       <Tabs

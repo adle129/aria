@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     task_job_stale_seconds: int = 900
     task_max_queue_size: int = 20
     kb_async_index_enabled: bool = True
+    disk_warning_percent: float = 80.0
+    disk_write_protect_percent: float = 90.0
+    disk_min_free_bytes: int = 256 * 1024 * 1024
 
     # UI / deployment (see docs/R1/kb-debug-ui-spec.md)
     aria_ui_profile: str = "experience"  # dev | experience | r1 | full
@@ -64,6 +67,19 @@ class Settings(BaseSettings):
     def _kb_debug_dev_only(self) -> "Settings":
         if self.kb_debug_enabled and self.aria_ui_profile != "dev":
             self.kb_debug_enabled = False
+        return self
+
+    @model_validator(mode="after")
+    def _validate_disk_thresholds(self) -> "Settings":
+        if not (
+            0
+            <= self.disk_warning_percent
+            < self.disk_write_protect_percent
+            <= 100
+        ):
+            raise ValueError(
+                "disk thresholds must satisfy 0 <= warning < write_protect <= 100"
+            )
         return self
 
     @model_validator(mode="after")

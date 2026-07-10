@@ -127,6 +127,18 @@ export interface HealthData {
   kb_debug_enabled?: boolean;
   aria_ui_profile?: string;
   auth_enabled?: boolean;
+  data_volume?: DiskVolumeHealth;
+  temp_volume?: DiskVolumeHealth;
+}
+
+export interface DiskVolumeHealth {
+  volume: string;
+  total_bytes: number;
+  used_bytes: number;
+  free_bytes: number;
+  usage_percent: number;
+  warning: boolean;
+  write_protected: boolean;
 }
 
 export async function fetchHealth(): Promise<HealthData> {

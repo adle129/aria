@@ -7,6 +7,10 @@ from app.config import get_settings
 from app.database import get_db
 from app.schemas.knowledge import EngagementUploadPackResult, KnowledgeSearchRequest
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
+from app.services.disk_guard_service import (
+    DiskCapacityError,
+    DiskGuardService,
+)
 from app.services.engagement_upload_service import (
     EngagementUploadConflict,
     EngagementUploadError,
@@ -82,6 +86,7 @@ async def engagements_upload(
 ):
     settings = get_settings()
     service = EngagementUploadService(settings)
+    disk_guard = DiskGuardService(settings)
     zip_files: list[tuple[str, bytes]] = []
     loose_files: list[tuple[str, bytes]] = []
 
@@ -95,6 +100,10 @@ async def engagements_upload(
             loose_files.append((upload.filename, content))
 
     try:
+        required_bytes = sum(
+            len(content) for _, content in [*zip_files, *loose_files]
+        ) * 2
+        disk_guard.assert_writable(required_bytes=required_bytes)
         data = service.upload_batch(
             zip_files=zip_files or None,
             loose_files=loose_files or None,
@@ -107,6 +116,17 @@ async def engagements_upload(
         ]
     except EngagementUploadConflict as exc:
         return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except OSError as exc:
+        capacity_error = disk_guard.normalize_os_error(
+            exc, required_bytes=required_bytes
+        )
+        if capacity_error:
+            return JSONResponse(
+                status_code=507, content=capacity_error.as_response()
+            )
+        raise
     except EngagementUploadError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}
@@ -164,7 +184,12 @@ def knowledge_import(
     db: Session = Depends(get_db),
     admin=Depends(require_kb_admin),
 ):
-    if not get_settings().kb_async_index_enabled:
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(include_temp=True)
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    if not settings.kb_async_index_enabled:
         return _run_legacy_knowledge_index(db)
     return _enqueue_knowledge_index(
         db=db,
@@ -179,7 +204,12 @@ def knowledge_reindex(
     db: Session = Depends(get_db),
     admin=Depends(require_kb_admin),
 ):
-    if not get_settings().kb_async_index_enabled:
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(include_temp=True)
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    if not settings.kb_async_index_enabled:
         return _run_legacy_knowledge_index(db)
     return _enqueue_knowledge_index(
         db=db,

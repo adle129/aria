@@ -14,6 +14,7 @@ from app.database import SessionLocal
 from app.models.task_job import TaskJob
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.repositories.task_job_repository import TaskJobRepository
+from app.services.disk_guard_service import DiskCapacityError
 from app.services.engagement_ingest_service import EngagementIngestCancelled
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.rfq_analysis_service import RFQAnalysisService
@@ -77,6 +78,9 @@ class WorkerService:
             self.job_service.mark_completed(db, job, result)
         except EngagementIngestCancelled:
             self.job_service.mark_cancelled(db, job)
+        except DiskCapacityError as exc:
+            job.attempts = job.max_attempts
+            self.job_service.mark_failed(db, job, str(exc))
         except Exception as exc:
             logger.exception("Job %s failed", job.id)
             self.job_service.mark_failed(db, job, str(exc))

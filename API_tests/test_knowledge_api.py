@@ -81,6 +81,30 @@ def test_knowledge_import(client):
     assert data["reused"] is False
 
 
+def test_knowledge_import_returns_507_when_data_volume_is_protected(
+    client, monkeypatch
+):
+    from app.services.disk_guard_service import (
+        DiskCapacityError,
+        DiskGuardService,
+    )
+
+    def fail_capacity(*_args, **_kwargs):
+        raise DiskCapacityError(
+            volume="data",
+            required_bytes=100,
+            available_bytes=10,
+            usage_percent=95,
+        )
+
+    monkeypatch.setattr(DiskGuardService, "assert_writable", fail_capacity)
+    response = client.post("/api/v1/knowledge/import")
+
+    assert response.status_code == 507
+    assert response.json()["data"]["required_bytes"] == 100
+    assert "action" in response.json()["data"]
+
+
 def test_knowledge_documents(client):
     response = client.get("/api/v1/knowledge/documents")
     assert response.status_code == 200
