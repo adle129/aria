@@ -130,7 +130,7 @@
 | R1-KH06 | P0-1 | **上传 staging 与 ZIP 安全** | 流式写数据盘 staging；解压总量/条目数/压缩比/路径校验；成功后 atomic rename；失败无半目录 | R1-KH05, R1-K06 | **已完成** |
 | R1-KH07 | P0-2 | **Windows→Linux 文件兼容** | Unicode NFC、路径分隔符、大小写不敏感识别；manifest 仅 POSIX 相对路径；明确 `.xlsx`/`.xls`；Windows ZIP/中文名回归 | R1-KH06 | **已完成** |
 | R1-KH08 | P0-2 | **导入批次与最小审计** | `knowledge_imports`；triggered_by、开始/结束、成功/跳过/失败；engagement 记录 uploaded_at/by、content_hash、last_indexed_at | R1-AUTH04, R1-KH02 | **已完成** |
-| R1-KH09 | P0-2 | **备份完整性与恢复门禁** | 备份 KB、pg_dump、baselines、index state、config/feedback；备份前容量检查；恢复演练后 Top-3/基线可用 | R1-KH03, R1-KH05 | 待开始 |
+| R1-KH09 | P0-2 | **备份完整性与恢复门禁** | 备份 KB、pg_dump、baselines、index state、config/feedback；备份前容量检查；恢复演练后 Top-3/基线可用 | R1-KH03, R1-KH05 | **已完成** |
 
 ### Phase B · P1（R1-β / 百级真实语料前）
 
@@ -195,6 +195,8 @@
 **KH07 进度（2026-07-10）：** 新增 `file_compat` 模块统一 NFC、POSIX manifest 路径与大小写不敏感解析；上传/ZIP 内部名 NFC 化并拒绝 Windows 语义冲突；manifest 驱动 `build_engagement_preview`；`.xls` 明确拒绝并引导转 `.xlsx`；前端 accept 不含 `.xls`。Windows ZIP、中文空格、嵌套反斜杠 manifest 与大小写扩展名回归已通过。
 
 **KH08 进度（2026-07-10）：** 已完成 `knowledge_imports` 批次表（FK job/user/generation）、engagement 审计字段与 content hash；job 完成/失败/取消同步批次；上传落盘写 uploaded_at/by/tier/hash。新增 `/knowledge/batches` 与 `/knowledge/engagements` API，管理员导入历史 Drawer UI 已接入。
+
+**KH09 进度（2026-07-10）：** `backup.sh` 已补齐 config/feedback/baselines/index state、备份前空间预检与 manifest；移除 chroma_db；新增 `restore.sh`（PostgreSQL→app files→start、失败回滚快照）与恢复演练报告。
 
 ### Phase B 详细拆分
 
