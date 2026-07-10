@@ -1,9 +1,9 @@
 # ARIA 智能应用平台 — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.12 · 2026-07-09  
+**版本：** v1.14 · 2026-07-10
 **受众：** 工程师、Cursor Agent  
-**产品基线：** [prod.md](prod.md) v1.8 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
+**产品基线：** [prod.md](prod.md) v1.9 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
 
 > 本文档描述**如何实现** ARIA 平台及首期 **报价助手** 应用，供日常编码与 AI 辅助开发使用。  
 > **当前代码范围：** Demo（Phase 1）已实现并 **冻结于 `main`**，仅供体验与流程参考；**正式版** 在 `release/r1` 基于 Demo **框架与 UI 壳** 按 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) v1.1 逐步实施（多数 R1 API **设计已定 · 未实现**）。
@@ -14,7 +14,7 @@
 
 | 文档 | 用途 |
 |------|------|
-| [prod.md](prod.md) | 产品需求与验收基线（v1.7） |
+| [prod.md](prod.md) | 产品需求与验收基线（v1.9） |
 | [docs/supplementary/delivery-traceability.md](docs/supplementary/delivery-traceability.md) | 客户能力 ↔ prod ↔ API ↔ 验收 |
 | [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md) | 品牌定义、平台 vs 应用、**当前开发范围** |
 | **dev-context.md**（本文） | 技术栈、目录、API、模型、编码规范 |
@@ -26,6 +26,8 @@
 | [docs/customer-feedback-baseline.md](docs/customer-feedback-baseline.md) | Demo 反馈 → 需求对照 |
 | [docs/supplementary/pre-development-open-items.md](docs/supplementary/pre-development-open-items.md) | **开发前开放项登记**（写代码 / 开里程碑前必读） |
 | [docs/supplementary/formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) | **正式版交付实施方案**（Demo 演进 · Profile · R1 Gate） |
+| [docs/R1/knowledge-development-standards.md](docs/R1/knowledge-development-standards.md) | R1-KH 全栈开发规范：分层、事务、迁移、并发、兼容与可观测性 |
+| [docs/R1/knowledge-ui-design-tasks.md](docs/R1/knowledge-ui-design-tasks.md) | 知识库 UI 状态词典、页面任务和前端 DoD |
 | [docs/supplementary/rfq-dimension-baseline-spec.md](docs/supplementary/rfq-dimension-baseline-spec.md) | **F1.10a–d 全维度基准库 + RFQ 勾选 UI**（Q8） |
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 详细契约（含 §4 部署与数据持久化） |
 | [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md) | RAG 架构、统一检索契约、Demo P0 / Phase 2 计划 |
@@ -68,8 +70,11 @@
 ### 长任务与并发（正式版 R1+）
 
 - RFQ 解析等长任务：**PostgreSQL 任务表 + 独立 worker**（`SKIP LOCKED` 认领），**不用** Redis/Celery
-- Ollama **并发闸**（worker 内信号量，同时 1–2 个 generate）+ 前端排队位置/ETA
+- Ollama **全局资源租约**（PostgreSQL 跨 backend/worker，不使用 Redis）+ 前端排队位置/ETA；进程内信号量不能作为生产总并发闸
 - 团队规模 **10–20 人**（问卷确认）；高峰同时长任务 **3–5 人**；排队 SLA **≤10 min**
+- 单 GPU 优先级：交互 query embedding > RFQ > KB 增量 > KB 全量；KB 分批让路，全量默认非高峰
+- KB 索引使用 staging generation + 原子 active 切换；磁盘/模型/DB 失败时旧 generation 继续服务
+- 数据盘 80% warning、90% 写保护（可配置）；空间不足返回 507，仅阻止新增写入
 
 ---
 
@@ -538,4 +543,4 @@ test: 知识库搜索异常路径
 
 ---
 
-**关联文档：** [prod.md](prod.md) v1.7 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) v1.1 | [implementation-plan.md](docs/implementation-plan.md) v1.5 | [api-design.md](docs/supplementary/api-design.md) v1.4 | [rag-design.md](docs/supplementary/rag-design.md) v1.4
+**关联文档：** [prod.md](prod.md) v1.9 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) v1.3 | [implementation-plan.md](docs/implementation-plan.md) v1.6 | [api-design.md](docs/supplementary/api-design.md) v1.7 | [rag-design.md](docs/supplementary/rag-design.md) v1.5

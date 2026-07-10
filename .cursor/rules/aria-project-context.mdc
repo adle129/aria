@@ -5,7 +5,7 @@ alwaysApply: true
 
 # ARIA 项目上下文
 
-**基线：** [prod.md](prod.md) v1.6 · [dev-context.md](dev-context.md) v1.10
+**基线：** [prod.md](prod.md) v1.9 · [dev-context.md](dev-context.md) v1.14
 
 ## 身份
 
@@ -36,6 +36,8 @@ alwaysApply: true
 | [docs/supplementary/pre-development-open-items.md](docs/supplementary/pre-development-open-items.md) | **写代码 / 开 PR 前 Gate** |
 | [docs/supplementary/formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) | 正式版 vs Demo、Profile、R1 范围 |
 | [docs/R1/README.md](docs/R1/README.md) · [dev-tasks.md](docs/R1/dev-tasks.md) | R1 任务与优先级 |
+| [docs/R1/knowledge-development-standards.md](docs/R1/knowledge-development-standards.md) | R1-KH 全栈编码、事务、迁移、兼容与可观测性 |
+| [docs/R1/knowledge-ui-design-tasks.md](docs/R1/knowledge-ui-design-tasks.md) | 知识库页面状态、角色、异常、响应式与无障碍 |
 | [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md) | 品牌、平台 vs 应用 |
 | [prod.md](prod.md) | 功能范围、验收、分阶段交付 |
 | [dev-context.md](dev-context.md) | 技术栈、目录、API 摘要 |
@@ -67,6 +69,8 @@ alwaysApply: true
 - **生产**数据在 `${ARIA_DATA_ROOT}`（默认 `/data/aria`）；dev 用 `backend/data` Volume
 - 不提交 `.env`、客户脱敏数据
 - **Scope 门禁：** 仅 **报价助手** + **平台知识库（轻量）**；勿实现财务助手或多 App 框架
+- KB 生产索引必须 staging 构建后原子切 active；失败/取消/重启/507 时旧索引持续可用
+- Ollama 生产并发须跨 backend/worker 全局控制；query/RFQ 优先于 KB 索引
 
 ## 模块六步开发法（必须遵守顺序）
 

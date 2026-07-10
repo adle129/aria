@@ -36,8 +36,8 @@ alwaysApply: false
 - 侧栏：**应用 · 报价流程**（四步）· **平台 · 知识库**
 - **TaskContextBar + WorkflowSteps：** 仅在报价四步（`/rfq` `/proposal` `/qa` `/quote`）展示；**`/knowledge` 不展示任务栏**（平台页无 task 上下文）
 - Demo 代码 [AppLayout.tsx](frontend/src/components/AppLayout.tsx) 可能仍全局渲染 TaskContextBar — **R1/Profile 联调须对齐规格**
-- 所有 API：**loading**；错误经 `api/client.ts` → `message.error()`
-- LLM 任务 30s–2min：**轮询** `/tasks/{id}/status` 或 SSE；禁止空白等待
+- 所有 API：loading/error/empty；通用错误经 `api/client.ts`，409/422/429/507 等领域错误须在操作区域展示，**禁止只用 toast**
+- 长任务轮询统一封装：卸载取消、退避、超时、刷新恢复、避免重复请求；禁止空白等待
 - AI 草稿与人工编辑视觉区分；Stub/Mock 须 **「Demo 预览」** Tag + API `demo_preview`
 - **导出前确认 checkbox**；下载按钮生成完成前 **disabled**
 
@@ -57,6 +57,15 @@ alwaysApply: false
 - 任务 ID：`sessionStorage` `aria_last_task_id`
 - `/finance`：Phase 3 占位，不实现
 
+## R1 知识库 UI
+
+- 规范：[knowledge-ui-design-tasks.md](docs/R1/knowledge-ui-design-tasks.md)；代码规范：[knowledge-development-standards.md](docs/R1/knowledge-development-standards.md)
+- 上传、完整度、索引、job 四类状态集中映射；页面不得从 stats/文件名推断状态
+- 活跃索引禁重复提交；`reused=true` 关联现有 job；失败/取消明示旧索引仍可用
+- 80% warning、90% 写保护；写保护仅禁写，工程师检索/RFQ/下载保持可用
+- R1 不展示 replace/version/pause/resume 等未交付按钮
+- 状态必须有文字/aria；宽表 `scroll.x`，窄屏使用 Card/Drawer
+
 ## 新增页面检查清单
 
 - [ ] EDAG 主题；不引入额外 UI 库
@@ -65,3 +74,4 @@ alwaysApply: false
 - [ ] 知识库页：**无** TaskContextBar
 - [ ] Mock 区域「Demo 预览」Tag
 - [ ] 字段与 [api-design.md](docs/supplementary/api-design.md) 一致
+- [ ] 领域状态、响应式、无障碍和 Vitest 与知识库 UI 规范一致

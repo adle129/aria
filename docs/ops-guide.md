@@ -1,8 +1,8 @@
 # ARIA 智能应用平台 — 运维手册
 
 **首期应用：** ARIA 报价助手  
-**版本：** v1.2  
-**日期：** 2026-06-22  
+**版本：** v1.3
+**日期：** 2026-07-10
 **适用对象：** 客户 IT 管理员、知识库管理员、开发方运维支持
 
 ---
@@ -124,7 +124,7 @@ curl http://localhost/api/v1/knowledge/stats
 
 ### 3.2 增量导入（Phase 2）
 
-> **当前版本：** 无 `incremental_update.py`。新项目文档放入 `knowledge_base/<项目名>/` 后，重新执行 `ingest_documents.py`（已索引文件按脚本逻辑跳过）。
+> **当前代码（2026-07-10）：** 无 `incremental_update.py`，`ingest_documents.py` 实际执行全量解析/embedding，`skipped` 尚未生效。R1-KH10 完成后才可按 Engagement hash 跳过未变化项目。
 
 ```bash
 # Phase 2 规划（尚未交付）
@@ -158,7 +158,25 @@ docker exec aria-backend python scripts/ingest_documents.py
 
 > `scripts/reindex_knowledge.py` 为 Phase 2 占位；当前 reindex 即全量 ingest。
 
-> Re-index 期间 RAG 检索可能短暂不可用，建议在非高峰执行。
+> **R1-KH03 完成前：** Re-index 会造成检索空窗，只允许在非高峰执行，并提前通知工程师。
+> **R1-KH03 完成后：** staging generation 构建期间继续读取旧索引；全量任务仍为低优先级，默认非高峰执行，避免与 RFQ 抢占单卡资源。
+
+### 3.4.1 单 GPU 调度规则
+
+1. 交互检索与 RFQ 长任务优先；KB 增量次之；全量重建最低。
+2. 日间仅执行小批量增量；全量重建安排在维护窗口。
+3. KB job 显示 queued/running/cancelling/completed/failed；不得通过多标签重复提交绕过单飞锁。暂停/恢复仅在 checkpoint 方案交付后启用。
+4. 若 RFQ 队列持续有任务，KB job 在 embedding 批次边界让路；禁止同时自由运行 Qwen 长生成与全量 embedding。
+
+RTX 4090 24GB ×1 是 R1 推荐基线，但属于**排队型服务**。若客户要求全量索引和 3–5 个 RFQ 长任务物理并行且无延迟，应评估第二张 GPU/独立 embedding 节点。
+
+### 3.4.2 磁盘与上传保护
+
+- health `data_volume.used_percent >= 80`：告警并安排清理/扩容。
+- 达写保护阈值（默认 90%）：停止 KB/RFQ 新上传和索引，返回 507；已有 search、历史任务查看和下载继续服务。
+- 不得将大 ZIP 解压到容器 overlay `/tmp`；staging 必须位于 `${ARIA_DATA_ROOT}/app/.staging`。
+- 507 后先检查 staging 残留、outputs、过期备份；不得手工删除 PostgreSQL 目录或当前 active generation。
+- Windows 用户上传的 ZIP/散文件应使用 UTF-8 文件名；manifest 路径统一 `/`，不要写 `C:\...` 或反斜杠相对路径。
 
 ### 3.5 知识库健康指标
 
@@ -325,11 +343,14 @@ docker exec -it postgres psql -U aria_admin -d aria_db -c "SELECT count(*) FROM 
 
 | 指标 | 告警阈值 |
 |------|---------|
-| 磁盘使用率 | > 85% |
+| 数据盘使用率 | ≥80% warning；≥90% 写保护 |
+| staging 临时目录 | 有超过 24h 的残留 |
 | 容器状态 | 任一 not running |
 | health API | 连续 3 次非 200 |
 | Ollama 响应 | 超时 > 30s |
 | 备份 | 24h 内无备份记录 |
+| KB 索引任务 | running 无心跳超过 stale 阈值；连续失败 ≥2 |
+| RFQ 体验 | KB 索引期间排队/耗时显著高于空闲基线 |
 
 ### 7.2 日志轮转
 

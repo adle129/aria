@@ -19,6 +19,7 @@ alwaysApply: true
 | `API_tests/` | FastAPI 路由契约（TestClient + Mock Service） |
 | `regression/` | 固定 RFQ 样本 + 期望 JSON（`./run_tests.sh --regression`） |
 | `frontend/` | Vitest（`src/**/*.test.ts`）+ **`npm run build`**（Next.js 全量 TS 检查，与 Docker 一致） |
+| `integration_tests/` | R1-KH：真实 PostgreSQL + 可控 Fake Ollama；事务、锁、故障注入 |
 
 ## 前端提交习惯
 
@@ -28,8 +29,9 @@ alwaysApply: true
 ## 每个功能必须满足的测试
 
 1. **Service 层：** `unit_tests/test_<module>.py` — 正常路径 + 至少 1 个异常/降级路径
-2. **API 层：** `API_tests/test_<module>_api.py` — 200 成功 + 400/404/422 等契约错误
+2. **API 层：** `API_tests/test_<module>_api.py` — 200/202 成功 + 400/404/409/422/429/507/503 等契约错误
 3. **Mock 边界：** 非法 LLM JSON、空文件、任务不存在等不可导致 500（除非契约明确要求）
+4. **R1-KH：** 原子 generation、single-flight、取消/重启、ENOSPC/507、Zip Bomb、Windows ZIP、跨进程 Ollama 闸
 
 ## 提交前必须执行的命令
 
@@ -58,4 +60,5 @@ $env:PYTHONPATH="<项目根>/backend"
 - [ ] 前端（若涉及）TaskContextBar、loading/error/确认流已实现
 - [ ] `run_tests.sh` / `run_tests.ps1` 全绿（含前端 vitest + **`npm run build`**）
 - [ ] 回归集通过（若改动解析/RAG/Prompt/Excel 生成）
+- [ ] R1-KH 改动通过 PostgreSQL/Fake Ollama 集成测试；4090 性能报告按任务 Gate 归档
 - [ ] 未提交 `.env`、密钥、客户脱敏文件

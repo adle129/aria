@@ -1,6 +1,6 @@
 # R1 开发任务清单
 
-**版本：** v1.7 · 2026-07-09  
+**版本：** v1.9 · 2026-07-10
 **索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
@@ -24,6 +24,7 @@
 **代码已完成（2026-07-09 对照）：** R1-I01–I09 · **R1-I10** · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
 
 **2026-07-09 新增：** R1-I10（Wave 6 任务生命周期）· KB 服务优化（embedding 批量、pgvector upsert 分批）
+**2026-07-10 架构审查新增：** **R1-KH 知识库生产稳定性加固**；P0 阻塞真实 bulk/UAT，P1 在 R1-β 前完成，P2 进入 M6/运营增强。
 
 **仍依赖客户：** R1-F02 · R1-A02–A07 · O-01～O-05
 
@@ -106,6 +107,122 @@
 | R1-K10 | P0-2 | **知识库 Debug UI（DEV 专用）** | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | API+UI+Ollama index；`run_kb_debug_validation.py` | R1-E03, ingest spike | | **已实现** |
 
 > **R1-K10 非客户交付物**；验收见 kb-debug-ui-spec §6，不写入 acceptance-checklist。
+
+---
+
+## R1-KH 知识库生产稳定性加固（2026-07-10 Review）
+
+> **目标：** 管理员入库期间旧索引持续可读，RFQ/交互检索优先；失败、重启或磁盘不足不得破坏已有知识库。
+> **范围：** KH01–KH09 是 R1 工程硬化，不新增运营级门户；KH10–KH13 为真实 bulk 前性能与兼容性；KH14–KH16 属 M6/运营增强。
+> **实现顺序仍遵守：** Service → unit test → API → API test → 前端 → 联调。
+> **设计 Gate：** **R1-KH00** 完成并形成 ADR 后，方可开始 KH02–KH04 数据库迁移与生产实现；编码规范见 [knowledge-development-standards.md](knowledge-development-standards.md)，前端设计任务见 [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)。
+
+### Phase A · P0（真实 bulk / R1 内网 UAT 前）
+
+| ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 状态 |
+|----|--------|------|------------|------|------|
+| R1-KH00 | P0-0 | **索引一致性与资源调度 ADR** | 定稿 generation pointer、namespace/迁移、job 幂等、Ollama 全局闸、取消/checkpoint、200→202 兼容策略 | — | 待开始 |
+| R1-KH01 | P0-1 | **铜级缺件口径对齐** | 缺 Q&A/报价项目可落盘；RFQ 可独立参与 R1 Top-3；导入报告标明 M3/M4 影响；删除 `rfq+qa` 硬门禁冲突 | R1-K02 | 待开始 |
+| R1-KH02 | P0-1 | **索引任务化 + 单飞锁** | `kb_index` job；API 202 + job_id；服务端重复请求复用当前 job；双管理员不可并行 rebuild | R1-KH00, R1-I01–I03, R1-K07 | 待开始 |
+| R1-KH03 | P0-1 | **Blue/Green 索引原子切换** | generation schema 迁移；staging 构建/校验后事务切 active；失败/重启保留旧索引；读路径只查 active | R1-KH00, R1-KH02, R1-I05 | 待开始 |
+| R1-KH04 | P0-1 | **跨进程 Ollama 调度与优先级** | ADR 选定 advisory lock/租约表；交互检索 > RFQ > KB 增量 > 全量；覆盖 backend/worker；索引分批让路 | R1-KH00, R1-KH02, R1-I04 | 待开始 |
+| R1-KH05 | P0-1 | **磁盘保护与 507 契约** | 数据盘/tmp 预检；80% warning、90% 写保护；ENOSPC→507；health 暴露容量；既有查询不受写保护影响 | R1-E05 | 待开始 |
+| R1-KH06 | P0-1 | **上传 staging 与 ZIP 安全** | 流式写数据盘 staging；解压总量/条目数/压缩比/路径校验；成功后 atomic rename；失败无半目录 | R1-KH05, R1-K06 | 待开始 |
+| R1-KH07 | P0-2 | **Windows→Linux 文件兼容** | Unicode NFC、路径分隔符、大小写不敏感识别；manifest 仅 POSIX 相对路径；明确 `.xlsx`/`.xls`；Windows ZIP/中文名回归 | R1-KH06 | 待开始 |
+| R1-KH08 | P0-2 | **导入批次与最小审计** | `knowledge_imports`；triggered_by、开始/结束、成功/跳过/失败；engagement 记录 uploaded_at/by、content_hash、last_indexed_at | R1-AUTH04, R1-KH02 | 待开始 |
+| R1-KH09 | P0-2 | **备份完整性与恢复门禁** | 备份 KB、pg_dump、baselines、index state、config/feedback；备份前容量检查；恢复演练后 Top-3/基线可用 | R1-KH03, R1-KH05 | 待开始 |
+
+### Phase B · P1（R1-β / 百级真实语料前）
+
+| ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 状态 |
+|----|--------|------|------------|------|------|
+| R1-KH10 | P1 | **Engagement hash 增量索引** | 未变化项目真实计入 `skipped`；新增/修改仅重建本项目；删除产生 tombstone 并清向量/baseline | R1-KH03, R1-KH08 | 待开始 |
+| R1-KH11 | P1 | **索引进度与管理 UI** | queued/running/completed/failed/cancelled；进度、ETA、取消与安全清理；工程师非阻塞维护提示；暂停/恢复待 checkpoint ADR 后实施 | R1-KH02, R1-KH04 | 待开始 |
+| R1-KH12 | P1 | **文档清单真实状态** | 项目级上传人/上传时间/最后索引时间；文件级 pending/indexed/failed + error；API/schema/UI 一致 | R1-KH08 | 待开始 |
+| R1-KH13 | P1 | **并发、故障与容量测试** | PostgreSQL+可控 Fake Ollama E2E；索引中检索、进程中断、磁盘不足、并发管理员、Zip Bomb、Windows 文件名；4090 单卡压测 | R1-KH03–KH12 | 待开始 |
+
+### Phase A 详细拆分（每个父任务均须按六步开发法交付）
+
+| 子 ID | 父任务 | 详细任务 | 产出 / 验收点 | 依赖 |
+|-------|--------|----------|---------------|------|
+| R1-KH00a | KH00 | generation ADR | active pointer 存 PostgreSQL；generation 命名、保留数、GC、读写边界、现有 `production` 迁移方案 | — |
+| R1-KH00b | KH00 | job / 幂等 ADR | `kb_index` payload、single-flight key、重复请求语义、重试、取消、stale 恢复、200→202 过渡 | KH00a |
+| R1-KH00c | KH00 | Ollama 调度 ADR | advisory lock 与租约表二选一；连接池、TTL、优先级、公平性、进程崩溃释放 | KH00b |
+| R1-KH00d | KH00 | ADR 评审 Gate | Backend、DB、Frontend、Ops 签字；迁移/回滚和测试矩阵可执行 | KH00a–c |
+| R1-KH01a | KH01 | 铜级 Service 口径 | 移除 RFQ+Q&A 生产硬门禁；RFQ 不可解析才是 hard failed | KH00d |
+| R1-KH01b | KH01 | tier / impact 契约 | API 返回 `tier`、`stored`、`indexable`、`missing[]`、`automation_impacts[]` | KH01a |
+| R1-KH01c | KH01 | 旧 Spike 与测试修订 | 金标准 fixture 仍断言 171 chunks；新增 RFQ-only 铜级正常路径 | KH01a–b |
+| R1-KH02a | KH02 | `kb_index` job model | job type、payload、single-flight key、progress、heartbeat、error、generation_id；Alembic | KH00d |
+| R1-KH02b | KH02 | worker handler | worker 认领 `kb_index`；HTTP 路径不执行 embedding；stale/retry 与 RFQ job 共用生命周期 | KH02a |
+| R1-KH02c | KH02 | 202 API 与状态 API | import/reindex → 202；GET status；cancel；重复请求 `reused=true`；401/403/404/409 | KH02b |
+| R1-KH02d | KH02 | 兼容与下线同步路径 | Feature flag 灰度；CLI/reindex.sh 改为 enqueue；旧 200 客户端迁移说明 | KH02c |
+| R1-KH03a | KH03 | generation schema 迁移 | `generation_id` 或 `(namespace, chunk_id)` 唯一键；active state 表；现有索引无损迁移/回滚 | KH00d |
+| R1-KH03b | KH03 | staging 写入与校验 | staging generation 写入；chunk/doc_type/count/baseline 校验；失败清理 | KH03a, KH02b |
+| R1-KH03c | KH03 | 原子切换与读路径 | 单事务切 active；search/stats 只读 active；切换失败旧 generation 可查 | KH03b |
+| R1-KH03d | KH03 | generation GC | 保留当前+上一稳定版；无活动读/任务后清理；清理失败仅告警 | KH03c |
+| R1-KH04a | KH04 | DB 全局资源闸 | 按 KH00c 实现 lease/lock repository；TTL/heartbeat/崩溃回收 | KH00d |
+| R1-KH04b | KH04 | 全调用路径接入 | query embedding、RFQ worker、KB embedding 全部使用同一全局闸 | KH04a |
+| R1-KH04c | KH04 | 优先级与让路 | job priority；KB 每批释放资源；RFQ/查询到达时下一批让路；避免低优先级永久饥饿 | KH04b |
+| R1-KH04d | KH04 | 跨进程并发测试 | backend + worker + KB job 并发时宿主机 Ollama 总并发不超配置 | KH04c |
+| R1-KH05a | KH05 | `DiskGuardService` | data/staging/backup 路径检查；所需空间估算；80/90 阈值配置 | KH00d |
+| R1-KH05b | KH05 | health / 507 契约 | health 容量与 write_protected；上传/import 507；search/download 不受影响 | KH05a |
+| R1-KH05c | KH05 | ENOSPC 降级 | 捕获写入/rename/DB 临时空间异常；清理 staging；保留旧索引和可操作错误 | KH05a–b |
+| R1-KH06a | KH06 | 流式 staging 上传 | 禁止 `UploadFile.read()` 整包入内存；写 `${ARIA_DATA_ROOT}/app/.staging/{uuid}` | KH05a |
+| R1-KH06b | KH06 | ZIP 安全校验 | 包大小、条目数、单文件、解压总量、压缩比、绝对路径、`..`、链接条目 | KH06a |
+| R1-KH06c | KH06 | 原子落盘与清理 | 校验通过 atomic rename；已有 ID 返回明确冲突；失败/取消无半目录 | KH06a–b |
+| R1-KH07a | KH07 | 文件名规范化 | Unicode NFC、保留 original filename、内部安全名、大小写不敏感角色识别 | KH06c |
+| R1-KH07b | KH07 | manifest 路径规范 | 仅 POSIX 相对路径；`\` 兼容或明确 400；禁止盘符/UNC/越界 | KH07a |
+| R1-KH07c | KH07 | Office 格式矩阵 | `.docx/.doc/.xlsx` 明确支持；`.xls` 未转换前从 UI 移除；Windows ZIP 回归 | KH07a–b |
+| R1-KH08a | KH08 | `knowledge_imports` schema | FK job/user；状态、计数、失败清单、generation、开始/结束时间；Alembic | KH02a |
+| R1-KH08b | KH08 | engagement 最小审计 | uploaded_at/by、content_hash、tier、last_indexed_at/error；API schema | KH01b, KH08a |
+| R1-KH08c | KH08 | 导入报告查询 | 最近批次列表 + 详情；分页、权限、失败文件；报告与 job 最终状态一致 | KH08a–b |
+| R1-KH09a | KH09 | 备份脚本补齐 | pg_dump、KB、baselines、active state、config/feedback；去除无效 Chroma；空间预检 | KH03c, KH05a |
+| R1-KH09b | KH09 | 恢复顺序与脚本 | PostgreSQL → app files → active pointer；恢复中禁止写；失败可回滚 | KH09a |
+| R1-KH09c | KH09 | 恢复演练 Gate | 空环境恢复后验证 Top-3、baselines、批次审计和 hash；形成报告 | KH09b |
+
+### Phase B 详细拆分
+
+| 子 ID | 父任务 | 详细任务 | 产出 / 验收点 | 依赖 |
+|-------|--------|----------|---------------|------|
+| R1-KH10a | KH10 | 稳定 content hash | 路径/mtime 无关；内容+解析版本+chunk schema+embedding model 纳入 hash | KH08b |
+| R1-KH10b | KH10 | 流式增量构建 | 按 Engagement 处理，避免全库 chunks 常驻内存；未变化计入 skipped | KH03b, KH10a |
+| R1-KH10c | KH10 | 修改/删除同步 | staging 中替换变化项目；tombstone 清向量/baseline；切换后无幽灵数据 | KH10b |
+| R1-KH11a | KH11 | 前端 job 轮询 | active/reused job、progress、phase、ETA、stale/failed；刷新页面可恢复 | KH02c |
+| R1-KH11b | KH11 | 取消与安全清理 | 仅在批次边界响应取消；staging 清理；旧 active 不变；取消幂等 | KH02c, KH03b |
+| R1-KH11c | KH11 | checkpoint 设计 Gate | 评估 last_engagement/batch_offset；未通过前不实现 pause/resume | KH10b |
+| R1-KH11d | KH11 | 工程师维护提示 | 全局/RFQ 非阻塞提示；索引失败不显示“系统不可用”；读服务保持可用 | KH11a |
+| R1-KH12a | KH12 | Engagement 清单 API | 项目级 tier、上传人/时间、最后索引、pending/indexed/failed、错误摘要 | KH08b, KH10 |
+| R1-KH12b | KH12 | 文件状态 API | R1 最小可由 import report 派生；文件级真实错误；不伪造 processing | KH08c |
+| R1-KH12c | KH12 | 分组清单 UI | 项目主表 + 文件展开；窄屏 Drawer/Card；状态不只依赖颜色 | KH12a–b |
+| R1-KH13a | KH13 | Phase A CI 集成门禁 | PostgreSQL + 可控 Fake Ollama；原子切换、单飞、507、取消、Zip Bomb、铜级 | KH01–KH09 |
+| R1-KH13b | KH13 | 故障注入与恢复 | Ollama/DB/worker 中断、active 切换失败、staging 残留、备份恢复 | KH13a |
+| R1-KH13c | KH13 | 4090 单卡压测 | 3–5 RFQ + query + KB index；P95/排队/让路；形成扩容决策记录 | KH04d, KH13b |
+
+### R1-KH 前端设计与交付任务索引
+
+> 详细状态词典、组件和 DoD：[knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)
+
+| ID | 优先级 | 任务 | 主要产出 | 依赖 | 状态 |
+|----|--------|------|----------|------|------|
+| R1-K08-UX | P0-2 | 知识库 IA / 状态词典 / 文案冻结 | 管理员/工程师线框；上传/完整度/索引/job 四维状态 | KH00 | 待开始 |
+| R1-K06-UX | P0-2 | 上传与批次结果 | client 校验、partial success、hard failure、507、本批索引 CTA | K08-UX, KH01, KH05–KH07 | 待开始 |
+| R1-KH05-UX | P0-1 | 容量与写保护 | 80/90 Alert；结构化 507；读服务保持可用 | KH05b | 待开始 |
+| R1-KH08-UX | P0-2 | 导入历史与详情 | 批次列表、详情 Drawer、job/generation/失败清单 | KH08c | 待开始 |
+| R1-KH11-UX | P1 | 索引任务与维护提示 | job panel、reused/cancel、工程师非阻塞横幅 | KH02c, KH11a–b | 待开始 |
+| R1-KH12-UX | P1 | Engagement 分组清单 | 项目主表、文件展开、审计字段、真实状态 | KH12a–b | 待开始 |
+| R1-U-KB | P0-3 | 跨页面工程师体验 | AppLayout/RFQ 维护提示；RFQ 操作不阻塞 | KH11d | 待开始 |
+| R1-K08-RESP | P1 | 响应式与无障碍 | 窄屏 Card/Drawer、aria、非颜色状态、组件测试 | K06-UX, KH11-UX, KH12-UX | 待开始 |
+
+### Phase C · P2（M6 / 运营增强，不阻塞 R1）
+
+| ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 状态 |
+|----|--------|------|------------|------|------|
+| R1-KH14 | P2 | `knowledge_documents` 文件级模型 | 文件 hash/version/status/错误；清单改为 DB 主读、FS 校验 | R1-KH12 | 待开始 |
+| R1-KH15 | P2 | Engagement 替换/版本/回滚/软删除 | 管理员确认流；版本链和恢复；不实现通用 DMS | R1-KH14 | 待开始 |
+| R1-KH16 | P2 | 多 GPU / 独立 embedding 节点评估 | 仅当单卡压测不满足 SLA 或客户要求索引与推理物理并行时启动 | R1-KH13 | 待开始 |
+
+**Phase A Gate：** KH01–KH09 未完成前，不以“管理员日间更新索引不影响工程师”为验收话术；仅允许按 `ops-guide` 在非高峰执行并明确维护提示。
+**单卡目标：** RTX 4090 24GB 可作为 R1 基线，但系统按排队型服务设计；不得自由并发运行全量 embedding 与 Qwen 长任务。
 
 ---
 
@@ -213,7 +330,7 @@
 
 | ID | 优先级 | 任务 | 映射 | 状态 |
 |----|--------|------|------|------|
-| SPK-K01 | P0-2 | 入库门禁：必须 rfq+qa（171） | R1-K02, K07 | 待开始 |
+| SPK-K01 | P0-2 | 金标准回归须 rfq+qa（171）；铜级 RFQ 可独立索引 | R1-K02, K07, KH01 | 待开始 |
 | SPK-K02 | P0-2 | index 后 doc_type 回归测试 | R1-K09, I09 | 待开始 |
 | SPK-K03 | P0-2 | 生产 RAG = vector（同 spike） | R1-K03 | 待开始 |
 | SPK-K04 | P0-2 | 15 条评测 + Pass 记录；客户 O-03 | R1-K09, A02 | **进行中** |

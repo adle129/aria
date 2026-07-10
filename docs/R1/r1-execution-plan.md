@@ -1,7 +1,7 @@
 # R1 正式实施 — 统一执行计划（Spike 后）
 
-**版本：** v1.1 · 2026-07-07  
-**状态：** **计划已定 · Auth MVP 已纳入 Wave 1–2**  
+**版本：** v1.3 · 2026-07-10
+**状态：** **计划已定 · Auth MVP 与 R1-KH 稳定性门禁已纳入**
 **用途：** 唯一 **执行顺序** 清单；[dev-tasks.md](dev-tasks.md) 为完整 ID 索引；[spike-follow-up-tasks.md](spike-follow-up-tasks.md) 为 Spike 结论摘要。
 
 > **原则：** 按 **Wave** 顺序执行；同 Wave 内 `#` 可并行；**未写代码前请先对本计划签字/确认**。
@@ -19,19 +19,21 @@
 
 ---
 
-## 1. 执行总览（6 个 Wave）
+## 1. 执行总览（6 个业务 Wave + KH 稳定性 Gate）
 
 ```mermaid
 flowchart TB
   W1[Wave1 底座 I01-I09 AUTH01-03]
   W2[Wave2 知识库 K01-K09 AUTH04-07]
+  W2H[Wave2H KB生产稳定性 KH01-KH13]
   W3[Wave3 解析 F04]
   W4[Wave4 基准+匹配 F01-F05]
   W5[Wave5 状态机+UI F06-U04]
   W6[Wave6 联调验收 F08-A验收]
   W1 --> W3
   W1 --> W2
-  W2 --> W6
+  W2 --> W2H
+  W2H --> W6
   W3 --> W4
   W4 --> W5
   W5 --> W6
@@ -41,6 +43,7 @@ flowchart TB
 |------|------|---------|------|
 | **1** | 任务队列 + pgvector + **Auth 底座** | R1-I01–I09, **R1-AUTH01–03** | Week 1–2 |
 | **2** | 知识库 ingest + **Auth 前端/RBAC** | R1-K01–K09, **R1-AUTH04–07** | Week 2–4 |
+| **2H** | KB 原子索引、资源/磁盘/跨 OS、审计与测试 | **R1-KH01–KH13** | Week 3–6；Phase A 阻塞内网 bulk |
 | **3** | RFQ 解析 rules_first 生产化 | R1-F04, SPK-F01–F07 | Week 4–5 |
 | **4** | 维度基准 seed + 匹配 | R1-F01,F03,F05, SPK-F08 | Week 4–5（与 3 末并行） |
 | **5** | dimension_review + 前端 | R1-F06–F07, R1-U01–U03 | Week 5–6 |
@@ -74,7 +77,7 @@ flowchart TB
 | 序 | ID | 任务 | DoD | 依赖 | 状态 |
 |----|-----|------|-----|------|------|
 | 2.1 | **R1-K01** | manifest + engagements 表 | rag-design §5.2 | 1.5 | 待开始 |
-| 2.2 | **R1-K02** + **SPK-K01** | 分类型 ingest；**必须 rfq+qa 同时入库** | 模板基准 **171** chunks | 2.1 | 待开始 |
+| 2.2 | **R1-K02** + **SPK-K01** | 分类型 ingest；金标准检查 rfq+qa，**铜级仅 RFQ 仍可索引** | 模板基准 **171** chunks；导入报告注明缺件影响 | 2.1 | 待开始 |
 | 2.3 | **SPK-K02** | ingest 回归：assert doc_type 分布 | unit/API；rfq+qa count | 2.2 | 待开始 |
 | 2.4 | **R1-K04** + **K04a** | 报价 → baselines（不向量化） | manpower_baselines.json | 2.2 | 待开始 |
 | 2.5 | **R1-K05** | `GET /knowledge/baselines` | API test 200 | 2.4 | 待开始 |
@@ -90,6 +93,40 @@ flowchart TB
 | 2.15 | **R1-AUTH07** | create_admin + auth 测试 | AUTH-01～07 | 2.12–2.14 | 待开始 |
 
 **并行（工程准备）：** R1-E02、R1-E03、R1-E05 可在 Wave 1–2 穿插。
+
+---
+
+## 3.1 Wave 2H — 知识库生产稳定性 Gate
+
+| 阶段 | 顺序 | ID | 交付 / Gate | 可并行 |
+|------|------|----|-------------|--------|
+| 设计 Gate | 2H.0 | **KH00a–d** | generation/job/Ollama ADR + 迁移回滚 + 前后端状态词典签收 | K08-UX |
+| Phase A | 2H.1 | **KH01a–c** | 铜级 Service/API/测试口径一致 | KH05a |
+| Phase A | 2H.2 | **KH02a–b, KH03a** | job schema + worker handler + generation schema migration | KH04a, KH05 |
+| Phase A | 2H.3 | **KH03b–d** | staging 校验、原子切换、active 读路径、GC | KH04b |
+| Phase A | 2H.4 | **KH04a–d** | backend/worker 全局 Ollama 闸 + 优先级/让路测试 | KH03 |
+| Phase A | 2H.5 | **KH05a–c, KH06a–c, KH07a–c** | 507、流式 staging、ZIP/Windows/Office 格式门禁 | KH02 |
+| Phase A | 2H.6 | **KH02c–d, KH08a–c** | 202/status/cancel API、兼容下线、导入批次审计 | KH03, KH04 |
+| Phase A | 2H.7 | **KH09a–c, KH13a** | 备份恢复演练 + Phase A Fake Ollama CI | KH05–KH08 |
+| Phase B | 2H.8 | **KH10a–c** | hash 增量、流式按项目构建、删除 tombstone | KH03, KH08 |
+| Phase B | 2H.9 | **KH11a–d, KH12a–c** | job UI/取消/维护提示、Engagement 清单 | KH10, UX spec |
+| Phase B | 2H.10 | **KH13b–c** | 故障注入、4090 单卡并行压测与扩容决策 | 2H.1–2H.9 |
+
+**前端设计并行线：**
+
+1. 2H.0：K08-UX 状态词典、IA、角色线框。
+2. 2H.1–2H.5：K06-UX + KH05-UX（上传、partial success、507）。
+3. 2H.6–2H.9：KH11-UX + KH08-UX + KH12-UX + U-KB。
+4. 2H.10：响应式、无障碍和工程师并行使用验收。
+
+详见 [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)。
+
+**Gate：**
+
+- KH00 未签收，不开始 generation/job/资源闸生产迁移。
+- Phase A 完成前只允许非高峰同步全量 ingest；K07 明确为过渡路径。
+- KH13a 未通过，不进入真实 bulk；Phase A/B 与 KH13c 未通过，不宣称“管理员日间入库不影响工程师”，也不进入 R1-β 内网签字。
+- KH11c checkpoint ADR 未通过前，不交付暂停/恢复；仅交付取消与 staging 安全清理。
 
 ---
 
@@ -155,8 +192,8 @@ flowchart TB
 | 6.3 | **R1-U04** | 矩阵页 UI | 仅 in_scope 行 | 6.2 | 待开始 |
 | 6.4 | **R1-K08c** | Top-3 ↔ baselines 联动 | 矩阵页入口 | 6.2, 2.5 | 待开始 |
 | 6.5 | **R1-F10** | RFQ 全链路测试 | unit + API + regression | 6.1–6.3 | 待开始 |
-| 6.6 | **R1-U06** | 3 RFQ 样本 E2E 联调 | 无 Mock 欺骗 | 6.5, 2.8 | 待开始 |
-| 6.7 | **R1-AUTH01–AUTH07** | 彩排 + 客户验收签字 | O-01～O-05 | 6.6, **2.15** | 待开始 |
+| 6.6 | **R1-U06** | 3 RFQ 样本 E2E 联调 | 无 Mock 欺骗 | 6.5, 2.8, **R1-KH13** | 待开始 |
+| 6.7 | **R1-AUTH01–AUTH07** | 彩排 + 客户验收签字 | O-01～O-05 + KH Phase A/B | 6.6, **2.15** | 待开始 |
 | 6.8 | **R1-I10** | 任务生命周期与队列弹性 | retry/delete/archive · 429 门控 · stale 恢复 · `005` 迁移 | R1-I01–I03 | **已完成** |
 
 ---

@@ -1,7 +1,7 @@
 # ARIA 平台 · 知识库 / RAG 设计说明
 
 **层级：** ARIA 平台共享能力（非报价应用私有）  
-**版本：** v1.4 · 2026-07-04  
+**版本：** v1.5 · 2026-07-10
 **状态：** Demo P0 已实施（Chroma 嵌入式为 **过渡实现**）· **R1 目标：pgvector + Ollama Embedding** · 代码 Gate 未开  
 **关联：** [platform-brand.md](platform-brand.md) · [prod.md §3.5–§3.6](../../prod.md) · [delivery-traceability.md](delivery-traceability.md) · [api-design.md §2.3](api-design.md)
 
@@ -245,6 +245,46 @@ API 契约见 [api-design.md §2.3.4](api-design.md)。
 | 增量 | 文件 hash skip（部分） | 同左 + import 批次表 |
 | LangChain | requirements 声明未使用 | **移除** |
 
+### 6.1 生产稳定性与资源隔离（R1-KH）
+
+> 任务与优先级见 [dev-tasks R1-KH](../R1/dev-tasks.md)。以下属于 R1 生产硬化，不等同于运营级 upload 门户。
+
+**索引 generation：**
+
+```
+active_generation（工程师持续读取）
+        │
+        ├─ kb_index job → staging_generation
+        │                  ├─ 解析 / 分批 embedding / 校验
+        │                  └─ 成功后原子切 active pointer
+        └─ 任一步失败 → 删除 staging，active 不变
+```
+
+- `knowledge_chunks` 唯一键必须包含 **`(namespace, chunk_id)`**，允许 active/staging 同时保存相同业务 chunk。
+- 禁止 `clear production → embed → insert`；服务重启、Ollama/DB/磁盘失败时旧 generation 必须可读。
+- `kb_index` 进入 PostgreSQL job 队列；同一生产 namespace 只允许 1 个写任务。重复点击返回当前 job，不重复执行。
+- 模型优先级：**交互 query embedding > RFQ 解析/生成 > KB 增量 > KB 全量重建**。KB 按小批释放全局租约并可安全取消；暂停/恢复仅在 checkpoint 语义和恢复测试通过后启用。
+- backend 与 worker 的进程内 Semaphore 不能作为全局闸；采用 PostgreSQL advisory lock/带租期资源表（项目不引入 Redis）。
+
+**增量与删除：**
+
+- Engagement 计算稳定 `content_hash`；未变化计入 `skipped`，新增/修改仅替换该 engagement chunks。
+- 文件/目录删除产生 tombstone，同批删除对应向量、baselines 和状态记录，禁止幽灵数据。
+- Embedding 模型或 chunk schema 变化时显式触发全量 generation，不复用旧 hash。
+
+**磁盘与 staging：**
+
+- Web 上传流式写 `${ARIA_DATA_ROOT}/app/.staging/`；校验完成后 atomic rename 至 `knowledge_base/`。
+- 同时检查数据盘与临时盘；80% 告警、90% 写保护（可配置），空间不足返回 507，既有检索/下载不受影响。
+- ZIP 限制压缩包大小、文件数、解压后总大小、单文件大小与压缩比；拒绝绝对路径、`..`、反斜杠逃逸和链接条目。
+
+**Windows 客户端 → Linux 服务器：**
+
+- 浏览器上传与 Office 二进制格式本身跨平台；服务器内部路径统一为 UTF-8 NFC + POSIX 相对路径。
+- 文件角色识别大小写不敏感；保留 `original_filename`，内部存储名不得直接信任客户端路径。
+- R1 明确支持 `.docx` / `.doc`（Linux LibreOffice）；历史 Excel 默认 `.xlsx`。`.xls` 若未实现转换，不得在 UI 宣称支持。
+- 回归集须覆盖中文、空格、大小写、长文件名、Windows ZIP、manifest 反斜杠和 legacy `.doc`。
+
 ---
 
 ## 7. 提升检索准确度的工程路径（ROI 排序）
@@ -324,7 +364,7 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 | 资料 | R1 必达 | M3/M4/M5 主路径 |
 |------|--------|----------------|
 | RFQ | ✓ 切块 + 向量 | Top-3 相似 RFQ；§四 `development_scope[]` metadata |
-| Q_A | ✓ **按行 1 chunk** | M4：**读全表** Area 合并（非向量主路径） |
+| Q_A | 金标准须有；铜级可缺失；存在时 **按行 1 chunk** | M4：**读全表** Area 合并（非向量主路径）；缺失则 M4 不可用 |
 | 报价 | ✓ **Sheet 结构化** baselines | M3：**ScopeMatch + 抽取 + 时间轴重映射** |
 | Proposal | 可选 | **不作 M5 生成**；manifest 配对归档 |
 
@@ -370,7 +410,7 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 | **上传后索引** | ✓ | 上传完成可 **一键触发** 本次包的 import（或并入「更新知识库索引」） |
 | **大批量历史库** | 仍推荐 | **内网 IT 目录落盘 + 触发全量索引**；不以浏览器一次传数十套为 R1 目标 |
 
-**R1 客户合同不含（可选内部实现见 §11.4.2）：** 拖拽整目录、断点续传、upload AI 预识别 preview、RBAC、**F5.6 客户交付**、归档一键入库、过期提醒、检索热力看板、**运营级上传门户**。
+**R1 客户合同不含（可选内部实现见 §11.4.2）：** 拖拽整目录、断点续传、upload AI 预识别 preview、**SSO/部门级 ACL**、**F5.6 客户交付**、归档一键入库、过期提醒、检索热力看板、**运营级上传门户**。R1 已包含本地账号、`quote_engineer` / `kb_admin` 两角色与 KB 写操作守卫。
 
 #### 11.4.2 引用反馈 L1（F5.6 · 内部运维增强 · 可选 · **未实现**）
 
@@ -433,3 +473,4 @@ flowchart LR
 | 2026-06-29 | v1.2 | v3.3–v3.5：R1 三件套、Q_A 按行、M3 抽取+重映射、M5 解耦 |
 | 2026-06-29 | v1.3 | 回链 m3/m4 规格；baselines Sheet 级 ingest |
 | 2026-07-04 | v1.4 | pgvector 目标架构；解析铁律；拒答/溯源 locator；R1 检索路径（无 Hybrid）；验证体系 |
+| 2026-07-10 | v1.5 | R1-KH：Blue/Green 索引、跨进程资源调度、磁盘保护、Windows→Linux 文件兼容；修正铜级/RBAC 口径 |

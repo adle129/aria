@@ -1,6 +1,6 @@
 # R1 验收清单
 
-**版本：** v1.4 · 2026-07-07  
+**版本：** v1.6 · 2026-07-10
 **索引：** [README.md](README.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md)  
 **基线：** [prod.md §10.2 R1](../../prod.md) · [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) · [manpower-baselines-spec.md](../supplementary/manpower-baselines-spec.md)
 
@@ -40,6 +40,30 @@
 - [ ] **`/knowledge` 验收台**：统计、检索实验室、触发导入、**Web ≤5 套/次**（或 IT 目录批量）  
   - 关联任务：R1-K06–K08  
   - prod ID：F5.1, F5.3, F5.4
+
+### 1.1 知识库生产化 UI/UX（内部 Gate）
+
+- [ ] **KB-UX-01** 管理员上传后看到逐套“成功 / 资料不完整 / 失败”、完整度、M3/M4 影响与本批索引入口
+  - 关联任务：R1-K06-UX, R1-KH01, R1-KH06
+
+- [ ] **KB-UX-02** 管理员看到 active/reused 索引 job 的状态、阶段、进度、失败清单和安全取消
+  - 关联任务：R1-KH02, R1-KH11-UX
+
+- [ ] **KB-UX-03** 索引期间工程师看到非阻塞维护提示，RFQ/Top-3/矩阵仍可使用
+  - 关联任务：R1-KH03, R1-KH04, R1-U-KB
+
+- [ ] **KB-UX-04** 80% warning、90% 写保护和 507 显示可操作提示；写保护下 search/download 仍可用
+  - 关联任务：R1-KH05, R1-KH05-UX
+
+- [ ] **KB-UX-05** Engagement 清单区分 pending/processing/indexed/failed，并显示上传人与时间、最后索引时间和文件错误
+  - 关联任务：R1-KH08, R1-KH12-UX
+
+- [ ] **KB-UX-06** 导入批次列表/详情与 job、清单数据一致；可查触发人、耗时、新增/跳过/失败
+  - 关联任务：R1-KH08-UX
+
+- [ ] **KB-UX-07** 窄屏、键盘和读屏可完成上传、查看进度、查看失败与检索；状态不只依赖颜色
+  - 关联任务：R1-K08-RESP
+  - 规格：[knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)
 
 ---
 
@@ -102,8 +126,20 @@
 - [ ] pgvector + Ollama Embedding（非 Chroma Mock 兜底）  
   - 关联任务：R1-I05–I08
 
+- [ ] **KB 索引安全**：staging generation 校验后原子切换；失败/重启时旧 Top-3 继续可用
+  - 关联任务：R1-KH02–KH04
+
+- [ ] **单卡并行体验**：索引中 RFQ/检索优先，无空库；4090 同档实机通过 KH13 场景
+  - 关联任务：R1-KH04, R1-KH13
+
+- [ ] **容量与文件安全**：数据盘/tmp 预检、507、ZIP 防护、Windows→Linux 兼容
+  - 关联任务：R1-KH05–KH07, R1-KH13
+
+- [ ] **导入可追踪且可恢复**：批次、触发人、失败清单、备份恢复后 Top-3/baselines 一致
+  - 关联任务：R1-KH08–KH09, R1-KH12–KH13
+
 - [ ] **`run_tests.ps1` 全绿**；涉及解析/RAG/Prompt 时 **`--regression` 通过**  
-  - 关联任务：R1-A06, R1-F10, R1-I09
+  - 关联任务：R1-A06, R1-F10, R1-I09, R1-KH13
 
 - [ ] **任务生命周期（F1.11）：** 失败重试、归档、删除；队列满 429；stale 恢复  
   - 关联任务：R1-I10 · `test_task_lifecycle_api`（75 用例）

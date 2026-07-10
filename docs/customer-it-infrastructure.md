@@ -1,6 +1,6 @@
 # ARIA 智能应用平台 — 生产环境 IT 基础设施说明
 
-**文档版本：** v1.4 · 2026-07-07  
+**文档版本：** v1.5 · 2026-07-10
 **日期：** 2026 年 7 月 4 日  
 **适用对象：** EDAG IT 管理员、基础设施采购负责人  
 **关联：** [deployment-guide.md](deployment-guide.md) · [ops-guide.md](ops-guide.md) · [platform-brand.md](supplementary/platform-brand.md)
@@ -101,6 +101,18 @@ Excel 人力报价 **不经过** 主大模型；RFQ 解析、Q&A 去重/分类�
 | LLM 并发 | `OLLAMA_MAX_CONCURRENT=1`；**单 worker 副本** |
 | 软件机制 | PostgreSQL 任务队列 + worker + 前端排队位置/ETA；队列深度上限 `TASK_MAX_QUEUE_SIZE=20`（满时 429）；僵死作业 `TASK_JOB_STALE_SECONDS=900` 自动恢复 |
 | 硬件 | **推荐版**（32 核 / 128G / RTX 4090） |
+
+**单 GPU 说明：** RTX 4090 ×1 是 R1 推荐档，按“单任务执行 + 软件排队”设计。工程师交互检索与 RFQ 长任务优先，知识库增量/全量索引低优先级分批执行；全量重建默认安排在非高峰。若要求知识库全量索引与多位工程师长任务物理并行且延迟不增加，需要增加 GPU 或独立 Embedding 节点。
+
+### 6.2 Windows 用户与 Linux 服务器兼容
+
+用户通过浏览器上传，客户端无需安装 Linux 工具；`.docx`、`.doc`、`.xlsx` 与中文文件名由服务器处理。为避免跨系统差异：
+
+- 项目包使用 ZIP 或网页散文件上传；ZIP 文件名建议 UTF-8。
+- `manifest.json` 内仅写项目包内的相对路径并统一使用 `/`，不得写盘符或 `\`。
+- R1 历史 Excel 以 `.xlsx` 为准；legacy `.xls` 须先转换或由双方另行确认转换能力。
+- `.doc` 在 Linux 容器通过 LibreOffice 转换；复杂旧模板在正式导入前应纳入结构试点。
+- 系统服务端负责中文/空格、Unicode 和大小写标准化；客户无需手工改为英文名，但仍建议遵循项目包命名模板。
 
 ---
 

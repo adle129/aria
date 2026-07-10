@@ -1,7 +1,7 @@
 # ARIA 智能应用平台 — 部署方案
 
 **首期应用：** ARIA 报价助手  
-**版本：** v1.4 · 2026-07-07  
+**版本：** v1.5 · 2026-07-10
 
 ---
 
@@ -134,6 +134,13 @@ UPS：     在线式 2 KVA
 | `/data/aria/backups` | 按保留策略 | 每日备份（保留建议 ≥30 天） |
 | `/opt/aria/deploy` | &lt; 5 GB | 镜像包、compose、`.env`（系统盘） |
 
+**容量保护：**
+
+- `${ARIA_DATA_ROOT}/app/.staging` 与正式知识库必须位于同一数据盘，便于校验后 atomic rename；禁止用容器 overlay `/tmp` 承载大 ZIP。
+- health 暴露数据盘总量/剩余量/使用率；默认 80% 告警、90% 写保护（阈值可配置）。
+- 写保护只拒绝上传、索引和新生成文件；已有检索、任务查看和下载继续提供服务。
+- 备份与业务数据若共用同一盘，备份前须预检空间并先清理过期批次；生产建议将 `BACKUP_ROOT` 放到独立盘/NAS。
+
 ### 2.4 模型选型与扩展规划
 
 > **原则：** 扩展性靠 ARIA 插件架构（Generator / Prompt / `.env` 换模型），**不要求 Day 1 安装最大参数量模型**。硬件按 **RTX 4090 24G** 采购，模型按阶段从 14B 升级到 32B 即可。
@@ -176,6 +183,8 @@ Embedding（知识库向量，与主 LLM 独立）：
 | **16 GB+** | **14B**（Demo 舒适区） |
 | **24 GB（RTX 4090）★** | **14B 全速 / 32B Q4**（推荐采购档位） |
 | 40 GB+（A100） | 32B 全精度；远期多模型并存 |
+
+**单卡运行边界：** 4090 ×1 满足当前 R1 的排队型基线，不代表 Qwen 长任务与全量 KB embedding 可自由并行。生产须执行全局优先级：交互检索 > RFQ > KB 增量 > KB 全量；全量默认非高峰。客户若要求索引期间 3–5 个长任务仍保持空闲时延迟，应增加 GPU 或独立 embedding 节点。
 
 **口诀：** 有 4090 → Demo 用 14B，稳定后升 32B；无 GPU → 先 Mock，硬件到位再开真实 LLM。
 
@@ -460,10 +469,9 @@ docker-compose up --build
 # 将历史文档放入数据盘知识库目录
 rsync -avz ./knowledge_base/ /data/aria/app/knowledge_base/
 
-# 批量导入（容器内路径仍为 /app/data/knowledge_base）
+# R1-KH 目标：通过知识库页面/API 创建 kb_index job，观察进度与导入报告
+# 过渡代码仍可使用以下命令，但它是同步全量重建，只允许非高峰执行
 docker exec aria-backend python scripts/ingest_documents.py
-
-# 增量更新：Phase 2 提供 incremental_update；Demo 可重复执行 ingest
 ```
 
 ### 5.5 版本更新
@@ -572,8 +580,11 @@ bash /opt/aria/deploy/scripts/backup.sh
 备份内容：
 
 - `pg_dump` → `${ARIA_DATA_ROOT}/backups/YYYYMMDD/aria_db.sql`
-- `rsync`：`app/` 下 `uploads`、`outputs`、`knowledge_base`、`templates` + `postgres/`（含 pgvector）
+- `rsync`：`app/` 下 `uploads`、`outputs`、`knowledge_base`、`templates`、`config`、`feedback`，以及 `manpower_baselines.json`、`pgvector_index_state.json`
+- PostgreSQL（含 pgvector）以 `pg_dump` 为逻辑备份；不在运行中直接 rsync PostgreSQL 数据目录
 - 默认保留 30 天（环境变量 `RETENTION_DAYS`）
+
+备份脚本须在写入前检查目标盘空间；恢复演练必须验证 Top-3、文档清单和 baselines，不只检查容器能启动。
 
 ### 9.2 恢复（同机）
 

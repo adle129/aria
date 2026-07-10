@@ -1,9 +1,9 @@
 # ARIA — API 设计规范
 
-**版本：** v1.5  
+**版本：** v1.7
 **Base URL：** `/api/v1`  
 **日期：** 2026-07-09  
-**基线：** [prod.md](../../prod.md) v1.8 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
+**基线：** [prod.md](../../prod.md) v1.9 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
 
 ---
 
@@ -150,9 +150,22 @@ GET /api/v1/health
   "model": "qwen2.5:14b",
   "embedding_model": "nomic-embed-text",
   "mock_llm": true,
-  "mock_rag": true
+  "mock_rag": true,
+  "data_volume": {
+    "total_bytes": 4398046511104,
+    "free_bytes": 3518437208883,
+    "used_percent": 20.0,
+    "write_protected": false
+  },
+  "kb_index": {
+    "status": "idle",
+    "active_generation": "production-20260710-01"
+  },
+  "production_warnings": []
 }
 ```
+
+`used_percent >= 80` 加入 warning；达到可配置写保护阈值时 `write_protected=true`。磁盘 warning 不得把健康接口本身变成 500。
 
 ---
 
@@ -605,20 +618,35 @@ POST /api/v1/knowledge/search
 POST /api/v1/knowledge/import
 ```
 
-扫描 `knowledge_base/`（含 manifest 三件套），解析 RFQ/Q_A/报价后 upsert 至 **PostgreSQL pgvector** + `manpower_baselines.json`（R1；Demo 过渡期或仍写 Chroma，迁移后仅 pgvector）。
+扫描 `knowledge_base/`（含 manifest 项目包），解析 RFQ/Q_A/报价后 upsert 至 **PostgreSQL pgvector** + `manpower_baselines.json`。R1-KH 后该接口只负责创建或复用 `kb_index` job，不在 HTTP 请求中同步执行全库 embedding。
 
-**响应：**
+**响应（202）：**
 
 ```json
 {
-  "code": 200,
+  "code": 202,
   "data": {
-    "new_documents": 3,
-    "new_chunks": 45,
-    "skipped": 12
+    "job_id": "uuid",
+    "status": "queued",
+    "reused": false
   }
 }
 ```
+
+同一 production namespace 已有 queued/running job 时返回同一 `job_id`，`reused=true`。
+状态查询与控制：
+
+```
+GET  /api/v1/knowledge/imports?limit=20&offset=0
+GET  /api/v1/knowledge/imports/active
+GET  /api/v1/knowledge/imports/{job_id}
+POST /api/v1/knowledge/imports/{job_id}/cancel
+```
+
+完成响应字段：`status`、`progress`、`started_at`、`finished_at`、`triggered_by`、`new_documents`、`new_chunks`、`skipped`、`failed_files[]`、`active_generation`。失败不得切换 active generation。
+
+`cancel` 仅在 Engagement/embedding 批次边界生效，须幂等并清理 staging；取消前后 active generation 不变。
+`pause/resume` 不进入 R1 首批 API；仅在 R1-KH11c checkpoint（last engagement / batch offset）设计及恢复测试通过后增加。
 
 #### 2.3.4 文档列表（P1，Demo 可选）
 
@@ -628,7 +656,7 @@ GET /api/v1/knowledge/documents
 
 只读；扫描 filesystem 或返回 Mock 三态（indexed / processing / failed）各 1 条。**Demo 不建 `knowledge_documents` 表。**
 
-#### 2.3.5 Phase 2 — Engagement 与文档（设计已定，未实现）
+#### 2.3.5 R1 — Engagement 与文档
 
 **Engagement 项目包** — 关联 RFQ / QA / 报价成套资料。
 
@@ -645,10 +673,28 @@ POST /api/v1/knowledge/engagements/upload
 ```
 
 `multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）。  
-**限制（建议）：** 单次请求 **≤5 套**；单 ZIP **≤100MB**（可配置）。  
-响应：每套 `status`（ok / failed）、`missing[]`（缺 Q&A、缺报价等）、写入路径。
+**限制：** 单次请求 **≤5 套**；单 ZIP / 请求体 / Nginx 限额必须使用同一配置口径；默认值在部署前按内网样本确认。
+**校验：** Unicode NFC、大小写不敏感类型识别、POSIX 相对路径；ZIP 文件数、解压后总量、压缩比、链接与路径穿越；历史 Excel 默认 `.xlsx`。
+**落盘：** 流式写 `${ARIA_DATA_ROOT}/app/.staging`，校验成功后 atomic rename；保存 `original_filename`、`uploaded_at`、`uploaded_by`、`content_hash`。
+响应：每套 `status`（ok / failed）、`missing[]`（缺 Q&A、缺报价等）、写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
 
-上传完成后调用 `POST /knowledge/import`（全量）或 `POST /knowledge/import?since=<batch_id>`（仅本批，实现可选）。
+上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
+
+**容量错误：**
+
+```json
+{
+  "code": 507,
+  "msg": "数据盘空间不足，无法安全上传；请清理空间或联系 IT 扩容",
+  "data": {
+    "required_bytes": 2147483648,
+    "free_bytes": 1073741824,
+    "path": "/app/data"
+  }
+}
+```
+
+磁盘达到写保护阈值时，上传/import 返回 507；search/stats/documents/download 仍须可用。
 
 #### 2.3.6a 知识库 Debug API（DEV 专用 · **已实现**）
 
@@ -963,4 +1009,4 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 
 ---
 
-**关联文档：** [test-plan.md](test-plan.md) v1.2 | [prod.md](../../prod.md) v1.7 | [delivery-traceability.md](delivery-traceability.md) v1.1 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)
+**关联文档：** [test-plan.md](test-plan.md) v1.3 | [prod.md](../../prod.md) v1.9 | [delivery-traceability.md](delivery-traceability.md) v1.3 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)

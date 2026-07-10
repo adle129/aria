@@ -1,7 +1,7 @@
 # ARIA — 测试方案
 
-**版本：** v1.2 · 2026-07-09  
-**基线：** [prod.md](../../prod.md) v1.7 · [delivery-traceability.md](delivery-traceability.md) v1.1
+**版本：** v1.4 · 2026-07-10
+**基线：** [prod.md](../../prod.md) v1.9 · [delivery-traceability.md](delivery-traceability.md) v1.1
 
 ---
 
@@ -102,7 +102,9 @@ def test_generate_quote_empty_modules():
 | POST /generate-excel | 正常生成 | task 不存在 404 |
 | POST /knowledge/search | 有结果、RAGHit schema | 空 query 422 |
 | GET /knowledge/stats | 返回统计（含 function_coverage P0） | — |
-| POST /knowledge/import | kb_admin 200 | 工程师 403、未登录 401 |
+| POST /knowledge/import | kb_admin 202 + job_id；重复请求复用 job | 工程师 403、未登录 401、磁盘不足 507 |
+| GET /knowledge/imports/{job_id} | 进度与最终报告 | 不存在 404、非管理员 403 |
+| POST /knowledge/engagements/upload | Windows/中文 ZIP 与散文件成功 | 非法路径/Zip Bomb 400、磁盘不足 507、工程师 403 |
 
 **RAG Mock/Real parity：** 已实现（`API_tests/test_knowledge_api.py`）。
 
@@ -186,6 +188,47 @@ def test_generate_quote_empty_modules():
 | RFQ 端到端 P95 | 手动计时 3 次 | < 5 min (Demo) |
 | Excel 生成 | 手动计时 | < 60s |
 | 并发 3 用户 | locust (可选) | 无 crash |
+| 4090 单卡 RFQ 排队 | 真实 Qwen + 3–5 个任务 | P95 < 3 min/份；5 人连排 ≤10 min（客户基线） |
+| KB 索引并行 | 索引中持续 search + RFQ | 旧 generation 始终可读；RFQ 优先；无空 Top-3 |
+| 数据盘保护 | 伪造低空间 / ENOSPC | 新写入 507；既有 search/download 正常 |
+
+### 8.1 R1-KH 稳定性与兼容性门禁
+
+| 类别 | 必测场景 | 通过标准 |
+|------|----------|----------|
+| 原子索引 | embedding、DB upsert、generation 切换任一步失败 | active generation 不变；旧结果仍可检索 |
+| 重启恢复 | queued/running 索引时重启 backend/worker | job 可恢复或明确 failed；无双跑、无空库 |
+| 并发管理员 | 两账号/多标签重复 import | 仅一个生产 job；其余返回 reused 或 409 |
+| 增量 | 未变化、新增、修改、删除 engagement | `skipped` 真实；仅变化项目重建；删除无幽灵向量/baseline |
+| 铜级项目 | 只有可解析 RFQ，缺 Q&A/报价 | 可参与 R1 Top-3；报告明确 M3/M4 不可用 |
+| 跨进程调度 | backend search + worker RFQ + KB index | 全局并发符合配置；KB 分批让路；无饥饿 |
+| 磁盘 | staging/tmp/data/backup 空间不足 | 507/告警可操作；无半目录；旧数据不损坏 |
+| ZIP | `..`、绝对路径、反斜杠逃逸、链接、超高压缩比、超多条目 | 拒绝并清理 staging |
+| Windows→Linux | 中文/空格/大小写/长名、Windows ZIP、manifest `\`、`.doc` | 规范化后正确识别；非法 manifest 400；无乱码 |
+| 备份恢复 | 从日备恢复至空环境 | Top-3、baselines、文档清单与审计批次一致 |
+
+**环境：** 单元/API 中 Mock Ollama；KH 集成门禁使用真实 PostgreSQL + 可控 Fake Ollama。4090 性能只在客户同档硬件上验收，CI 不绑定绝对耗时。
+
+### 8.2 R1-KH 分阶段测试责任
+
+| Gate | 自动化 | 不通过时 |
+|------|--------|----------|
+| KH00 ADR | migration/rollback 与 Fake Ollama 测试方案可执行 | 禁止开始 KH02–KH04 |
+| KH01–KH06 | 每个 Service 正常+异常 unit；API 202/4xx/507；staging/active 故障注入 | 禁止真实 bulk |
+| KH07–KH09 | Windows fixture、导入审计、备份恢复 smoke | 禁止内网 UAT |
+| KH10–KH12 | 增量/删除、job UI、清单状态与批次一致性 | 禁止 R1-β |
+| KH13 | CI 故障矩阵 + 4090 单卡实机报告 | 不得承诺日间入库影响可控 |
+
+### 8.3 知识库前端测试
+
+| 测试文件 | 覆盖 |
+|----------|------|
+| `frontend/src/lib/engagementUpload.test.ts` | 套数/格式/ID、tier、hard failure、507 映射、partial success |
+| `frontend/src/lib/kbIndexJob.test.ts` | queued/running/completed/failed/cancelled/reused、阶段、stale、cancel |
+| `frontend/src/lib/kbMaintenance.test.ts` | role × job × write_protected 的横幅与操作可见性 |
+| 组件测试 | 批次报告、Engagement 展开、窄屏 Card/Drawer、状态可访问名称 |
+
+前端 DoD 见 [knowledge-ui-design-tasks.md](../R1/knowledge-ui-design-tasks.md)；全部改动仍须通过 Vitest + `npm run build`。
 
 ---
 
