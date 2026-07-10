@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import logging
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from app.config import Settings
+from app.repositories.knowledge_generation_repository import KnowledgeGenerationRepository
 from app.services.embedding_service import EmbeddingError, embed_texts
 from app.services.ingest.engagement_preview import build_engagement_preview
 from app.services.pgvector_store import PgVectorStore, PgVectorUnavailableError
@@ -16,6 +20,7 @@ from app.services.rag_service import _filter_hits_by_doc_type, _filter_hits_by_f
 VALIDATION_NAMESPACE = "validation_corpus"
 PRODUCTION_NAMESPACE = "production"
 INDEX_STATE_FILE = "pgvector_index_state.json"
+logger = logging.getLogger(__name__)
 
 
 def _chunk_content(item: dict[str, Any]) -> str:
@@ -160,6 +165,7 @@ class KnowledgeIndexService:
         self.settings = settings
         self.namespace = namespace
         self._store = PgVectorStore(namespace=namespace)
+        self._generations = KnowledgeGenerationRepository()
 
     def _state_path(self) -> Path:
         # Store index state alongside the knowledge base, not under legacy chroma_path.
@@ -201,45 +207,115 @@ class KnowledgeIndexService:
         clear: bool = True,
         corpus_path: str | None = None,
         source_file: str | None = None,
+        created_by_job_id: str | None = None,
+    ) -> dict[str, Any]:
+        staged = self.build_generation(
+            chunks,
+            corpus_path=corpus_path,
+            source_file=source_file,
+            created_by_job_id=created_by_job_id,
+        )
+        return self.activate_generation(staged)
+
+    def build_generation(
+        self,
+        chunks: list[dict[str, Any]],
+        *,
+        corpus_path: str | None = None,
+        source_file: str | None = None,
+        created_by_job_id: str | None = None,
     ) -> dict[str, Any]:
         if self.settings.mock_rag:
             raise EmbeddingError("MOCK_RAG=true：R1 索引需 MOCK_RAG=false + Ollama embedding")
         if not chunks:
             raise ValueError("No chunks to index")
+        chunk_ids = [str(c["chunk_id"]) for c in chunks]
+        if len(chunk_ids) != len(set(chunk_ids)):
+            raise ValueError("Duplicate chunk_id in generation")
 
         self.ensure_ready()
-        if clear:
-            self._store.clear_namespace()
-
-        texts = [c["content"] for c in chunks]
-        embeddings = embed_texts(self.settings, texts)
-        metadatas = []
-        for c in chunks:
-            meta = dict(c.get("metadata") or {})
-            meta["chunk_id"] = c["chunk_id"]
-            meta["chunk_type"] = c.get("chunk_type") or ""
-            meta["chunk_chapter"] = c.get("chunk_chapter") or ""
-            metadatas.append(meta)
-
-        self._store.upsert_batch(
-            chunk_ids=[c["chunk_id"] for c in chunks],
-            contents=texts,
-            embeddings=embeddings,
-            metadatas=metadatas,
+        generation_id = str(uuid.uuid4())
+        fingerprint_source = "\n".join(
+            f"{c['chunk_id']}\0{c['content']}" for c in sorted(chunks, key=lambda row: row["chunk_id"])
+        )
+        fingerprint = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
+        self._generations.create(
+            generation_id=generation_id,
+            namespace=self.namespace,
+            embedding_model=self.settings.embedding_model,
+            created_by_job_id=created_by_job_id,
+            content_fingerprint=fingerprint,
         )
 
+        try:
+            texts = [c["content"] for c in chunks]
+            embeddings = embed_texts(self.settings, texts)
+            metadatas = []
+            for c in chunks:
+                meta = dict(c.get("metadata") or {})
+                meta["chunk_id"] = c["chunk_id"]
+                meta["chunk_type"] = c.get("chunk_type") or ""
+                meta["chunk_chapter"] = c.get("chunk_chapter") or ""
+                metadatas.append(meta)
+
+            self._store.upsert_batch(
+                chunk_ids=chunk_ids,
+                contents=texts,
+                embeddings=embeddings,
+                metadatas=metadatas,
+                generation_id=generation_id,
+            )
+            stored_count = self._store.count(generation_id=generation_id)
+            if stored_count != len(chunks):
+                raise ValueError(
+                    f"generation chunk count mismatch: expected={len(chunks)} actual={stored_count}"
+                )
+            self._generations.mark_validated(generation_id, stored_count)
+            return {
+                "generation_id": generation_id,
+                "corpus_path": corpus_path,
+                "source_file": source_file,
+                "chunk_count": stored_count,
+                "namespace": self.namespace,
+                "embedding_model": self.settings.embedding_model,
+                "content_fingerprint": fingerprint,
+            }
+        except Exception as exc:
+            self.fail_generation(generation_id, str(exc))
+            raise
+
+    def activate_generation(self, staged: dict[str, Any]) -> dict[str, Any]:
+        generation_id = str(staged["generation_id"])
+        previous = self._generations.activate(generation_id, self.namespace)
         now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         state = {
+            **staged,
+            "active_generation": generation_id,
+            "previous_generation": previous,
             "last_index_at": now,
-            "corpus_path": corpus_path,
-            "source_file": source_file,
-            "chunk_count": len(chunks),
-            "namespace": self.namespace,
-            "embedding_model": self.settings.embedding_model,
             "vector_store": "pgvector",
         }
-        self._write_state(state)
+        try:
+            self._write_state(state)
+        except OSError:
+            logger.exception("Failed to write compatibility index state for %s", generation_id)
+        try:
+            self._cleanup_retired()
+        except Exception:
+            logger.exception("Failed to clean retired knowledge generations")
         return state
+
+    def fail_generation(self, generation_id: str, error: str) -> None:
+        self._generations.mark_failed(generation_id, error)
+        try:
+            self._store.delete_generation(generation_id)
+        except PgVectorUnavailableError:
+            pass
+
+    def _cleanup_retired(self) -> None:
+        for generation_id in self._generations.retired_for_cleanup(self.namespace):
+            self._store.delete_generation(generation_id)
+            self._generations.delete(generation_id)
 
     def index_corpus_folder(self, folder: Path, *, clear: bool = True) -> dict[str, Any]:
         report = build_engagement_preview(folder)
@@ -282,4 +358,20 @@ class KnowledgeIndexService:
             return None
 
     def last_index_state(self) -> dict[str, Any]:
+        active_id = self._generations.get_active_id(self.namespace)
+        if active_id:
+            active = self._generations.get(active_id)
+            if active:
+                return {
+                    "active_generation": active.id,
+                    "last_index_at": (
+                        active.activated_at.isoformat().replace("+00:00", "Z")
+                        if active.activated_at
+                        else None
+                    ),
+                    "chunk_count": active.chunk_count,
+                    "namespace": active.logical_namespace,
+                    "embedding_model": active.embedding_model,
+                    "vector_store": "pgvector",
+                }
         return self._read_state()

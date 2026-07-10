@@ -26,6 +26,8 @@ export const INDEX_JOB_PHASE_LABEL: Record<string, string> = {
   scanning: "扫描项目包",
   parsing: "解析文档",
   embedding: "生成向量并写入索引",
+  validating: "校验暂存索引",
+  switching: "切换生效版本",
   finalizing: "写入结果",
   completed: "索引完成",
   cancelled: "已取消",

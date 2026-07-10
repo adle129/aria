@@ -330,6 +330,7 @@ class RAGService:
             "total_chunks": chunk_count,
             "total_projects": len(project_dirs),
             "last_import_at": state.get("last_index_at"),
+            "active_generation": state.get("active_generation"),
             "vector_store": "pgvector",
             "embedding_model": state.get("embedding_model") or self.settings.embedding_model,
             "function_coverage": {},

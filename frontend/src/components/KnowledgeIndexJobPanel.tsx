@@ -21,6 +21,9 @@ interface KnowledgeIndexJob {
   progress_total: number;
   queue_position?: number | null;
   estimated_wait_seconds?: number | null;
+  generation_id?: string | null;
+  active_generation?: string | null;
+  previous_generation?: string | null;
   error?: string | null;
   new_documents?: number;
   new_chunks?: number;
@@ -176,6 +179,11 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
             <Tag color={STATUS_COLOR[job.status]}>{INDEX_JOB_STATUS_LABEL[job.status]}</Tag>
             <Text>{phaseLabel}</Text>
             {job.queue_position != null && <Text type="secondary">队列第 {job.queue_position} 位</Text>}
+            {(job.active_generation ?? job.generation_id) && (
+              <Text type="secondary" copyable>
+                Generation {(job.active_generation ?? job.generation_id)?.slice(0, 8)}
+              </Text>
+            )}
           </Space>
           <Progress
             percent={job.status === "completed" ? 100 : job.progress}

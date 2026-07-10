@@ -83,5 +83,6 @@ class KnowledgeStatsResponse(BaseModel):
     total_chunks: int
     total_projects: int
     last_import_at: str | None = None
+    active_generation: str | None = None
     function_coverage: dict[str, float] = Field(default_factory=dict)
     mock_rag: bool | None = None

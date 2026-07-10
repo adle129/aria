@@ -95,9 +95,15 @@ class KnowledgeIndexJobService:
             db.refresh(job)
             return job.cancel_requested_at is not None
 
+        def record_generation(generation_id: str) -> None:
+            job.payload = {**(job.payload or {}), "generation_id": generation_id}
+            TaskJobRepository(db).update(job)
+
         return EngagementIngestService(self.settings, db).import_all(
             progress_callback=report_progress,
             cancel_check=cancel_requested,
+            created_by_job_id=job.id,
+            generation_callback=record_generation,
         )
 
     def serialize(self, db: Session, job: TaskJob) -> dict[str, Any]:
@@ -118,6 +124,7 @@ class KnowledgeIndexJobService:
             "triggered_by": (job.payload or {}).get("triggered_by"),
             "mode": (job.payload or {}).get("mode"),
             "batch_id": (job.payload or {}).get("batch_id"),
+            "generation_id": (job.payload or {}).get("generation_id"),
             "error": job.error_message,
             "created_at": job.created_at,
             "started_at": job.started_at,

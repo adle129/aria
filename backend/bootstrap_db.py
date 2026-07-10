@@ -11,8 +11,8 @@ def _alembic_config() -> Config:
 
 
 def bootstrap() -> None:
-    init_db()
     command.upgrade(_alembic_config(), "head")
+    init_db()
 
 
 if __name__ == "__main__":

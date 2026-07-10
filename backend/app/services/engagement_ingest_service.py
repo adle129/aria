@@ -128,6 +128,8 @@ class EngagementIngestService:
         *,
         progress_callback: Callable[[str, int, int], None] | None = None,
         cancel_check: Callable[[], bool] | None = None,
+        created_by_job_id: str | None = None,
+        generation_callback: Callable[[str], None] | None = None,
     ) -> dict[str, Any]:
         if self.settings.mock_rag:
             raise EngagementIngestError("MOCK_RAG=true：生产 ingest 需 MOCK_RAG=false")
@@ -226,9 +228,26 @@ class EngagementIngestService:
         if progress_callback:
             progress_callback("embedding", total, total)
         index = KnowledgeIndexService(self.settings, namespace=self.namespace)
-        state = index.index_chunks(all_chunks, clear=True, corpus_path=str(self.kb_root.resolve()))
-        if baseline_projects:
-            self.baselines.upsert_projects(baseline_projects)
+        staged = index.build_generation(
+            all_chunks,
+            corpus_path=str(self.kb_root.resolve()),
+            created_by_job_id=created_by_job_id,
+        )
+        if generation_callback:
+            generation_callback(staged["generation_id"])
+        if progress_callback:
+            progress_callback("validating", total, total)
+        try:
+            if cancel_check and cancel_check():
+                raise EngagementIngestCancelled("知识库索引任务已取消")
+            if baseline_projects:
+                self.baselines.upsert_projects(baseline_projects)
+            if progress_callback:
+                progress_callback("switching", total, total)
+            state = index.activate_generation(staged)
+        except Exception as exc:
+            index.fail_generation(staged["generation_id"], str(exc))
+            raise
 
         for folder in folders:
             if any(f["path"] == folder.name for f in failed_files):

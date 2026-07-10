@@ -128,11 +128,28 @@ def test_import_all_mock_embed(engagement_folder, tmp_path, monkeypatch):
         def __init__(self, *_args, **_kwargs):
             pass
 
-        def index_chunks(self, chunks, *, clear=True, corpus_path=None, source_file=None):
+        def build_generation(
+            self,
+            chunks,
+            *,
+            corpus_path=None,
+            source_file=None,
+            created_by_job_id=None,
+        ):
             rfq = sum(1 for c in chunks if (c.get("metadata") or {}).get("doc_type") == "rfq")
             qa = sum(1 for c in chunks if (c.get("metadata") or {}).get("doc_type") == "qa")
             assert rfq >= 1 and qa >= 1
-            return {"chunk_count": len(chunks), "last_index_at": "2026-07-07T00:00:00Z"}
+            return {"generation_id": "staged-1", "chunk_count": len(chunks)}
+
+        def activate_generation(self, staged):
+            return {
+                **staged,
+                "active_generation": staged["generation_id"],
+                "last_index_at": "2026-07-07T00:00:00Z",
+            }
+
+        def fail_generation(self, generation_id, error):
+            return None
 
     monkeypatch.setattr(
         "app.services.engagement_ingest_service.KnowledgeIndexService",
