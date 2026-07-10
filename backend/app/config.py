@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ollama_llm_timeout_seconds: int = 600
     embedding_model: str = "nomic-embed-text"
     embedding_max_chars: int = 2400
+    embedding_batch_size: int = 16
     mock_llm: bool = True
     mock_rag: bool = True
 

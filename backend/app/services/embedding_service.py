@@ -47,7 +47,15 @@ def _try_batch_embed(
     if resp.status_code == 404:
         return None  # Old Ollama — endpoint doesn't exist
 
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail = resp.text.strip()
+        if len(detail) > 1000:
+            detail = f"{detail[:1000]}..."
+        raise EmbeddingError(
+            f"Ollama embedding failed ({resp.status_code}): {detail or exc}"
+        ) from exc
     data = resp.json()
     embeddings = data.get("embeddings")
     if not embeddings or len(embeddings) != len(prompts):
@@ -91,15 +99,23 @@ def embed_texts(settings: Settings, texts: list[str]) -> list[list[float]]:
     base = settings.ollama_base_url.rstrip("/")
     max_chars = settings.embedding_max_chars
     prompts = [truncate_for_embedding(t, max_chars) for t in texts]
+    batch_size = max(1, settings.embedding_batch_size)
 
     gate = get_ollama_gate(settings)
     try:
         with gate.acquire():
             with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
-                vectors = _try_batch_embed(client, base, settings.embedding_model, prompts)
-                if vectors is not None:
-                    return vectors
-                # Batch endpoint unavailable — use serial fallback
-                return _serial_embed(client, base, settings.embedding_model, prompts)
+                all_vectors: list[list[float]] = []
+                for start in range(0, len(prompts), batch_size):
+                    batch = prompts[start : start + batch_size]
+                    vectors = _try_batch_embed(
+                        client, base, settings.embedding_model, batch
+                    )
+                    if vectors is None:
+                        vectors = _serial_embed(
+                            client, base, settings.embedding_model, batch
+                        )
+                    all_vectors.extend(vectors)
+                return all_vectors
     except httpx.HTTPError as exc:
         raise EmbeddingError(f"Ollama embedding failed: {exc}") from exc

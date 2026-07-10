@@ -1,12 +1,24 @@
 "use client";
 
-import { Alert, Button, Card, Progress, Space, Tag, Typography, message } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Progress,
+  Space,
+  Tag,
+  Typography,
+  message,
+} from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient } from "@/api/client";
 import {
   ACTIVE_INDEX_JOB_STATUSES,
+  getKnowledgeIndexFailureGuidance,
   INDEX_JOB_PHASE_LABEL,
   INDEX_JOB_STATUS_LABEL,
+  type KnowledgeIndexFailure,
   type KnowledgeIndexJobStatus,
 } from "@/lib/knowledgeIndexJob";
 
@@ -28,7 +40,7 @@ interface KnowledgeIndexJob {
   new_documents?: number;
   new_chunks?: number;
   skipped?: number;
-  failed_files?: Array<{ path: string; error: string }>;
+  failed_files?: KnowledgeIndexFailure[];
 }
 
 interface KnowledgeIndexJobPanelProps {
@@ -78,12 +90,24 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
   );
 
   useEffect(() => {
-    void apiClient
-      .get<{ code: number; data: KnowledgeIndexJob | null }>("/knowledge/imports/active", {
-        silentError: true,
-      })
-      .then((resp) => acceptJob(resp.data.data))
-      .catch(() => undefined);
+    const loadInitialJob = async () => {
+      const activeResp = await apiClient.get<{
+        code: number;
+        data: KnowledgeIndexJob | null;
+      }>("/knowledge/imports/active", { silentError: true });
+      if (activeResp.data.data) {
+        await acceptJob(activeResp.data.data);
+        return;
+      }
+
+      const historyResp = await apiClient.get<{
+        code: number;
+        data: { jobs: KnowledgeIndexJob[] };
+      }>("/knowledge/imports?limit=1&offset=0", { silentError: true });
+      await acceptJob(historyResp.data.data.jobs[0] ?? null);
+    };
+
+    void loadInitialJob().catch(() => undefined);
   }, [acceptJob]);
 
   useEffect(() => {
@@ -141,6 +165,10 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
   const phaseLabel = job?.phase
     ? INDEX_JOB_PHASE_LABEL[job.phase] ?? job.phase
     : "等待任务";
+  const failedGuidance =
+    job?.failed_files?.map(getKnowledgeIndexFailureGuidance) ?? [];
+  const completedWithWarnings =
+    job?.status === "completed" && failedGuidance.length > 0;
 
   return (
     <Card
@@ -176,7 +204,11 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
       ) : (
         <Space direction="vertical" style={{ width: "100%" }} size={8}>
           <Space wrap>
-            <Tag color={STATUS_COLOR[job.status]}>{INDEX_JOB_STATUS_LABEL[job.status]}</Tag>
+            <Tag color={completedWithWarnings ? "warning" : STATUS_COLOR[job.status]}>
+              {completedWithWarnings
+                ? "完成（有警告）"
+                : INDEX_JOB_STATUS_LABEL[job.status]}
+            </Tag>
             <Text>{phaseLabel}</Text>
             {job.queue_position != null && <Text type="secondary">队列第 {job.queue_position} 位</Text>}
             {(job.active_generation ?? job.generation_id) && (
@@ -196,12 +228,48 @@ export default function KnowledgeIndexJobPanel({ onCompleted }: KnowledgeIndexJo
             </Text>
           )}
           {job.error && <Alert type="error" showIcon message={job.error} />}
-          {(job.failed_files?.length ?? 0) > 0 && (
-            <Alert
-              type="warning"
-              showIcon
-              message={`${job.failed_files?.length} 个项目处理失败`}
-            />
+          {failedGuidance.length > 0 && (
+            <>
+              <Alert
+                type="warning"
+                showIcon
+                message={`${failedGuidance.length} 个项目未进入本次生效索引`}
+                description="其余处理成功的项目已正常生效。请展开详情，修复资料后重新上传并再次更新索引。"
+              />
+              <Collapse
+                size="small"
+                items={[
+                  {
+                    key: "failed-files",
+                    label: `查看 ${failedGuidance.length} 项失败详情与修复建议`,
+                    children: (
+                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                        {failedGuidance.map((failure, index) => (
+                          <div
+                            key={`${failure.itemName}-${index}`}
+                            style={{
+                              borderBottom:
+                                index < failedGuidance.length - 1
+                                  ? "1px solid #f0f0f0"
+                                  : undefined,
+                              paddingBottom:
+                                index < failedGuidance.length - 1 ? 12 : 0,
+                            }}
+                          >
+                            <Space direction="vertical" size={2}>
+                              <Text strong>{failure.itemName}</Text>
+                              <Text type="danger">失败原因：{failure.reason}</Text>
+                              <Text>影响：{failure.impact}</Text>
+                              <Text>处理建议：{failure.action}</Text>
+                            </Space>
+                          </div>
+                        ))}
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+            </>
           )}
         </Space>
       )}

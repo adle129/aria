@@ -157,20 +157,20 @@ class PgVectorStore:
                             "namespace": ns,
                             "content": content,
                             "embedding": emb,
-                            "chunk_metadata": meta,
+                            "metadata": meta,
                         }
                         for cid, content, emb, meta in zip(
                             chunk_ids[sl], contents[sl], embeddings[sl], metadatas[sl]
                         )
                     ]
-                    stmt = pg_insert(KnowledgeChunk).values(rows)
+                    stmt = pg_insert(KnowledgeChunk.__table__).values(rows)
                     stmt = stmt.on_conflict_do_update(
                         index_elements=["generation_id", "chunk_id"],
                         set_={
                             "namespace": stmt.excluded.namespace,
                             "content": stmt.excluded.content,
                             "embedding": stmt.excluded.embedding,
-                            "chunk_metadata": stmt.excluded.chunk_metadata,
+                            "metadata": stmt.excluded.metadata,
                         },
                     )
                     session.execute(stmt)

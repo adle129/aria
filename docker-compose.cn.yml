@@ -4,6 +4,7 @@ x-backend-environment: &backend-environment
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
   OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+  EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
   MOCK_LLM: ${MOCK_LLM:-true}
   MOCK_RAG: ${MOCK_RAG:-true}
   ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-dev}

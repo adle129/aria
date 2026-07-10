@@ -78,6 +78,48 @@ def test_embed_texts_batch_endpoint(monkeypatch):
     assert calls[0]["json"]["input"] == ["hello", "world"]
 
 
+def test_embed_texts_splits_large_input_into_bounded_batches(monkeypatch):
+    settings = Settings(
+        ollama_base_url="http://ollama.test",
+        embedding_batch_size=2,
+    )
+    batches: list[list[str]] = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, prompts):
+            self._prompts = prompts
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"embeddings": [[float(prompt)] for prompt in self._prompts]}
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, _url, json=None, **_kwargs):
+            prompts = json["input"]
+            batches.append(prompts)
+            return FakeResponse(prompts)
+
+    monkeypatch.setattr(
+        "app.services.embedding_service.ollama_http_client",
+        lambda _timeout: FakeClient(),
+    )
+
+    vectors = embed_texts(settings, ["1", "2", "3", "4", "5"])
+
+    assert batches == [["1", "2"], ["3", "4"], ["5"]]
+    assert vectors == [[1.0], [2.0], [3.0], [4.0], [5.0]]
+
+
 def test_embed_texts_falls_back_to_serial(monkeypatch):
     """Falls back to serial /api/embeddings when /api/embed returns 404."""
     settings = Settings(
@@ -151,4 +193,29 @@ def test_embed_texts_http_error_raises(monkeypatch):
         lambda _timeout: FakeClient(),
     )
     with pytest.raises(EmbeddingError, match="Ollama embedding failed"):
+        embed_texts(Settings(), ["hello"])
+
+
+def test_embed_texts_http_status_error_includes_ollama_detail(monkeypatch):
+    import httpx
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, json=None, **kwargs):
+            return httpx.Response(
+                400,
+                json={"error": "runner unavailable"},
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(
+        "app.services.embedding_service.ollama_http_client",
+        lambda _timeout: FakeClient(),
+    )
+    with pytest.raises(EmbeddingError, match="runner unavailable"):
         embed_texts(Settings(), ["hello"])
