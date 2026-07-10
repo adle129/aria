@@ -15,6 +15,7 @@
 | [r1-execution-plan.md](r1-execution-plan.md) | **Wave 1–6 执行顺序**（Spike 后正式实施） |
 | [knowledge-development-standards.md](knowledge-development-standards.md) | **知识库全栈开发规范**：分层、事务、迁移、幂等、兼容、可观测性、测试 |
 | [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md) | **知识库生产化 UI/UX**：状态词典、页面任务、角色/异常/响应式 DoD |
+| [kh00-architecture-decisions.md](kh00-architecture-decisions.md) | **KH00 ADR 草案**：generation、job、Ollama 租约、事务补偿、202 迁移 |
 | [dev-error-retrospective.md](dev-error-retrospective.md) | **错误总结与提效指南**（Spike/测试/架构教训） |
 | [spike-follow-up-tasks.md](spike-follow-up-tasks.md) | **Spike 结案 → R1 正式实施任务**（RFQ + RAG） |
 | [validation-corpus.md](validation-corpus.md) | **客户模板语料** + spike 复现命令 |
