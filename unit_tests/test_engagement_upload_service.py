@@ -190,3 +190,57 @@ def test_zip_rejects_file_directory_path_conflict(upload_service):
 
     with pytest.raises(EngagementUploadError, match="路径冲突"):
         upload_service.upload_zip_pack("conflict.zip", payload.getvalue())
+
+
+def test_loose_upload_normalizes_nfc_and_preserves_original_name(
+    upload_service
+):
+    if not SAMPLE_RFQ.exists():
+        pytest.skip("sample rfq missing")
+    original = "RFQ_Cafe\u0301.DOCX"
+
+    upload_service.upload_loose_files(
+        "unicode_engagement",
+        [(original, SAMPLE_RFQ.read_bytes())],
+    )
+
+    target = Path(upload_service.kb_root) / "unicode_engagement"
+    assert (target / "RFQ_Café.DOCX").is_file()
+    manifest = json.loads(
+        (target / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["documents"][0]["path"] == "RFQ_Café.DOCX"
+    assert manifest["documents"][0]["original_filename"] == original
+
+
+def test_loose_upload_rejects_case_insensitive_name_collision(
+    upload_service
+):
+    with pytest.raises(EngagementUploadError, match="冲突"):
+        upload_service.upload_loose_files(
+            "collision_engagement",
+            [
+                ("RFQ.docx", b"first"),
+                ("rfq.DOCX", b"second"),
+            ],
+        )
+
+
+def test_upload_returns_domain_error_for_invalid_manifest(upload_service):
+    manifest = json.dumps(
+        {
+            "engagement_id": "invalid_manifest",
+            "project_name": "Invalid",
+            "documents": [
+                {"path": "legacy.xls", "doc_type": "qa"}
+            ],
+        }
+    ).encode()
+
+    with pytest.raises(
+        EngagementUploadError, match="manifest.json 校验失败"
+    ):
+        upload_service.upload_loose_files(
+            "invalid_manifest",
+            [("MANIFEST.JSON", manifest), ("legacy.xls", b"fake")],
+        )

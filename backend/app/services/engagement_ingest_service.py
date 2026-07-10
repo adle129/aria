@@ -90,7 +90,7 @@ class EngagementIngestService:
     ) -> tuple[EngagementManifest, list[dict[str, Any]], dict[str, Any] | None]:
         folder = Path(folder)
         manifest = resolve_manifest(folder)
-        report = build_engagement_preview(folder)
+        report = build_engagement_preview(folder, manifest)
         if report.get("errors") and not report.get("rfq"):
             raise EngagementIngestError(
                 f"{manifest.engagement_id}: RFQ 解析失败 — {report['errors'][0].get('error')}"

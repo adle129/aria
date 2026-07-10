@@ -22,22 +22,52 @@ def load_manifest_file(path: Path) -> EngagementManifest:
         raise ManifestLoadError(str(exc)) from exc
 
 
-def infer_manifest_from_folder(folder: Path) -> EngagementManifest:
+def infer_manifest_from_folder(
+    folder: Path,
+    *,
+    original_names: dict[str, str] | None = None,
+) -> EngagementManifest:
     folder = Path(folder)
+    original_names = original_names or {}
     engagement_id = folder.name
     documents: list[ManifestDocument] = []
     for path in sorted(folder.iterdir()):
         if not path.is_file() or path.name.startswith("~$"):
             continue
         role = classify_corpus_file(path)
+        original_filename = original_names.get(path.name, path.name)
         if role == "rfq":
-            documents.append(ManifestDocument(path=path.name, doc_type="rfq"))
+            documents.append(
+                ManifestDocument(
+                    path=path.name,
+                    doc_type="rfq",
+                    original_filename=original_filename,
+                )
+            )
         elif role == "qa":
-            documents.append(ManifestDocument(path=path.name, doc_type="qa"))
+            documents.append(
+                ManifestDocument(
+                    path=path.name,
+                    doc_type="qa",
+                    original_filename=original_filename,
+                )
+            )
         elif role == "quote_manpower":
-            documents.append(ManifestDocument(path=path.name, doc_type="quote_manpower"))
+            documents.append(
+                ManifestDocument(
+                    path=path.name,
+                    doc_type="quote_manpower",
+                    original_filename=original_filename,
+                )
+            )
         elif role == "proposal_archive":
-            documents.append(ManifestDocument(path=path.name, doc_type="summary"))
+            documents.append(
+                ManifestDocument(
+                    path=path.name,
+                    doc_type="summary",
+                    original_filename=original_filename,
+                )
+            )
 
     return EngagementManifest(
         engagement_id=engagement_id,

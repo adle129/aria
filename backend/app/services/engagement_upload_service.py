@@ -11,9 +11,14 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from app.config import Settings
+from app.file_compat import normalize_filename, normalize_unicode
 from app.schemas.engagement import EngagementManifest
 from app.services.engagement_completeness import classify_engagement
-from app.services.engagement_manifest_service import infer_manifest_from_folder, resolve_manifest
+from app.services.engagement_manifest_service import (
+    ManifestLoadError,
+    infer_manifest_from_folder,
+    resolve_manifest,
+)
 from app.services.ingest.engagement_preview import build_engagement_preview
 
 
@@ -35,6 +40,11 @@ def _validate_engagement_id(value: str) -> str:
     if not _ENGAGEMENT_ID_RE.match(cleaned):
         raise EngagementUploadError(f"invalid engagement_id: {value}")
     return cleaned
+
+
+def _internal_filename(value: str) -> str:
+    name = normalize_filename(value)
+    return "manifest.json" if name.casefold() == "manifest.json" else name
 
 
 def _missing_from_preview(report: dict[str, Any]) -> list[str]:
@@ -59,7 +69,7 @@ def _safe_extract_zip(
     archive_path: Path,
     dest: Path,
     settings: Settings,
-) -> None:
+) -> dict[str, str]:
     dest.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive_path) as zf:
         members = zf.infolist()
@@ -70,10 +80,15 @@ def _safe_extract_zip(
         expanded_total = 0
         checked: list[tuple[zipfile.ZipInfo, PurePosixPath]] = []
         member_types: dict[str, bool] = {}
+        collision_paths: dict[str, str] = {}
+        original_names: dict[str, str] = {}
         for info in members:
             raw_name = info.filename
-            normalized = raw_name.replace("\\", "/")
+            normalized = normalize_unicode(raw_name.replace("\\", "/"))
             path = PurePosixPath(normalized)
+            if path.name.casefold() == "manifest.json":
+                path = PurePosixPath(*path.parts[:-1], "manifest.json")
+                normalized = path.as_posix()
             mode = info.external_attr >> 16
             file_type = stat.S_IFMT(mode)
             if (
@@ -90,11 +105,17 @@ def _safe_extract_zip(
                     f"ZIP 含非法路径或链接条目：{raw_name}"
                 )
             path_key = path.as_posix()
-            if path_key in member_types:
+            collision_key = path_key.casefold()
+            if collision_key in collision_paths:
                 raise EngagementUploadError(
-                    f"ZIP 含重复路径：{raw_name}"
+                    f"ZIP 含大小写或 Unicode 冲突路径：{raw_name}"
                 )
+            collision_paths[collision_key] = path_key
             member_types[path_key] = info.is_dir()
+            if not info.is_dir():
+                original_names[path_key] = PurePosixPath(
+                    raw_name.replace("\\", "/")
+                ).name
             if info.file_size > settings.upload_max_single_file_bytes:
                 raise EngagementUploadError(
                     f"ZIP 单文件超过限制：{raw_name}"
@@ -143,6 +164,7 @@ def _safe_extract_zip(
                     output,
                     length=max(64 * 1024, settings.upload_stream_chunk_bytes),
                 )
+        return original_names
 
 
 class EngagementUploadService:
@@ -150,6 +172,71 @@ class EngagementUploadService:
         self.settings = settings
         self.kb_root = Path(settings.knowledge_base_path)
         self.staging_root = self.kb_root.parent / ".staging"
+
+    @staticmethod
+    def _write_inferred_manifest(
+        folder: Path,
+        engagement_id: str,
+        *,
+        original_names: dict[str, str] | None = None,
+    ) -> None:
+        manifest = infer_manifest_from_folder(
+            folder,
+            original_names=original_names,
+        ).model_copy(
+            update={
+                "engagement_id": engagement_id,
+                "project_name": engagement_id.replace("_", " ").title(),
+            }
+        )
+        (folder / "manifest.json").write_text(
+            json.dumps(
+                manifest.model_dump(),
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _enrich_existing_manifest(
+        folder: Path,
+        original_names: dict[str, str],
+    ) -> None:
+        try:
+            manifest = resolve_manifest(folder)
+        except ManifestLoadError as exc:
+            raise EngagementUploadError(
+                f"manifest.json 校验失败：{exc}"
+            ) from exc
+        names_by_path = {
+            normalize_unicode(path).casefold(): original
+            for path, original in original_names.items()
+        }
+        documents = [
+            document
+            if document.original_filename
+            else document.model_copy(
+                update={
+                    "original_filename": names_by_path.get(
+                        normalize_unicode(document.path).casefold(),
+                        PurePosixPath(document.path).name,
+                    )
+                }
+            )
+            for document in manifest.documents
+        ]
+        canonical = manifest.model_copy(
+            update={"documents": documents}
+        )
+        (folder / "manifest.json").write_text(
+            json.dumps(
+                canonical.model_dump(),
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     def upload_zip_pack(
         self,
@@ -194,7 +281,11 @@ class EngagementUploadService:
         with tempfile.TemporaryDirectory(dir=self.staging_root) as tmp:
             extracted = Path(tmp) / "extract"
             try:
-                _safe_extract_zip(archive_path, extracted, self.settings)
+                original_names = _safe_extract_zip(
+                    archive_path,
+                    extracted,
+                    self.settings,
+                )
             except (
                 zipfile.BadZipFile,
                 NotImplementedError,
@@ -204,6 +295,33 @@ class EngagementUploadService:
                     f"{filename}: ZIP 损坏、加密或压缩格式不受支持"
                 ) from exc
             content_root = _resolve_content_root(extracted)
+            relative_original_names: dict[str, str] = {}
+            for path_key, original_name in original_names.items():
+                extracted_path = extracted / Path(
+                    *PurePosixPath(path_key).parts
+                )
+                if extracted_path.is_relative_to(content_root):
+                    relative = extracted_path.relative_to(
+                        content_root
+                    ).as_posix()
+                    relative_original_names[relative] = original_name
+            if (content_root / "manifest.json").is_file():
+                self._enrich_existing_manifest(
+                    content_root,
+                    relative_original_names,
+                )
+            else:
+                default_id = content_root.name
+                if (
+                    default_id in {"extract", "tmp"}
+                    or not _ENGAGEMENT_ID_RE.match(default_id)
+                ):
+                    default_id = Path(filename).stem
+                self._write_inferred_manifest(
+                    content_root,
+                    _validate_engagement_id(default_id),
+                    original_names=relative_original_names,
+                )
             return self._finalize_folder(
                 content_root,
                 suggested_id=Path(filename).stem,
@@ -225,19 +343,33 @@ class EngagementUploadService:
         with tempfile.TemporaryDirectory(dir=self.staging_root) as tmp:
             source = Path(tmp) / eid
             source.mkdir()
+            original_names: dict[str, str] = {}
+            seen_names: set[str] = set()
             for name, data in files:
-                safe_name = Path(name).name
+                safe_name = _internal_filename(name)
                 if not safe_name or safe_name.startswith("~$"):
                     continue
+                collision_key = safe_name.casefold()
+                if collision_key in seen_names:
+                    raise EngagementUploadError(
+                        f"文件名大小写或 Unicode 冲突：{name}"
+                    )
+                seen_names.add(collision_key)
+                original_names[safe_name] = PurePosixPath(
+                    name.replace("\\", "/")
+                ).name
                 (source / safe_name).write_bytes(data)
             manifest_path = source / "manifest.json"
             if not manifest_path.is_file():
-                manifest = infer_manifest_from_folder(source).model_copy(
-                    update={"engagement_id": eid, "project_name": eid.replace("_", " ").title()}
+                self._write_inferred_manifest(
+                    source,
+                    eid,
+                    original_names=original_names,
                 )
-                manifest_path.write_text(
-                    json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2),
-                    encoding="utf-8",
+            else:
+                self._enrich_existing_manifest(
+                    source,
+                    original_names,
                 )
             return self._finalize_folder(
                 source,
@@ -259,26 +391,33 @@ class EngagementUploadService:
         with tempfile.TemporaryDirectory(dir=self.staging_root) as tmp:
             source = Path(tmp) / eid
             source.mkdir()
+            original_names: dict[str, str] = {}
+            seen_names: set[str] = set()
             for name, file_path in files:
-                safe_name = Path(name.replace("\\", "/")).name
+                safe_name = _internal_filename(name)
                 if not safe_name or safe_name.startswith("~$"):
                     continue
+                collision_key = safe_name.casefold()
+                if collision_key in seen_names:
+                    raise EngagementUploadError(
+                        f"文件名大小写或 Unicode 冲突：{name}"
+                    )
+                seen_names.add(collision_key)
+                original_names[safe_name] = PurePosixPath(
+                    name.replace("\\", "/")
+                ).name
                 shutil.copyfile(file_path, source / safe_name)
             manifest_path = source / "manifest.json"
             if not manifest_path.is_file():
-                manifest = infer_manifest_from_folder(source).model_copy(
-                    update={
-                        "engagement_id": eid,
-                        "project_name": eid.replace("_", " ").title(),
-                    }
+                self._write_inferred_manifest(
+                    source,
+                    eid,
+                    original_names=original_names,
                 )
-                manifest_path.write_text(
-                    json.dumps(
-                        manifest.model_dump(),
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
+            else:
+                self._enrich_existing_manifest(
+                    source,
+                    original_names,
                 )
             return self._finalize_folder(
                 source,
@@ -296,19 +435,19 @@ class EngagementUploadService:
         content_root = Path(content_root)
         manifest_path = content_root / "manifest.json"
         if manifest_path.is_file():
-            manifest = resolve_manifest(content_root)
+            try:
+                manifest = resolve_manifest(content_root)
+            except ManifestLoadError as exc:
+                raise EngagementUploadError(
+                    f"manifest.json 校验失败：{exc}"
+                ) from exc
         else:
             default_id = content_root.name
             if default_id in {"extract", "tmp"} or not _ENGAGEMENT_ID_RE.match(default_id):
                 default_id = Path(suggested_id).stem
             eid = _validate_engagement_id(default_id)
-            manifest = infer_manifest_from_folder(content_root).model_copy(
-                update={"engagement_id": eid, "project_name": eid.replace("_", " ").title()}
-            )
-            manifest_path.write_text(
-                json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            self._write_inferred_manifest(content_root, eid)
+            manifest = resolve_manifest(content_root)
         engagement_id = _validate_engagement_id(manifest.engagement_id or suggested_id)
         target = self.kb_root / engagement_id
 
@@ -322,7 +461,7 @@ class EngagementUploadService:
         staging = self.staging_root / f"pack-{uuid.uuid4().hex}"
         backup = self.staging_root / f"backup-{uuid.uuid4().hex}"
         shutil.copytree(content_root, staging)
-        report = build_engagement_preview(staging)
+        report = build_engagement_preview(staging, manifest)
         missing = _missing_from_preview(report)
         completeness = classify_engagement(missing)
         if replace_existing and not completeness["indexable"]:
