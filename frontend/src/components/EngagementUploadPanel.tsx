@@ -5,7 +5,7 @@ import { Alert, Button, Card, Input, Space, Table, Tag, Typography, Upload, mess
 import type { UploadFile } from "antd/es/upload/interface";
 import { useMemo, useState } from "react";
 import { apiClient } from "@/api/client";
-import { uploadNeedsEngagementId, engagementTier, missingAutomationImpact } from "@/lib/engagementUpload";
+import { uploadNeedsEngagementId } from "@/lib/engagementUpload";
 
 const { Paragraph, Text } = Typography;
 
@@ -13,16 +13,26 @@ export interface EngagementPackResult {
   engagement_id: string;
   project_name?: string;
   status: string;
+  stored: boolean;
+  tier: "gold" | "silver" | "copper";
+  indexable: boolean;
   missing?: string[];
+  automation_impacts: string[];
   path?: string;
   files?: string[];
   errors?: Array<{ file?: string; error?: string }>;
 }
 
 const TIER_COLOR: Record<string, string> = {
-  金级: "green",
-  银级: "blue",
-  铜级: "orange",
+  gold: "green",
+  silver: "blue",
+  copper: "orange",
+};
+
+const TIER_LABEL: Record<EngagementPackResult["tier"], string> = {
+  gold: "金级",
+  silver: "银级",
+  copper: "铜级",
 };
 
 const MISSING_LABEL: Record<string, string> = {
@@ -82,10 +92,15 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
         headers: { "Content-Type": "multipart/form-data" },
       });
       setLastResults(resp.data.data.packs);
-      const failed = resp.data.data.packs.filter((p) => p.status !== "ok").length;
+      const failed = resp.data.data.packs.filter((p) => !p.stored).length;
+      const incomplete = resp.data.data.packs.filter((p) => p.missing?.length).length;
       if (failed > 0) {
         message.warning(
-          `已落盘 ${resp.data.data.uploaded} 套，其中 ${failed} 套缺件；请查看下表后更新索引`,
+          `已处理 ${resp.data.data.uploaded} 套，其中 ${failed} 套上传失败；请查看下表`,
+        );
+      } else if (incomplete > 0) {
+        message.info(
+          `已上传 ${resp.data.data.uploaded} 套，其中 ${incomplete} 套资料不完整；可索引项目请查看下表`,
         );
       } else {
         message.success(`已上传 ${resp.data.data.uploaded} 套，请点击「更新知识库索引」`);
@@ -154,6 +169,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
           rowKey="engagement_id"
           size="small"
           pagination={false}
+          scroll={{ x: "max-content" }}
           dataSource={lastResults}
           columns={[
             { title: "Engagement", dataIndex: "engagement_id", width: 160 },
@@ -162,17 +178,18 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
               title: "等级",
               key: "tier",
               width: 72,
-              render: (_: unknown, row: EngagementPackResult) => {
-                const tier = engagementTier(row.missing);
-                return <Tag color={TIER_COLOR[tier]}>{tier}</Tag>;
-              },
+              render: (_: unknown, row: EngagementPackResult) => (
+                <Tag color={TIER_COLOR[row.tier]}>{TIER_LABEL[row.tier]}</Tag>
+              ),
             },
             {
               title: "状态",
               dataIndex: "status",
-              width: 88,
-              render: (v: string) => (
-                <Tag color={v === "ok" ? "green" : "orange"}>{v === "ok" ? "可索引" : "待补件"}</Tag>
+              width: 136,
+              render: (_: string, row: EngagementPackResult) => (
+                <Tag color={row.indexable ? "green" : "red"}>
+                  {row.indexable ? "已上传·可索引" : "已上传·不可索引"}
+                </Tag>
               ),
             },
             {
@@ -186,10 +203,10 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
             {
               title: "自动化影响",
               key: "impact",
-              render: (_: unknown, row: EngagementPackResult) => {
-                const impacts = missingAutomationImpact(row.missing);
-                return impacts.length ? impacts.join("；") : "三件套齐全，可支撑 R1 检索与后续里程碑";
-              },
+              render: (_: unknown, row: EngagementPackResult) =>
+                row.automation_impacts.length
+                  ? row.automation_impacts.join("；")
+                  : "三件套齐全，可支撑 R1 检索与后续里程碑",
             },
             { title: "路径", dataIndex: "path", ellipsis: true },
           ]}

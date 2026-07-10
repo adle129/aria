@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_kb_admin
 from app.config import get_settings
 from app.database import get_db
-from app.schemas.knowledge import KnowledgeSearchRequest
+from app.schemas.knowledge import EngagementUploadPackResult, KnowledgeSearchRequest
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
 from app.services.engagement_upload_service import EngagementUploadError, EngagementUploadService
 from app.services.rag_service import RAGService
@@ -83,6 +83,10 @@ async def engagements_upload(
             loose_files=loose_files or None,
             engagement_id=engagement_id,
         )
+        data["packs"] = [
+            EngagementUploadPackResult.model_validate(pack).model_dump()
+            for pack in data["packs"]
+        ]
     except EngagementUploadError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}

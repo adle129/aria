@@ -43,7 +43,10 @@ def test_upload_loose_files_writes_manifest_and_reports_missing_quote(upload_ser
         ],
     )
     assert result["engagement_id"] == "demo_engagement"
-    assert result["status"] == "ok"
+    assert result["status"] == "stored"
+    assert result["stored"] is True
+    assert result["indexable"] is True
+    assert result["tier"] == "silver"
     assert "quote_manpower" in result["missing"]
     manifest = json.loads(
         (Path(upload_service.kb_root) / "demo_engagement" / "manifest.json").read_text(encoding="utf-8")
@@ -58,6 +61,21 @@ def test_upload_zip_pack_extracts_engagement(upload_service):
     result = upload_service.upload_zip_pack("zip_engagement.zip", payload)
     assert result["engagement_id"] == "zip_engagement"
     assert (Path(upload_service.kb_root) / "zip_engagement" / "RFQ_mock.docx").is_file()
+
+
+def test_upload_rfq_only_is_stored_as_indexable_copper(upload_service):
+    if not SAMPLE_RFQ.exists():
+        pytest.skip("sample rfq missing")
+    result = upload_service.upload_loose_files(
+        "copper_engagement",
+        [("RFQ_mock.docx", SAMPLE_RFQ.read_bytes())],
+    )
+
+    assert result["status"] == "stored"
+    assert result["tier"] == "copper"
+    assert result["indexable"] is True
+    assert result["missing"] == ["qa", "quote_manpower"]
+    assert len(result["automation_impacts"]) == 2
 
 
 def test_upload_batch_rejects_more_than_five_zips(upload_service):

@@ -36,10 +36,17 @@ def engagement_folder(tmp_path):
     return folder
 
 
-def test_assert_rfqa_gate_rejects_rfq_only():
+def test_assert_rfq_gate_accepts_rfq_only():
+    EngagementIngestService.assert_rfq_gate(
+        [{"metadata": {"doc_type": "rfq"}}],
+        "x",
+    )
+
+
+def test_assert_rfq_gate_rejects_engagement_without_rfq():
     with pytest.raises(EngagementIngestError):
-        EngagementIngestService.assert_rfqa_gate(
-            [{"metadata": {"doc_type": "rfq"}}],
+        EngagementIngestService.assert_rfq_gate(
+            [{"metadata": {"doc_type": "qa"}}],
             "x",
         )
 
@@ -66,6 +73,38 @@ def test_prepare_engagement_builds_rfqa_chunks(engagement_folder, tmp_path):
     assert "qa" in doc_types
     assert_vector_chunks_rfqa_only(chunks)
     assert all(c["metadata"]["engagement_id"] == "test_engagement" for c in chunks)
+    assert baseline is None
+
+
+def test_prepare_engagement_accepts_rfq_only(tmp_path):
+    if not SAMPLE_RFQ.exists():
+        pytest.skip("sample rfq missing")
+    kb = tmp_path / "kb"
+    target = kb / "copper_engagement"
+    target.mkdir(parents=True)
+    (target / "RFQ_mock.docx").write_bytes(SAMPLE_RFQ.read_bytes())
+    (target / "manifest.json").write_text(
+        json.dumps(
+            {
+                "engagement_id": "copper_engagement",
+                "project_name": "Copper Engagement",
+                "documents": [{"path": "RFQ_mock.docx", "doc_type": "rfq"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    service = EngagementIngestService(
+        Settings(
+            knowledge_base_path=str(kb),
+            mock_rag=False,
+            manpower_baselines_path=str(tmp_path / "baselines.json"),
+        )
+    )
+
+    manifest, chunks, baseline = service.prepare_engagement(target)
+
+    assert manifest.engagement_id == "copper_engagement"
+    assert {(c["metadata"] or {}).get("doc_type") for c in chunks} == {"rfq"}
     assert baseline is None
 
 
@@ -103,6 +142,9 @@ def test_import_all_mock_embed(engagement_folder, tmp_path, monkeypatch):
     assert result["new_chunks"] >= 1
     assert result["doc_type_counts"]["rfq"] >= 1
     assert result["doc_type_counts"]["qa"] >= 1
+    assert result["engagements"][0]["status"] == "indexed"
+    assert result["engagements"][0]["tier"] == "silver"
+    assert result["engagements"][0]["indexable"] is True
 
 
 def _write_min_quote(path: Path) -> None:

@@ -10,6 +10,7 @@ from typing import Any
 
 from app.config import Settings
 from app.schemas.engagement import EngagementManifest
+from app.services.engagement_completeness import classify_engagement
 from app.services.engagement_manifest_service import infer_manifest_from_folder, resolve_manifest
 from app.services.ingest.engagement_preview import build_engagement_preview
 
@@ -141,14 +142,16 @@ class EngagementUploadService:
 
         report = build_engagement_preview(target)
         missing = _missing_from_preview(report)
-        status = "ok" if "rfq" not in missing and "qa" not in missing else "failed"
+        completeness = classify_engagement(missing)
         rel_path = str(target.relative_to(self.kb_root)).replace("\\", "/")
 
         return {
             "engagement_id": engagement_id,
             "project_name": manifest.project_name,
-            "status": status,
+            "status": "stored",
+            "stored": True,
             "missing": missing,
+            **completeness,
             "path": rel_path,
             "files": report.get("files_found") or [],
             "errors": report.get("errors") or [],

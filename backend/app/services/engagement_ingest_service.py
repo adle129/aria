@@ -10,6 +10,7 @@ from app.config import Settings
 from app.models.engagement import Engagement
 from app.repositories.engagement_repository import EngagementRepository
 from app.schemas.engagement import EngagementManifest
+from app.services.engagement_completeness import classify_engagement
 from app.services.engagement_manifest_service import resolve_manifest
 from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only, summarize_doc_type_counts
 from app.services.ingest.engagement_preview import build_engagement_preview
@@ -43,11 +44,11 @@ class EngagementIngestService:
         )
 
     @staticmethod
-    def assert_rfqa_gate(chunks: list[dict[str, Any]], engagement_id: str) -> None:
+    def assert_rfq_gate(chunks: list[dict[str, Any]], engagement_id: str) -> None:
         doc_types = {(c.get("metadata") or {}).get("doc_type") for c in chunks}
-        if "rfq" not in doc_types or "qa" not in doc_types:
+        if "rfq" not in doc_types:
             raise EngagementIngestError(
-                f"{engagement_id}: 入库门禁未通过，须同时包含 rfq 与 qa chunks"
+                f"{engagement_id}: 入库门禁未通过，须包含可解析的 rfq chunks"
             )
 
     def _persist_engagement(
@@ -91,7 +92,7 @@ class EngagementIngestService:
             )
 
         chunks = flatten_engagement_chunks(report, manifest, self.kb_root, folder)
-        self.assert_rfqa_gate(chunks, manifest.engagement_id)
+        self.assert_rfq_gate(chunks, manifest.engagement_id)
         assert_vector_chunks_rfqa_only(chunks)
 
         baseline_project: dict[str, Any] | None = None
@@ -125,6 +126,7 @@ class EngagementIngestService:
         all_chunks: list[dict[str, Any]] = []
         baseline_projects: list[dict[str, Any]] = []
         failed_files: list[dict[str, str]] = []
+        engagement_reports: list[dict[str, Any]] = []
         new_documents = 0
         skipped = 0
 
@@ -135,9 +137,32 @@ class EngagementIngestService:
                 new_documents += len({(c.get("metadata") or {}).get("source_doc") for c in chunks})
                 if baseline:
                     baseline_projects.append(baseline)
+                doc_types = {(c.get("metadata") or {}).get("doc_type") for c in chunks}
+                missing = []
+                if "qa" not in doc_types:
+                    missing.append("qa")
+                if baseline is None:
+                    missing.append("quote_manpower")
+                engagement_reports.append(
+                    {
+                        "engagement_id": manifest.engagement_id,
+                        "status": "pending",
+                        "missing": missing,
+                        **classify_engagement(missing),
+                    }
+                )
                 self._persist_engagement(manifest, folder, index_status="pending")
             except EngagementIngestError as exc:
                 failed_files.append({"path": folder.name, "error": str(exc)[:200]})
+                engagement_reports.append(
+                    {
+                        "engagement_id": folder.name,
+                        "status": "failed",
+                        "missing": ["rfq"],
+                        "error": str(exc)[:200],
+                        **classify_engagement(["rfq"]),
+                    }
+                )
                 self._persist_engagement(
                     resolve_manifest(folder),
                     folder,
@@ -146,6 +171,17 @@ class EngagementIngestService:
                 )
             except Exception as exc:
                 failed_files.append({"path": folder.name, "error": str(exc)[:200]})
+                engagement_reports.append(
+                    {
+                        "engagement_id": folder.name,
+                        "status": "failed",
+                        "missing": [],
+                        "error": str(exc)[:200],
+                        "tier": "copper",
+                        "indexable": False,
+                        "automation_impacts": [],
+                    }
+                )
                 try:
                     self._persist_engagement(
                         resolve_manifest(folder),
@@ -165,6 +201,7 @@ class EngagementIngestService:
                 "failed_files": failed_files,
                 "last_import_at": now,
                 "engagements_indexed": 0,
+                "engagements": engagement_reports,
             }
 
         index = KnowledgeIndexService(self.settings, namespace=self.namespace)
@@ -180,6 +217,9 @@ class EngagementIngestService:
                 self._persist_engagement(manifest, folder, index_status="indexed")
             except Exception:
                 pass
+        for report in engagement_reports:
+            if report["status"] == "pending":
+                report["status"] = "indexed"
 
         doc_type_counts = summarize_doc_type_counts(all_chunks)
 
@@ -191,6 +231,7 @@ class EngagementIngestService:
             "last_import_at": state.get("last_index_at"),
             "engagements_indexed": len(folders) - len(failed_files),
             "doc_type_counts": doc_type_counts,
+            "engagements": engagement_reports,
         }
 
     def get_baselines(

@@ -1,6 +1,6 @@
 # R1-KH00 知识库索引与资源调度 ADR
 
-**状态：** Proposed · 待 Backend / DB / Frontend / Ops 评审  
+**状态：** Accepted · 2026-07-10 评审通过  
 **版本：** v1.0 · 2026-07-10  
 **任务：** R1-KH00a–d  
 **依据：** [knowledge-development-standards.md](knowledge-development-standards.md) · [rag-design §6.1](../supplementary/rag-design.md) · [api-design §2.3](../supplementary/api-design.md)
@@ -308,11 +308,11 @@ stream → data-volume staging → validate → atomic rename → DB audit
 
 ### 9.2 KH00d 评审清单
 
-- [ ] Backend：Service/Repository/worker 边界与 job payload 可实现。
-- [ ] DB：复合主键、部分唯一索引、迁移锁表和回滚可接受。
-- [ ] Frontend：202/status/cancel/reused 与状态词典一致。
-- [ ] Ops：feature flag、备份/恢复、监控和非高峰回退路径可执行。
-- [ ] Test：PostgreSQL + Fake Ollama 环境和故障注入方案可落地。
+- [x] Backend：Service/Repository/worker 边界与 job payload 可实现。
+- [x] DB：复合主键、部分唯一索引、迁移锁表和回滚可接受。
+- [x] Frontend：202/status/cancel/reused 与状态词典一致。
+- [x] Ops：feature flag、备份/恢复、监控和非高峰回退路径可执行。
+- [x] Test：PostgreSQL + Fake Ollama 环境和故障注入方案可落地。
 
 KH00d 全部确认后，R1-KH00 状态改为已完成，并启动 KH01/KH02/KH03/KH04 对应分支。
 
