@@ -1,7 +1,20 @@
 "use client";
 
 import { InboxOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Input, Space, Table, Tag, Typography, Upload, message } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Input,
+  Modal,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  Upload,
+  message,
+} from "antd";
 import type { UploadFile } from "antd/es/upload/interface";
 import { useMemo, useState } from "react";
 import { apiClient } from "@/api/client";
@@ -49,6 +62,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
   const [engagementId, setEngagementId] = useState("");
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [replaceExisting, setReplaceExisting] = useState(false);
   const [lastResults, setLastResults] = useState<EngagementPackResult[] | null>(null);
 
   const fileNames = useMemo(() => fileList.map((f) => f.name), [fileList]);
@@ -72,6 +86,20 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
       message.warning("请勿同时上传 ZIP 与散文件");
       return;
     }
+    if (replaceExisting) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: "确认替换同 ID 项目？",
+          content: "新项目包校验通过后将整体替换旧目录；不会合并旧文件。",
+          okText: "确认替换",
+          okButtonProps: { danger: true },
+          cancelText: "取消",
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!confirmed) return;
+    }
 
     const form = new FormData();
     for (const f of fileList) {
@@ -82,6 +110,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
     if (needsEngagementId) {
       form.append("engagement_id", engagementId.trim());
     }
+    form.append("replace_existing", String(replaceExisting));
 
     setUploading(true);
     try {
@@ -106,6 +135,7 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
         message.success(`已上传 ${resp.data.data.uploaded} 套，请点击「更新知识库索引」`);
       }
       setFileList([]);
+      setReplaceExisting(false);
       onUploaded?.();
     } catch {
       // apiClient interceptor
@@ -161,7 +191,23 @@ export default function EngagementUploadPanel({ onUploaded }: EngagementUploadPa
         <Button onClick={() => setFileList([])} disabled={!fileList.length || uploading}>
           清空选择
         </Button>
+        <Checkbox
+          checked={replaceExisting}
+          disabled={uploading}
+          onChange={(event) => setReplaceExisting(event.target.checked)}
+        >
+          替换同 ID 项目
+        </Checkbox>
       </Space>
+
+      {replaceExisting && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginTop: 12 }}
+          message="替换模式不会合并文件；新包校验通过后整体替换旧项目"
+        />
+      )}
 
       {lastResults && lastResults.length > 0 && (
         <Table

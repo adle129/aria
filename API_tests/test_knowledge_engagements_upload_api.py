@@ -77,6 +77,38 @@ def test_engagements_upload_rfq_only_is_indexable_copper(client, upload_dir):
     assert len(pack["automation_impacts"]) == 2
 
 
+def test_engagements_upload_replace_requires_explicit_confirmation(client, upload_dir):
+    if not SAMPLE_RFQ.exists():
+        pytest.skip("sample rfq missing")
+    files = [
+        ("files", ("RFQ_mock.docx", SAMPLE_RFQ.read_bytes(), "application/octet-stream")),
+    ]
+    first = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        data={"engagement_id": "api_replace_engagement"},
+        files=files,
+    )
+    conflict = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        data={"engagement_id": "api_replace_engagement"},
+        files=files,
+    )
+    replaced = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        data={
+            "engagement_id": "api_replace_engagement",
+            "replace_existing": "true",
+        },
+        files=files,
+    )
+
+    assert first.status_code == 200
+    assert conflict.status_code == 409
+    assert "替换" in conflict.json()["msg"]
+    assert replaced.status_code == 200
+    assert replaced.json()["data"]["packs"][0]["status"] == "stored"
+
+
 def test_engagements_upload_missing_engagement_id_400(client, upload_dir):
     get_settings.cache_clear()
     resp = client.post(

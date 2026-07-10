@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,10 @@ from app.services.ingest.engagement_preview import build_engagement_preview
 
 
 class EngagementUploadError(ValueError):
+    pass
+
+
+class EngagementUploadConflict(EngagementUploadError):
     pass
 
 
@@ -70,7 +75,13 @@ class EngagementUploadService:
         self.settings = settings
         self.kb_root = Path(settings.knowledge_base_path)
 
-    def upload_zip_pack(self, filename: str, content: bytes) -> dict[str, Any]:
+    def upload_zip_pack(
+        self,
+        filename: str,
+        content: bytes,
+        *,
+        replace_existing: bool = False,
+    ) -> dict[str, Any]:
         if len(content) > MAX_ZIP_BYTES:
             raise EngagementUploadError(f"{filename}: ZIP 超过 {MAX_ZIP_BYTES // (1024 * 1024)}MB 限制")
         if not filename.lower().endswith(".zip"):
@@ -80,41 +91,53 @@ class EngagementUploadService:
             extracted = Path(tmp) / "extract"
             _safe_extract_zip(content, extracted)
             content_root = _resolve_content_root(extracted)
-            return self._finalize_folder(content_root, suggested_id=Path(filename).stem)
+            return self._finalize_folder(
+                content_root,
+                suggested_id=Path(filename).stem,
+                replace_existing=replace_existing,
+            )
 
     def upload_loose_files(
         self,
         engagement_id: str,
         files: list[tuple[str, bytes]],
+        *,
+        replace_existing: bool = False,
     ) -> dict[str, Any]:
         eid = _validate_engagement_id(engagement_id)
         if not files:
             raise EngagementUploadError("未上传任何文件")
 
-        target = self.kb_root / eid
-        if target.exists():
-            raise EngagementUploadError(f"{eid}: 目录已存在，请先删除或更换 engagement_id")
-
-        target.mkdir(parents=True, exist_ok=True)
-        try:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / eid
+            source.mkdir()
             for name, data in files:
                 safe_name = Path(name).name
                 if not safe_name or safe_name.startswith("~$"):
                     continue
-                (target / safe_name).write_bytes(data)
-            manifest_path = target / "manifest.json"
+                (source / safe_name).write_bytes(data)
+            manifest_path = source / "manifest.json"
             if not manifest_path.is_file():
-                manifest = infer_manifest_from_folder(target)
+                manifest = infer_manifest_from_folder(source).model_copy(
+                    update={"engagement_id": eid, "project_name": eid.replace("_", " ").title()}
+                )
                 manifest_path.write_text(
                     json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2),
                     encoding="utf-8",
                 )
-            return self._finalize_folder(target, suggested_id=eid)
-        except Exception:
-            shutil.rmtree(target, ignore_errors=True)
-            raise
+            return self._finalize_folder(
+                source,
+                suggested_id=eid,
+                replace_existing=replace_existing,
+            )
 
-    def _finalize_folder(self, content_root: Path, *, suggested_id: str) -> dict[str, Any]:
+    def _finalize_folder(
+        self,
+        content_root: Path,
+        *,
+        suggested_id: str,
+        replace_existing: bool,
+    ) -> dict[str, Any]:
         content_root = Path(content_root)
         manifest_path = content_root / "manifest.json"
         if manifest_path.is_file():
@@ -134,15 +157,39 @@ class EngagementUploadService:
         engagement_id = _validate_engagement_id(manifest.engagement_id or suggested_id)
         target = self.kb_root / engagement_id
 
-        if content_root.resolve() != target.resolve():
-            if target.exists():
-                raise EngagementUploadError(f"{engagement_id}: 目录已存在")
-            self.kb_root.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(content_root, target)
+        if target.exists() and not replace_existing:
+            raise EngagementUploadConflict(
+                f"{engagement_id}: 项目已存在；如需替换，请勾选“替换同 ID 项目”"
+            )
 
-        report = build_engagement_preview(target)
+        self.kb_root.mkdir(parents=True, exist_ok=True)
+        staging = self.kb_root / f".staging-{engagement_id}-{uuid.uuid4().hex}"
+        backup = self.kb_root / f".backup-{engagement_id}-{uuid.uuid4().hex}"
+        shutil.copytree(content_root, staging)
+        report = build_engagement_preview(staging)
         missing = _missing_from_preview(report)
         completeness = classify_engagement(missing)
+        if replace_existing and not completeness["indexable"]:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise EngagementUploadError(
+                f"{engagement_id}: 替换包缺少可解析 RFQ，已保留原项目"
+            )
+
+        moved_old = False
+        try:
+            if target.exists():
+                target.rename(backup)
+                moved_old = True
+            staging.rename(target)
+        except Exception:
+            if moved_old and not target.exists() and backup.exists():
+                backup.rename(target)
+            raise
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+        if moved_old:
+            shutil.rmtree(backup, ignore_errors=True)
+
         rel_path = str(target.relative_to(self.kb_root)).replace("\\", "/")
 
         return {
@@ -162,6 +209,7 @@ class EngagementUploadService:
         zip_files: list[tuple[str, bytes]] | None = None,
         loose_files: list[tuple[str, bytes]] | None = None,
         engagement_id: str | None = None,
+        replace_existing: bool = False,
     ) -> dict[str, Any]:
         zip_files = zip_files or []
         loose_files = loose_files or []
@@ -175,11 +223,23 @@ class EngagementUploadService:
         if loose_files:
             if not engagement_id:
                 raise EngagementUploadError("散文件上传须提供 engagement_id")
-            results.append(self.upload_loose_files(engagement_id, loose_files))
+            results.append(
+                self.upload_loose_files(
+                    engagement_id,
+                    loose_files,
+                    replace_existing=replace_existing,
+                )
+            )
         else:
             if len(zip_files) > MAX_ENGAGEMENTS_PER_REQUEST:
                 raise EngagementUploadError(f"单次最多上传 {MAX_ENGAGEMENTS_PER_REQUEST} 套")
             for name, data in zip_files:
-                results.append(self.upload_zip_pack(name, data))
+                results.append(
+                    self.upload_zip_pack(
+                        name,
+                        data,
+                        replace_existing=replace_existing,
+                    )
+                )
 
         return {"packs": results, "uploaded": len(results)}

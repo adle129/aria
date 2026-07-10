@@ -7,7 +7,11 @@ from app.config import get_settings
 from app.database import get_db
 from app.schemas.knowledge import EngagementUploadPackResult, KnowledgeSearchRequest
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
-from app.services.engagement_upload_service import EngagementUploadError, EngagementUploadService
+from app.services.engagement_upload_service import (
+    EngagementUploadConflict,
+    EngagementUploadError,
+    EngagementUploadService,
+)
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.rag_service import RAGService
 from app.services.task_job_service import TaskJobService
@@ -63,6 +67,7 @@ def knowledge_search(body: KnowledgeSearchRequest, rag: RAGService = Depends(get
 async def engagements_upload(
     files: list[UploadFile] = File(...),
     engagement_id: str | None = Form(default=None),
+    replace_existing: bool = Form(default=False),
     _admin=Depends(require_kb_admin),
 ):
     settings = get_settings()
@@ -84,11 +89,14 @@ async def engagements_upload(
             zip_files=zip_files or None,
             loose_files=loose_files or None,
             engagement_id=engagement_id,
+            replace_existing=replace_existing,
         )
         data["packs"] = [
             EngagementUploadPackResult.model_validate(pack).model_dump()
             for pack in data["packs"]
         ]
+    except EngagementUploadConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
     except EngagementUploadError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}

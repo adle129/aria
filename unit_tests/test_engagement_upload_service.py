@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from app.config import Settings
-from app.services.engagement_upload_service import EngagementUploadError, EngagementUploadService
+from app.services.engagement_upload_service import (
+    EngagementUploadConflict,
+    EngagementUploadError,
+    EngagementUploadService,
+)
 
 SAMPLE_RFQ = Path(__file__).resolve().parents[1] / "samples" / "rfq" / "mock_chassis_rfq.docx"
 QA_TEMPLATE = Path(__file__).resolve().parents[1] / "backend" / "data" / "templates" / "qa_template.xlsx"
@@ -76,6 +80,41 @@ def test_upload_rfq_only_is_stored_as_indexable_copper(upload_service):
     assert result["indexable"] is True
     assert result["missing"] == ["qa", "quote_manpower"]
     assert len(result["automation_impacts"]) == 2
+
+
+def test_duplicate_engagement_requires_explicit_replace(upload_service):
+    if not SAMPLE_RFQ.exists():
+        pytest.skip("sample rfq missing")
+    files = [("RFQ_mock.docx", SAMPLE_RFQ.read_bytes())]
+    upload_service.upload_loose_files("duplicate_engagement", files)
+
+    with pytest.raises(EngagementUploadConflict, match="替换"):
+        upload_service.upload_loose_files("duplicate_engagement", files)
+
+
+def test_replace_existing_engagement_atomically_swaps_files(upload_service):
+    if not SAMPLE_RFQ.exists() or not QA_TEMPLATE.exists():
+        pytest.skip("sample files missing")
+    upload_service.upload_loose_files(
+        "replace_engagement",
+        [
+            ("RFQ_mock.docx", SAMPLE_RFQ.read_bytes()),
+            ("Q_A_mock.xlsx", QA_TEMPLATE.read_bytes()),
+        ],
+    )
+
+    result = upload_service.upload_loose_files(
+        "replace_engagement",
+        [("RFQ_replacement.docx", SAMPLE_RFQ.read_bytes())],
+        replace_existing=True,
+    )
+    target = Path(upload_service.kb_root) / "replace_engagement"
+
+    assert result["tier"] == "copper"
+    assert (target / "RFQ_replacement.docx").is_file()
+    assert not (target / "Q_A_mock.xlsx").exists()
+    assert not list(Path(upload_service.kb_root).glob(".backup-*"))
+    assert not list(Path(upload_service.kb_root).glob(".staging-*"))
 
 
 def test_upload_batch_rejects_more_than_five_zips(upload_service):

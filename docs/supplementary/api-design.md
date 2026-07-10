@@ -673,11 +673,12 @@ POST /api/v1/knowledge/engagements/import-manifest
 POST /api/v1/knowledge/engagements/upload
 ```
 
-`multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）。  
+`multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）和 `replace_existing`（默认 false）。
 **限制：** 单次请求 **≤5 套**；单 ZIP / 请求体 / Nginx 限额必须使用同一配置口径；默认值在部署前按内网样本确认。
 **校验：** Unicode NFC、大小写不敏感类型识别、POSIX 相对路径；ZIP 文件数、解压后总量、压缩比、链接与路径穿越；历史 Excel 默认 `.xlsx`。
 **落盘：** 流式写 `${ARIA_DATA_ROOT}/app/.staging`，校验成功后 atomic rename；保存 `original_filename`、`uploaded_at`、`uploaded_by`、`content_hash`。
 响应：每套 `status=stored`、`stored`、`tier`、`indexable`、`missing[]`、`automation_impacts[]` 与写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
+同 ID 已存在且未明确 `replace_existing=true` 时返回 `409`；替换不合并旧文件，仅在新包包含可解析 RFQ 且校验通过后原子替换，失败保留原目录。
 
 上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
 
