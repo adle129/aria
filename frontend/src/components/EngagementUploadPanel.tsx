@@ -19,7 +19,10 @@ import type { UploadFile } from "antd/es/upload/interface";
 import axios from "axios";
 import { useMemo, useState } from "react";
 import { apiClient } from "@/api/client";
-import { uploadNeedsEngagementId } from "@/lib/engagementUpload";
+import {
+  uploadNeedsEngagementId,
+  validateEngagementUpload,
+} from "@/lib/engagementUpload";
 import { formatCapacityBytes } from "@/lib/kbCapacity";
 
 const { Paragraph, Text } = Typography;
@@ -81,6 +84,16 @@ export default function EngagementUploadPanel({
     useState<CapacityErrorData | null>(null);
 
   const fileNames = useMemo(() => fileList.map((f) => f.name), [fileList]);
+  const selectionError = useMemo(
+    () =>
+      validateEngagementUpload(
+        fileList.map((file) => ({
+          name: file.name,
+          size: file.size ?? 0,
+        })),
+      ),
+    [fileList],
+  );
   const needsEngagementId = uploadNeedsEngagementId(fileNames);
   const zipCount = fileNames.filter((n) => n.toLowerCase().endsWith(".zip")).length;
 
@@ -91,6 +104,10 @@ export default function EngagementUploadPanel({
     }
     if (!fileList.length) {
       message.warning("请选择 ZIP 或项目文件");
+      return;
+    }
+    if (selectionError) {
+      message.warning(selectionError);
       return;
     }
     if (needsEngagementId && !engagementId.trim()) {
@@ -171,8 +188,19 @@ export default function EngagementUploadPanel({
       <Paragraph type="secondary" style={{ marginBottom: 12 }}>
         单套：上传 <Text strong>ZIP</Text>（推荐，目录内含 RFQ / Q_A / 报价 Excel），或填写{" "}
         <Text strong>Engagement ID</Text> 后一次选择多文件。单次最多 <Text strong>5</Text> 个
-        ZIP；散文件模式每次 1 套。
+        ZIP，单个上传文件最多 100MB；ZIP 内单文件最多 50MB、解压总量最多
+        500MB，异常压缩比和不安全路径会被拒绝。散文件模式每次 1 套。
       </Paragraph>
+
+      {selectionError && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="当前选择无法上传"
+          description={`${selectionError}。请调整文件后重试。`}
+        />
+      )}
 
       {capacityError && (
         <Alert
@@ -217,7 +245,7 @@ export default function EngagementUploadPanel({
           type="primary"
           icon={<UploadOutlined />}
           loading={uploading}
-          disabled={!fileList.length || writeProtected}
+          disabled={!fileList.length || writeProtected || Boolean(selectionError)}
           onClick={() => void handleUpload()}
         >
           上传并落盘

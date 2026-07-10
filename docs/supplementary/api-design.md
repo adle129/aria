@@ -687,9 +687,9 @@ POST /api/v1/knowledge/engagements/upload
 ```
 
 `multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）和 `replace_existing`（默认 false）。
-**限制：** 单次请求 **≤5 套**；单 ZIP / 请求体 / Nginx 限额必须使用同一配置口径；默认值在部署前按内网样本确认。
-**校验：** Unicode NFC、大小写不敏感类型识别、POSIX 相对路径；ZIP 文件数、解压后总量、压缩比、链接与路径穿越；历史 Excel 默认 `.xlsx`。
-**落盘：** 流式写 `${ARIA_DATA_ROOT}/app/.staging`，校验成功后 atomic rename；保存 `original_filename`、`uploaded_at`、`uploaded_by`、`content_hash`。
+**限制（KH06 默认）：** 单次请求 **≤5 套**；上传文件/ZIP 100MB、ZIP 条目 500、单个解压文件 50MB、解压总量 500MB、压缩比 100。由 `UPLOAD_MAX_*` 环境变量配置，Nginx 请求体限制不得低于应用上限。
+**校验：** ZIP 使用逐条流式解压；拒绝绝对路径、`..`、Windows 盘符/UNC、反斜杠逃逸、symlink/设备条目、损坏/加密/不支持压缩格式。违反限制返回 `400 { "code": 400, "msg": "<原因>" }`。
+**落盘：** `UploadFile` 以默认 1MB chunk 流式写 `${ARIA_DATA_ROOT}/app/.staging/{request_id}`，禁止整包读取；校验成功后 atomic rename，400/409/507/异常均清理 staging。
 响应：每套 `status=stored`、`stored`、`tier`、`indexable`、`missing[]`、`automation_impacts[]` 与写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
 同 ID 已存在且未明确 `replace_existing=true` 时返回 `409`；替换不合并旧文件，仅在新包包含可解析 RFQ 且校验通过后原子替换，失败保留原目录。
 

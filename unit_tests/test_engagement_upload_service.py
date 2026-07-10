@@ -1,5 +1,6 @@
 import io
 import json
+import stat
 import zipfile
 from pathlib import Path
 
@@ -121,3 +122,71 @@ def test_upload_batch_rejects_more_than_five_zips(upload_service):
     zips = [("a.zip", b"PK\x05\x06")] * 6
     with pytest.raises(EngagementUploadError, match="5"):
         upload_service.upload_batch(zip_files=zips)
+
+
+@pytest.mark.parametrize(
+    "member_name",
+    ["../escape.txt", r"..\escape.txt", "/absolute.txt", "C:/drive.txt"],
+)
+def test_zip_rejects_path_escape_and_cleans_staging(
+    upload_service, member_name
+):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as zf:
+        zf.writestr(member_name, b"blocked")
+
+    with pytest.raises(EngagementUploadError, match="非法路径"):
+        upload_service.upload_zip_pack("unsafe.zip", payload.getvalue())
+
+    assert not (Path(upload_service.kb_root) / "unsafe").exists()
+    staging = Path(upload_service.kb_root).parent / ".staging"
+    assert not [p for p in staging.iterdir()] if staging.exists() else True
+
+
+def test_zip_rejects_symlink_entry(upload_service):
+    payload = io.BytesIO()
+    link = zipfile.ZipInfo("project/link")
+    link.create_system = 3
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+    with zipfile.ZipFile(payload, "w") as zf:
+        zf.writestr(link, "target")
+
+    with pytest.raises(EngagementUploadError, match="链接"):
+        upload_service.upload_zip_pack("links.zip", payload.getvalue())
+
+
+def test_zip_rejects_abnormal_compression_ratio(upload_service):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(
+        payload, "w", compression=zipfile.ZIP_DEFLATED
+    ) as zf:
+        zf.writestr("project/RFQ_bomb.docx", b"0" * 100_000)
+
+    with pytest.raises(EngagementUploadError, match="压缩比"):
+        upload_service.upload_zip_pack("bomb.zip", payload.getvalue())
+
+
+def test_zip_rejects_too_many_entries(tmp_path):
+    service = EngagementUploadService(
+        Settings(
+            knowledge_base_path=str(tmp_path / "kb"),
+            upload_max_entries=1,
+        )
+    )
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as zf:
+        zf.writestr("project/a.txt", b"a")
+        zf.writestr("project/b.txt", b"b")
+
+    with pytest.raises(EngagementUploadError, match="条目数"):
+        service.upload_zip_pack("many.zip", payload.getvalue())
+
+
+def test_zip_rejects_file_directory_path_conflict(upload_service):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as zf:
+        zf.writestr("project/RFQ.docx", b"file")
+        zf.writestr("project/RFQ.docx/nested.txt", b"nested")
+
+    with pytest.raises(EngagementUploadError, match="路径冲突"):
+        upload_service.upload_zip_pack("conflict.zip", payload.getvalue())

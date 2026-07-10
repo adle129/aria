@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -20,6 +22,7 @@ from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.task_job_service import TaskJobService
+from app.services.upload_stream_service import UploadStreamService
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -86,25 +89,27 @@ async def engagements_upload(
 ):
     settings = get_settings()
     service = EngagementUploadService(settings)
+    stream_service = UploadStreamService(settings)
     disk_guard = DiskGuardService(settings)
-    zip_files: list[tuple[str, bytes]] = []
-    loose_files: list[tuple[str, bytes]] = []
-
-    for upload in files:
-        if not upload.filename:
-            continue
-        content = await upload.read()
-        if upload.filename.lower().endswith(".zip"):
-            zip_files.append((upload.filename, content))
-        else:
-            loose_files.append((upload.filename, content))
-
+    request_dir: Path | None = None
+    required_bytes = 0
     try:
-        required_bytes = sum(
-            len(content) for _, content in [*zip_files, *loose_files]
-        ) * 2
+        request_dir = stream_service.create_request_dir()
+        zip_files: list[tuple[str, Path]] = []
+        loose_files: list[tuple[str, Path]] = []
+        for ordinal, upload in enumerate(files, start=1):
+            if not upload.filename:
+                continue
+            name, path, size = await stream_service.stage_upload(
+                upload,
+                request_dir,
+                ordinal=ordinal,
+            )
+            required_bytes += size * 2
+            target = zip_files if name.lower().endswith(".zip") else loose_files
+            target.append((name, path))
         disk_guard.assert_writable(required_bytes=required_bytes)
-        data = service.upload_batch(
+        data = service.upload_batch_paths(
             zip_files=zip_files or None,
             loose_files=loose_files or None,
             engagement_id=engagement_id,
@@ -129,6 +134,9 @@ async def engagements_upload(
         raise
     except EngagementUploadError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    finally:
+        if request_dir is not None:
+            stream_service.cleanup(request_dir)
     return {"code": 200, "data": data}
 
 

@@ -144,3 +144,42 @@ def test_engagements_upload_returns_507_with_recovery_action(
     assert response.status_code == 507
     assert response.json()["data"]["available_bytes"] == 20
     assert "联系系统管理员" in response.json()["data"]["action"]
+
+
+def test_engagements_upload_rejects_zip_traversal_without_partial_files(
+    client, upload_dir
+):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as zf:
+        zf.writestr(r"..\escaped.txt", b"blocked")
+
+    response = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        files=[
+            (
+                "files",
+                ("unsafe.zip", payload.getvalue(), "application/zip"),
+            )
+        ],
+    )
+
+    assert response.status_code == 400
+    assert "非法路径" in response.json()["msg"]
+    assert not (upload_dir / "unsafe").exists()
+    staging = upload_dir.parent / ".staging"
+    assert not list(staging.iterdir()) if staging.exists() else True
+
+
+def test_engagements_upload_rejects_malformed_zip(client, upload_dir):
+    response = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        files=[
+            (
+                "files",
+                ("broken.zip", b"not-a-zip", "application/zip"),
+            )
+        ],
+    )
+
+    assert response.status_code == 400
+    assert "ZIP 损坏" in response.json()["msg"]

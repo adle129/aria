@@ -223,6 +223,8 @@ def test_generate_quote_empty_modules():
 
 **KH05 已执行：** `test_disk_guard_service.py` 覆盖 warning/write protection、required+reserve 和 ENOSPC；health API 校验 data/tmp 字段；上传与 import API 注入容量不足并断言结构化 507；`kbCapacity.test.ts` 覆盖前端告警和“读服务仍可用”文案。
 
+**KH06 已执行：** `test_upload_stream_service.py` 证明上传按 chunk 写数据盘 staging 并清理超限残片；`test_engagement_upload_service.py` 覆盖 `..`、反斜杠、绝对路径、盘符、symlink、异常压缩比和条目上限；上传 API 覆盖恶意/损坏 ZIP 400 且无半目录；`engagementUpload.test.ts` 覆盖前端套数、大小和混传预检。
+
 ### 8.3 知识库前端测试
 
 | 测试文件 | 覆盖 |

@@ -275,9 +275,9 @@ active_generation（工程师持续读取）
 
 **磁盘与 staging：**
 
-- Web 上传流式写 `${ARIA_DATA_ROOT}/app/.staging/`；校验完成后 atomic rename 至 `knowledge_base/`。
+- **KH06 已实现：** Web 上传以 1MB chunk 流式写 `${ARIA_DATA_ROOT}/app/.staging/{request_id}`；校验完成后 atomic rename 至 `knowledge_base/`，所有失败路径清理 staging。
 - **KH05 已实现：** 同时检查数据盘与临时盘；80% 告警、90% 写保护（可配置），所需空间加保留量不足或 ENOSPC 返回结构化 507，既有检索/下载不受影响。
-- ZIP 限制压缩包大小、文件数、解压后总大小、单文件大小与压缩比；拒绝绝对路径、`..`、反斜杠逃逸和链接条目。
+- ZIP 默认限制 100MB、500 条目、500MB 解压总量、50MB 单文件与 100 倍压缩比；拒绝绝对路径、`..`、盘符/UNC、反斜杠逃逸、链接/设备条目及损坏/加密包。
 
 **Windows 客户端 → Linux 服务器：**
 
