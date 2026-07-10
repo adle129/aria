@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = 24
 
     ollama_max_concurrent: int = 1
+    ollama_global_scheduling_enabled: bool = True
+    ollama_lease_ttl_seconds: int = 30
+    ollama_lease_heartbeat_seconds: int = 10
+    ollama_lease_query_wait_timeout_seconds: int = 30
+    ollama_lease_worker_wait_timeout_seconds: int = 600
     rag_similarity_threshold: float = 0.65
     task_worker_inline: bool = False
     task_worker_poll_seconds: float = 2.0

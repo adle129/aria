@@ -13,6 +13,7 @@ from app.services.engagement_upload_service import (
     EngagementUploadService,
 )
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
+from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.task_job_service import TaskJobService
 
@@ -48,12 +49,21 @@ def knowledge_baselines(
 
 @router.post("/search")
 def knowledge_search(body: KnowledgeSearchRequest, rag: RAGService = Depends(get_rag_service)):
-    results = rag.search_similar_projects(
-        body.query,
-        top_k=body.top_k,
-        function_filter=body.function_filter,
-        doc_type_filter=body.doc_type_filter,
-    )
+    try:
+        results = rag.search_similar_projects(
+            body.query,
+            top_k=body.top_k,
+            function_filter=body.function_filter,
+            doc_type_filter=body.doc_type_filter,
+        )
+    except OllamaLeaseTimeout:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": 503,
+                "msg": "本地模型资源繁忙，请稍后重试",
+            },
+        )
     return {
         "code": 200,
         "data": {

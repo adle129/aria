@@ -130,6 +130,7 @@ class EngagementIngestService:
         cancel_check: Callable[[], bool] | None = None,
         created_by_job_id: str | None = None,
         generation_callback: Callable[[str], None] | None = None,
+        index_request_type: str = "kb_full",
     ) -> dict[str, Any]:
         if self.settings.mock_rag:
             raise EngagementIngestError("MOCK_RAG=true：生产 ingest 需 MOCK_RAG=false")
@@ -232,6 +233,7 @@ class EngagementIngestService:
             all_chunks,
             corpus_path=str(self.kb_root.resolve()),
             created_by_job_id=created_by_job_id,
+            request_type=index_request_type,
         )
         if generation_callback:
             generation_callback(staged["generation_id"])

@@ -224,6 +224,7 @@ class KnowledgeIndexService:
         corpus_path: str | None = None,
         source_file: str | None = None,
         created_by_job_id: str | None = None,
+        request_type: str = "kb_full",
     ) -> dict[str, Any]:
         if self.settings.mock_rag:
             raise EmbeddingError("MOCK_RAG=true：R1 索引需 MOCK_RAG=false + Ollama embedding")
@@ -249,7 +250,9 @@ class KnowledgeIndexService:
 
         try:
             texts = [c["content"] for c in chunks]
-            embeddings = embed_texts(self.settings, texts)
+            embeddings = embed_texts(
+                self.settings, texts, request_type=request_type
+            )
             metadatas = []
             for c in chunks:
                 meta = dict(c.get("metadata") or {})

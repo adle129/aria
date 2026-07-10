@@ -99,11 +99,15 @@ class KnowledgeIndexJobService:
             job.payload = {**(job.payload or {}), "generation_id": generation_id}
             TaskJobRepository(db).update(job)
 
+        mode = (job.payload or {}).get("mode", "full")
         return EngagementIngestService(self.settings, db).import_all(
             progress_callback=report_progress,
             cancel_check=cancel_requested,
             created_by_job_id=job.id,
             generation_callback=record_generation,
+            index_request_type=(
+                "kb_incremental" if mode == "incremental" else "kb_full"
+            ),
         )
 
     def serialize(self, db: Session, job: TaskJob) -> dict[str, Any]:

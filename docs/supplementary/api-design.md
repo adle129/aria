@@ -611,6 +611,7 @@ POST /api/v1/knowledge/search
 - `MOCK_RAG=true` 与 pgvector 真实检索返回**同一 schema**；Real 允许空 `results`；空或低置信度时 `insufficient_evidence: true`（见 [rag-design.md §3.1](rag-design.md)）
 - 展示用人天等字段来自 `comparison_table.projects`，不在 hit 顶层 duplicate
 - 实现：`RAGService.search_similar_projects()` — RFQ 与 knowledge 共用
+- Ollama 全局租约等待超过 query timeout 时返回 `503 {"code":503,"msg":"本地模型资源繁忙，请稍后重试"}`；不得暴露 holder、SQL 或内部路径。
 
 #### 触发导入
 

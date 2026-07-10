@@ -219,6 +219,8 @@ def test_generate_quote_empty_modules():
 | KH10–KH12 | 增量/删除、job UI、清单状态与批次一致性 | 禁止 R1-β |
 | KH13 | CI 故障矩阵 + 4090 单卡实机报告 | 不得承诺日间入库影响可控 |
 
+**KH04 已执行：** `test_ollama_lease_repository.py` 覆盖优先级、释放和 TTL 回收；`test_embedding_service.py` 覆盖 KB 分批重取租约；`test_llm_service.py` 覆盖 RFQ 优先级；`test_knowledge_api.py` 覆盖 query timeout→503。PostgreSQL backend/worker 双容器互斥作为集成 smoke。
+
 ### 8.3 知识库前端测试
 
 | 测试文件 | 覆盖 |

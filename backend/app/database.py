@@ -33,6 +33,7 @@ def get_db() -> Generator[Session, None, None]:
 def init_db() -> None:
     from app.models.engagement import Engagement
     from app.models.knowledge_index_generation import KnowledgeIndexGeneration, KnowledgeIndexState
+    from app.models.ollama_resource_lease import OllamaResourceLease
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
@@ -48,6 +49,7 @@ def init_db() -> None:
             Engagement.__table__,
             KnowledgeIndexGeneration.__table__,
             KnowledgeIndexState.__table__,
+            OllamaResourceLease.__table__,
         ],
     )
     _ensure_rfq_task_columns()

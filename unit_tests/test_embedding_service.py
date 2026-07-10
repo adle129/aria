@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock
 
 import pytest
@@ -84,6 +85,13 @@ def test_embed_texts_splits_large_input_into_bounded_batches(monkeypatch):
         embedding_batch_size=2,
     )
     batches: list[list[str]] = []
+    acquisitions: list[str] = []
+
+    class FakeGate:
+        @contextmanager
+        def acquire(self, *, request_type):
+            acquisitions.append(request_type)
+            yield
 
     class FakeResponse:
         status_code = 200
@@ -113,10 +121,17 @@ def test_embed_texts_splits_large_input_into_bounded_batches(monkeypatch):
         "app.services.embedding_service.ollama_http_client",
         lambda _timeout: FakeClient(),
     )
+    monkeypatch.setattr(
+        "app.services.embedding_service.get_ollama_gate",
+        lambda _settings: FakeGate(),
+    )
 
-    vectors = embed_texts(settings, ["1", "2", "3", "4", "5"])
+    vectors = embed_texts(
+        settings, ["1", "2", "3", "4", "5"], request_type="kb_full"
+    )
 
     assert batches == [["1", "2"], ["3", "4"], ["5"]]
+    assert acquisitions == ["kb_full", "kb_full", "kb_full"]
     assert vectors == [[1.0], [2.0], [3.0], [4.0], [5.0]]
 
 

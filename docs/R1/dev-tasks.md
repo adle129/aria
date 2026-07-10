@@ -125,7 +125,7 @@
 | R1-KH01 | P0-1 | **铜级缺件口径对齐** | 缺 Q&A/报价项目可落盘；RFQ 可独立参与 R1 Top-3；导入报告标明 M3/M4 影响；删除 `rfq+qa` 硬门禁冲突 | R1-K02 | **已完成** |
 | R1-KH02 | P0-1 | **索引任务化 + 单飞锁** | `kb_index` job；API 202 + job_id；服务端重复请求复用当前 job；双管理员不可并行 rebuild | R1-KH00, R1-I01–I03, R1-K07 | **已完成** |
 | R1-KH03 | P0-1 | **Blue/Green 索引原子切换** | generation schema 迁移；staging 构建/校验后事务切 active；失败/重启保留旧索引；读路径只查 active | R1-KH00, R1-KH02, R1-I05 | **已完成** |
-| R1-KH04 | P0-1 | **跨进程 Ollama 调度与优先级** | ADR 选定 advisory lock/租约表；交互检索 > RFQ > KB 增量 > 全量；覆盖 backend/worker；索引分批让路 | R1-KH00, R1-KH02, R1-I04 | 待开始 |
+| R1-KH04 | P0-1 | **跨进程 Ollama 调度与优先级** | ADR 选定 advisory lock/租约表；交互检索 > RFQ > KB 增量 > 全量；覆盖 backend/worker；索引分批让路 | R1-KH00, R1-KH02, R1-I04 | **已完成** |
 | R1-KH05 | P0-1 | **磁盘保护与 507 契约** | 数据盘/tmp 预检；80% warning、90% 写保护；ENOSPC→507；health 暴露容量；既有查询不受写保护影响 | R1-E05 | 待开始 |
 | R1-KH06 | P0-1 | **上传 staging 与 ZIP 安全** | 流式写数据盘 staging；解压总量/条目数/压缩比/路径校验；成功后 atomic rename；失败无半目录 | R1-KH05, R1-K06 | 待开始 |
 | R1-KH07 | P0-2 | **Windows→Linux 文件兼容** | Unicode NFC、路径分隔符、大小写不敏感识别；manifest 仅 POSIX 相对路径；明确 `.xlsx`/`.xls`；Windows ZIP/中文名回归 | R1-KH06 | 待开始 |
@@ -185,6 +185,8 @@
 **KH02 进度（2026-07-10）：** 已完成 Alembic job 扩展、PostgreSQL single-flight、worker handler、202/status/list/active/cancel API、旧 200 feature flag、运维 enqueue 脚本和前端轮询面板。取消后的 staging 清理与旧 active 不变由 KH03 generation 实现后关闭。
 
 **KH03 进度（2026-07-10）：** 已完成 generation/state schema、legacy 无损回填、staging count 校验、事务切 active/previous pointer、失败清理、active-only search/stats/documents、保留 active + previous 和 generation UI。PostgreSQL 临时库已验证 006→007 legacy 迁移。
+
+**KH04 进度（2026-07-10）：** 已完成 PostgreSQL 持久租约、短事务 advisory grant、TTL/heartbeat/崩溃回收、query/RFQ/KB 四级优先级与 aging；backend/worker 共用全局闸，KB 每 16 chunks 释放并重取租约。008 migration、跨容器互斥、503 契约与 Fake Ollama/单元测试已验证。
 
 ### Phase B 详细拆分
 

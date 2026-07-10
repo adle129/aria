@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.config import Settings
+from app.services.ollama_concurrency import get_ollama_gate
 from app.services.ollama_service import ollama_http_client
 from app.services.rfq_text_extractor import extract_rfq_from_text
 from app.utils.json_utils import safe_parse_llm_json
@@ -41,7 +42,9 @@ class LLMService:
             "stream": False,
             **self.DEFAULT_PARAMS,
         }
-        with ollama_http_client(self.timeout_seconds) as client:
-            response = client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json().get("response", "")
+        gate = get_ollama_gate(self.settings)
+        with gate.acquire(request_type="rfq"):
+            with ollama_http_client(self.timeout_seconds) as client:
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                return response.json().get("response", "")

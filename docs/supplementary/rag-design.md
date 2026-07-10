@@ -265,7 +265,7 @@ active_generation（工程师持续读取）
 - **KH03 已实现：** legacy chunks 迁移为 `legacy-<namespace hash>` generation；staging 完整写入并校验 count 后，单事务切换 pointer；保留 active + previous，GC 失败不回滚 active。
 - `kb_index` 进入 PostgreSQL job 队列；同一生产 namespace 只允许 1 个写任务。重复点击返回当前 job，不重复执行。
 - 模型优先级：**交互 query embedding > RFQ 解析/生成 > KB 增量 > KB 全量重建**。KB 按小批释放全局租约并可安全取消；暂停/恢复仅在 checkpoint 语义和恢复测试通过后启用。
-- backend 与 worker 的进程内 Semaphore 不能作为全局闸；采用 PostgreSQL advisory lock/带租期资源表（项目不引入 Redis）。
+- **KH04 已实现：** `ollama_resource_leases` 保存 queued/acquired/released/expired 状态，短事务 advisory lock 串行化授予；调用期间 heartbeat 续租、崩溃后 TTL 回收。进程内 Semaphore 仅作防御性限制，不作为生产并发真相。
 
 **增量与删除：**
 

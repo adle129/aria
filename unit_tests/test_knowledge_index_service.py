@@ -106,7 +106,7 @@ def test_index_chunks_mock_embed_and_store(monkeypatch, tmp_path):
     monkeypatch.setattr(svc, "_generations", FakeGenerations())
     monkeypatch.setattr(
         "app.services.knowledge_index_service.embed_texts",
-        lambda s, texts: [[0.01] * 768 for _ in texts],
+        lambda s, texts, **_kwargs: [[0.01] * 768 for _ in texts],
     )
     monkeypatch.setattr("app.services.knowledge_index_service.PgVectorStore.ensure_schema", lambda: None)
 

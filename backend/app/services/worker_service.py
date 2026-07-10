@@ -16,7 +16,6 @@ from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.engagement_ingest_service import EngagementIngestCancelled
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
-from app.services.ollama_concurrency import get_ollama_gate
 from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.task_job_service import TaskJobService
 
@@ -66,9 +65,7 @@ class WorkerService:
 
     def process_job(self, db: Session, job: TaskJob) -> dict | None:
         if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
-            gate = get_ollama_gate(self.settings)
-            with gate.acquire():
-                self.analysis_service.analyze_task(db, job.ref_id)
+            self.analysis_service.analyze_task(db, job.ref_id)
             return None
         if job.job_type == TaskJobService.JOB_KB_INDEX:
             return KnowledgeIndexJobService(self.settings).execute(db, job)

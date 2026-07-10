@@ -135,6 +135,7 @@ def test_import_all_mock_embed(engagement_folder, tmp_path, monkeypatch):
             corpus_path=None,
             source_file=None,
             created_by_job_id=None,
+            request_type="kb_full",
         ):
             rfq = sum(1 for c in chunks if (c.get("metadata") or {}).get("doc_type") == "rfq")
             qa = sum(1 for c in chunks if (c.get("metadata") or {}).get("doc_type") == "qa")

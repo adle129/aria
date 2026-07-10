@@ -85,7 +85,12 @@ def _serial_embed(
     return vectors
 
 
-def embed_texts(settings: Settings, texts: list[str]) -> list[list[float]]:
+def embed_texts(
+    settings: Settings,
+    texts: list[str],
+    *,
+    request_type: str = "query",
+) -> list[list[float]]:
     """Embed a list of texts via Ollama.
 
     Tries the batch /api/embed endpoint (Ollama ≥0.3) first.
@@ -103,11 +108,11 @@ def embed_texts(settings: Settings, texts: list[str]) -> list[list[float]]:
 
     gate = get_ollama_gate(settings)
     try:
-        with gate.acquire():
-            with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
-                all_vectors: list[list[float]] = []
-                for start in range(0, len(prompts), batch_size):
-                    batch = prompts[start : start + batch_size]
+        with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
+            all_vectors: list[list[float]] = []
+            for start in range(0, len(prompts), batch_size):
+                batch = prompts[start : start + batch_size]
+                with gate.acquire(request_type=request_type):
                     vectors = _try_batch_embed(
                         client, base, settings.embedding_model, batch
                     )
@@ -115,7 +120,7 @@ def embed_texts(settings: Settings, texts: list[str]) -> list[list[float]]:
                         vectors = _serial_embed(
                             client, base, settings.embedding_model, batch
                         )
-                    all_vectors.extend(vectors)
-                return all_vectors
+                all_vectors.extend(vectors)
+            return all_vectors
     except httpx.HTTPError as exc:
         raise EmbeddingError(f"Ollama embedding failed: {exc}") from exc

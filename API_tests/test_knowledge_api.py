@@ -38,6 +38,29 @@ def test_knowledge_search_empty_query_rejected(client):
     assert response.status_code == 422
 
 
+def test_knowledge_search_returns_503_when_ollama_lease_times_out(
+    client, monkeypatch
+):
+    from app.services.ollama_concurrency import OllamaLeaseTimeout
+    from app.services.rag_service import RAGService
+
+    def fail_busy(*_args, **_kwargs):
+        raise OllamaLeaseTimeout("internal holder detail")
+
+    monkeypatch.setattr(RAGService, "search_similar_projects", fail_busy)
+    response = client.post(
+        "/api/v1/knowledge/search",
+        json={"query": "chassis history", "top_k": 3},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "code": 503,
+        "msg": "本地模型资源繁忙，请稍后重试",
+    }
+    assert "holder" not in response.text
+
+
 def test_knowledge_search_function_filter(client):
     response = client.post(
         "/api/v1/knowledge/search",
