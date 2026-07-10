@@ -22,6 +22,7 @@ import { InfoCircleOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import EngagementUploadPanel from "@/components/EngagementUploadPanel";
 import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
 import { useAuth } from "@/context/AuthContext";
@@ -277,7 +278,7 @@ export default function KnowledgePage() {
           showIcon
           style={{ marginBottom: 16 }}
           message="当前为只读模式"
-          description="知识库索引更新仅资料库管理员（kb_admin）可操作；您仍可检索与查看统计。"
+          description="项目包上传与索引更新仅资料库管理员（kb_admin）可操作；报价工程师账号可检索与查看统计。若需上传 RFQ，请使用 kb_admin 账号或联系管理员调整角色。"
         />
       )}
 
@@ -341,6 +342,15 @@ export default function KnowledgePage() {
           资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
         </Paragraph>
       </Card>
+
+      {canWriteKb && (
+        <EngagementUploadPanel
+          onUploaded={() => {
+            setWizardStep(1);
+            void loadDocuments();
+          }}
+        />
+      )}
 
       {lastImport && (lastImport.failed_files?.length ?? 0) > 0 && (
         <Alert
@@ -472,7 +482,7 @@ export default function KnowledgePage() {
                     pagination={{ pageSize: 8, hideOnSinglePage: true }}
                     locale={{
                       emptyText: showDemoChrome
-                        ? "暂无文档；Demo 请将 .docx 放入 knowledge_base/<项目名>/（Phase 2 支持项目包上传）"
+                        ? "暂无文档；可将项目包放入 knowledge_base/<项目名>/ 或本页「上传项目包」"
                         : "暂无文档；请通过 IT 目录入库或本页「上传项目包」添加 Engagement",
                     }}
                     columns={[
