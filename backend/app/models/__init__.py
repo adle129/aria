@@ -1,5 +1,6 @@
 from app.models.engagement import Engagement
 from app.models.knowledge_chunk import KnowledgeChunk
+from app.models.knowledge_import import KnowledgeImport
 from app.models.knowledge_index_generation import KnowledgeIndexGeneration, KnowledgeIndexState
 from app.models.ollama_resource_lease import OllamaResourceLease
 from app.models.project import Project
@@ -10,6 +11,7 @@ from app.models.user import User
 __all__ = [
     "Engagement",
     "KnowledgeChunk",
+    "KnowledgeImport",
     "KnowledgeIndexGeneration",
     "KnowledgeIndexState",
     "OllamaResourceLease",

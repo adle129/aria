@@ -73,17 +73,28 @@ class WorkerService:
         raise ValueError(f"Unsupported job_type: {job.job_type}")
 
     def handle_job(self, db: Session, job: TaskJob) -> None:
+        kb_jobs = KnowledgeIndexJobService(self.settings)
         try:
+            if job.job_type == TaskJobService.JOB_KB_INDEX:
+                kb_jobs.sync_import_started(db, job)
             result = self.process_job(db, job)
             self.job_service.mark_completed(db, job, result)
+            if job.job_type == TaskJobService.JOB_KB_INDEX:
+                kb_jobs.sync_import_finished(db, job, result=result)
         except EngagementIngestCancelled:
             self.job_service.mark_cancelled(db, job)
+            if job.job_type == TaskJobService.JOB_KB_INDEX:
+                kb_jobs.sync_import_finished(db, job)
         except DiskCapacityError as exc:
             job.attempts = job.max_attempts
             self.job_service.mark_failed(db, job, str(exc))
+            if job.job_type == TaskJobService.JOB_KB_INDEX:
+                kb_jobs.sync_import_finished(db, job, error=str(exc))
         except Exception as exc:
             logger.exception("Job %s failed", job.id)
             self.job_service.mark_failed(db, job, str(exc))
+            if job.job_type == TaskJobService.JOB_KB_INDEX:
+                kb_jobs.sync_import_finished(db, job, error=str(exc))
 
     def process_one(self, db: Session) -> TaskJob | None:
         repo = TaskJobRepository(db)

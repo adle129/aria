@@ -12,6 +12,7 @@ from app.models.engagement import Engagement
 from app.repositories.engagement_repository import EngagementRepository
 from app.schemas.engagement import EngagementManifest
 from app.services.engagement_completeness import classify_engagement
+from app.services.engagement_content_hash import compute_engagement_content_hash
 from app.services.engagement_manifest_service import resolve_manifest
 from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only, summarize_doc_type_counts
 from app.services.ingest.engagement_preview import build_engagement_preview
@@ -63,12 +64,15 @@ class EngagementIngestService:
         *,
         index_status: str,
         error: str | None = None,
+        tier: str | None = None,
     ) -> None:
         if self.db is None:
             return
         rel = str(folder.relative_to(self.kb_root)).replace("\\", "/")
         repo = EngagementRepository(self.db)
         now = datetime.now(UTC) if index_status == "indexed" else None
+        existing = repo.get_by_id(manifest.engagement_id)
+        completeness = classify_engagement([])
         repo.upsert(
             Engagement(
                 id=manifest.engagement_id,
@@ -79,6 +83,10 @@ class EngagementIngestService:
                 folder_path=rel,
                 manifest=manifest.model_dump(),
                 index_status=index_status,
+                tier=tier or (existing.tier if existing else completeness["tier"]),
+                content_hash=compute_engagement_content_hash(folder),
+                uploaded_at=existing.uploaded_at if existing else None,
+                uploaded_by=existing.uploaded_by if existing else None,
                 last_indexed_at=now,
                 last_error=error,
             )
@@ -169,7 +177,12 @@ class EngagementIngestService:
                         **classify_engagement(missing),
                     }
                 )
-                self._persist_engagement(manifest, folder, index_status="pending")
+                self._persist_engagement(
+                    manifest,
+                    folder,
+                    index_status="pending",
+                    tier=classify_engagement(missing)["tier"],
+                )
             except EngagementIngestError as exc:
                 failed_files.append({"path": folder.name, "error": str(exc)[:200]})
                 engagement_reports.append(

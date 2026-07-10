@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_kb_admin
 from app.config import get_settings
 from app.database import get_db
+from app.repositories.engagement_repository import EngagementRepository
 from app.schemas.knowledge import EngagementUploadPackResult, KnowledgeSearchRequest
+from app.services.engagement_audit_service import EngagementAuditService
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
 from app.services.disk_guard_service import (
     DiskCapacityError,
@@ -19,6 +21,7 @@ from app.services.engagement_upload_service import (
     EngagementUploadService,
 )
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
+from app.services.knowledge_import_service import KnowledgeImportService
 from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.task_job_service import TaskJobService
@@ -85,7 +88,8 @@ async def engagements_upload(
     files: list[UploadFile] = File(...),
     engagement_id: str | None = Form(default=None),
     replace_existing: bool = Form(default=False),
-    _admin=Depends(require_kb_admin),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
 ):
     settings = get_settings()
     service = EngagementUploadService(settings)
@@ -119,6 +123,12 @@ async def engagements_upload(
             EngagementUploadPackResult.model_validate(pack).model_dump()
             for pack in data["packs"]
         ]
+        audit = EngagementAuditService(settings, db)
+        for pack in data["packs"]:
+            audit.record_upload_pack(
+                pack,
+                uploaded_by=getattr(admin, "id", None),
+            )
     except EngagementUploadConflict as exc:
         return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
     except DiskCapacityError as exc:
@@ -158,6 +168,7 @@ def _enqueue_knowledge_index(
     if settings.mock_rag and not reused:
         result = RAGService(settings).import_documents()
         TaskJobService(settings).mark_completed(db, job, result)
+        KnowledgeImportService(db).sync_job_finished(job, result=result)
     data = service.serialize(db, job)
     data["reused"] = reused
     return JSONResponse(
@@ -280,3 +291,63 @@ def knowledge_import_cancel(
     if job is None:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "索引任务不存在"})
     return {"code": 200, "data": service.serialize(db, service.cancel(db, job))}
+
+
+@router.get("/batches")
+def knowledge_import_batches(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _admin=Depends(require_kb_admin),
+):
+    service = KnowledgeImportService(db)
+    return {
+        "code": 200,
+        "data": {
+            "batches": [
+                service.serialize(record)
+                for record in service.list(limit=limit, offset=offset)
+            ]
+        },
+    }
+
+
+@router.get("/batches/{import_id}")
+def knowledge_import_batch_detail(
+    import_id: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_kb_admin),
+):
+    service = KnowledgeImportService(db)
+    record = service.get(import_id)
+    if record is None:
+        return JSONResponse(
+            status_code=404,
+            content={"code": 404, "msg": "导入批次不存在"},
+        )
+    return {"code": 200, "data": service.serialize(record)}
+
+
+@router.get("/engagements")
+def knowledge_engagements(
+    db: Session = Depends(get_db),
+    _admin=Depends(require_kb_admin),
+):
+    repo = EngagementRepository(db)
+    items = []
+    for row in repo.list_all():
+        items.append(
+            {
+                "engagement_id": row.id,
+                "project_name": row.project_name,
+                "tier": row.tier,
+                "index_status": row.index_status,
+                "content_hash": row.content_hash,
+                "uploaded_at": row.uploaded_at,
+                "uploaded_by": row.uploaded_by,
+                "last_indexed_at": row.last_indexed_at,
+                "last_error": row.last_error,
+                "folder_path": row.folder_path,
+            }
+        )
+    return {"code": 200, "data": {"engagements": items}}

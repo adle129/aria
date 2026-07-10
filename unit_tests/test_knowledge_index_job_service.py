@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.database import Base
+from app.models.knowledge_import import KnowledgeImport
 from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
@@ -17,7 +18,10 @@ def _session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine, tables=[TaskJob.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[TaskJob.__table__, KnowledgeImport.__table__],
+    )
     return sessionmaker(bind=engine)()
 
 

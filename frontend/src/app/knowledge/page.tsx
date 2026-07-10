@@ -24,6 +24,7 @@ import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
 import EngagementUploadPanel from "@/components/EngagementUploadPanel";
 import KbCapacityAlert from "@/components/KbCapacityAlert";
+import KnowledgeImportHistoryPanel from "@/components/KnowledgeImportHistoryPanel";
 import KnowledgeIndexJobPanel from "@/components/KnowledgeIndexJobPanel";
 import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
@@ -133,6 +134,7 @@ export default function KnowledgePage() {
   const [activeTab, setActiveTab] = useState("docs");
   const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
   const [insufficientEvidence, setInsufficientEvidence] = useState<boolean | null>(null);
+  const [importHistoryRefresh, setImportHistoryRefresh] = useState(0);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -162,6 +164,7 @@ export default function KnowledgePage() {
 
   const handleIndexCompleted = useCallback(async () => {
     setWizardStep(2);
+    setImportHistoryRefresh((value) => value + 1);
     await Promise.all([loadStats(), loadDocuments()]);
   }, [loadDocuments, loadStats]);
 
@@ -333,6 +336,12 @@ export default function KnowledgePage() {
           onCompleted={handleIndexCompleted}
           writeProtected={writeProtected}
         />
+      )}
+
+      {canWriteKb && isFormalDelivery && (
+        <Card title="导入审计" style={{ marginBottom: 16 }}>
+          <KnowledgeImportHistoryPanel refreshToken={importHistoryRefresh} />
+        </Card>
       )}
 
       <Tabs

@@ -11,6 +11,7 @@ from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.disk_guard_service import DiskGuardService
 from app.services.engagement_ingest_service import EngagementIngestService
+from app.services.knowledge_import_service import KnowledgeImportService
 from app.services.task_job_service import TaskJobService
 
 
@@ -54,13 +55,30 @@ class KnowledgeIndexJobService:
             updated_at=now,
         )
         try:
-            return repo.create(job), False
+            created = repo.create(job)
+            KnowledgeImportService(db).create_for_job(created)
+            return created, False
         except IntegrityError:
             db.rollback()
             existing = repo.get_active_by_single_flight(TaskJobService.JOB_KB_INDEX, key)
             if existing is None:
                 raise
             return existing, True
+
+    def sync_import_started(self, db: Session, job: TaskJob) -> None:
+        KnowledgeImportService(db).sync_job_started(job)
+
+    def sync_import_finished(
+        self,
+        db: Session,
+        job: TaskJob,
+        *,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        KnowledgeImportService(db).sync_job_finished(
+            job, result=result, error=error
+        )
 
     def get(self, db: Session, job_id: str) -> TaskJob | None:
         job = TaskJobRepository(db).get_by_id(job_id)
@@ -139,4 +157,7 @@ class KnowledgeIndexJobService:
         }
         if job.result_summary:
             data.update(job.result_summary)
+        import_record = KnowledgeImportService(db).get_by_job(job.id)
+        if import_record is not None:
+            data["import_id"] = import_record.id
         return data

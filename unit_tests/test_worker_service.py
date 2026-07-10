@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.database import Base
+from app.models.knowledge_import import KnowledgeImport
 from app.models.rfq_task import RFQTask
 from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
@@ -23,7 +24,10 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine, tables=[RFQTask.__table__, TaskJob.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[RFQTask.__table__, TaskJob.__table__, KnowledgeImport.__table__],
+    )
     session = sessionmaker(bind=engine)()
     yield session
     session.close()
