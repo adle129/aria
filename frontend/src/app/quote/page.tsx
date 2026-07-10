@@ -19,7 +19,10 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { apiClient, buildApiUrl } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import MilestoneStepScaffold from "@/components/MilestoneStepScaffold";
 import { useTaskContext } from "@/context/TaskContext";
+import { useUiProfile } from "@/hooks/useUiProfile";
+import { showsMilestoneScaffold } from "@/lib/uiProfile";
 import type { ManpowerBreakdownItem } from "@/types/task";
 
 const { Paragraph, Text, Title } = Typography;
@@ -35,6 +38,7 @@ interface GenerateResult {
 }
 
 function QuotePageContent() {
+  const { profile } = useUiProfile();
   const searchParams = useSearchParams();
   const { taskId, task, loading, loadTask, setTaskId, syncFromPayload } = useTaskContext();
   const [generating, setGenerating] = useState(false);
@@ -73,6 +77,10 @@ function QuotePageContent() {
       void loadBreakdown(task.task_id);
     }
   }, [task?.task_id, loadBreakdown]);
+
+  if (showsMilestoneScaffold(profile, "quote")) {
+    return <MilestoneStepScaffold step="quote" />;
+  }
 
   const handleGenerate = async () => {
     const id = taskId.trim();

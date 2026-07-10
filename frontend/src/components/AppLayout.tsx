@@ -26,6 +26,7 @@ import { TaskProvider, useTaskContext } from "@/context/TaskContext";
 import { useUiProfile } from "@/hooks/useUiProfile";
 import {
   getStepMilestone,
+  isFormalDeliveryProfile,
   isQuotingStepDelivered,
   isR1Profile,
   isTaskContextBarVisible,
@@ -56,6 +57,23 @@ function buildQuotingMenuChildren(profile: UiProfile) {
         key,
         icon,
         label: step === "rfq" ? title : <Link href={key}>{title}</Link>,
+      };
+    }
+
+    if (isFormalDeliveryProfile(profile)) {
+      return {
+        key,
+        icon,
+        label: (
+          <Link href={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>{title}</span>
+            {milestone && (
+              <span style={{ fontSize: 10, color: "#8c8c8c", fontWeight: 500, letterSpacing: 0.3 }}>
+                {milestone}
+              </span>
+            )}
+          </Link>
+        ),
       };
     }
 

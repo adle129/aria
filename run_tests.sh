@@ -22,6 +22,8 @@ python -m pytest unit_tests/ -v "${PYTEST_ARGS[@]}"
 echo "==> Running frontend unit tests..."
 if [[ -d "${ROOT}/frontend/node_modules/vitest" ]]; then
   (cd "${ROOT}/frontend" && npm test --silent)
+  echo "==> Running frontend production build (next build)..."
+  (cd "${ROOT}/frontend" && npm run build)
 else
   echo "    (skip: run 'npm install' in frontend/)"
 fi
@@ -42,9 +44,10 @@ echo ""
 echo "================================================"
 echo "  ARIA 测试执行"
 echo "================================================"
-echo "【1/3】单元测试 ... ✅ 全部通过"
-echo "【2/3】前端单测 ... ✅ 全部通过"
-echo "【3/3】API 测试  ... ✅ 全部通过"
+echo "【1/4】单元测试 ...... ✅ 全部通过"
+echo "【2/4】前端单测 ...... ✅ 全部通过"
+echo "【3/4】前端构建 ...... ✅ 全部通过"
+echo "【4/4】API 测试  ..... ✅ 全部通过"
 echo "================================================"
-echo "测试汇总：3 组通过 / 0 组失败"
+echo "测试汇总：4 组通过 / 0 组失败"
 echo "================================================"

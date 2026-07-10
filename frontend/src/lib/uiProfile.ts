@@ -10,8 +10,13 @@ export type UiProfile =
 const DEFAULT_PROFILE =
   (process.env.NEXT_PUBLIC_ARIA_UI_PROFILE as UiProfile | undefined) || "experience";
 
-/** Routes not delivered in R1 (M3/M4/M5 milestones). */
-export const R1_LOCKED_QUOTING_PATHS = ["/proposal", "/qa", "/quote"] as const;
+/** R1 formal delivery: only KB Debug is blocked (dev-only). M3/M4/M5 use milestone scaffold pages. */
+export const R1_LOCKED_PATHS = ["/knowledge/debug"] as const;
+
+/** @deprecated Use R1_LOCKED_PATHS — quoting steps are navigable as milestone scaffolds in r1. */
+export const R1_LOCKED_QUOTING_PATHS = R1_LOCKED_PATHS;
+
+export type QuotingStep = "rfq" | "proposal" | "qa" | "quote";
 
 export function resolveUiProfile(healthProfile?: string | null): UiProfile {
   const raw = (healthProfile || DEFAULT_PROFILE).trim().toLowerCase();
@@ -37,7 +42,12 @@ export function isFormalDeliveryProfile(profile: UiProfile): boolean {
 
 export function isPathLockedInR1(pathname: string): boolean {
   if (pathname.startsWith("/knowledge/debug")) return true;
-  return R1_LOCKED_QUOTING_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return R1_LOCKED_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/** Formal profile step not yet delivered — show static milestone scaffold (no Mock API). */
+export function showsMilestoneScaffold(profile: UiProfile, step: QuotingStep): boolean {
+  return isFormalDeliveryProfile(profile) && !isQuotingStepDelivered(profile, step);
 }
 
 export function shouldBlockPath(profile: UiProfile, pathname: string): boolean {
@@ -57,7 +67,7 @@ export function isTaskContextBarVisible(pathname: string): boolean {
   return true;
 }
 
-export function isQuotingStepDelivered(profile: UiProfile, step: "rfq" | "proposal" | "qa" | "quote"): boolean {
+export function isQuotingStepDelivered(profile: UiProfile, step: QuotingStep): boolean {
   const delivered: Record<UiProfile, readonly ("rfq" | "proposal" | "qa" | "quote")[]> = {
     dev: ["rfq", "proposal", "qa", "quote"],
     experience: ["rfq", "proposal", "qa", "quote"],
@@ -74,8 +84,8 @@ export function isQuotingStepDelivered(profile: UiProfile, step: "rfq" | "propos
  * Returns the contract milestone label that first delivers this step.
  * Returns null for steps delivered in R1 (the base milestone).
  */
-export function getStepMilestone(step: "rfq" | "proposal" | "qa" | "quote"): string | null {
-  const milestones: Partial<Record<"rfq" | "proposal" | "qa" | "quote", string>> = {
+export function getStepMilestone(step: QuotingStep): string | null {
+  const milestones: Partial<Record<QuotingStep, string>> = {
     quote: "M3",
     qa: "M4",
     proposal: "M5",

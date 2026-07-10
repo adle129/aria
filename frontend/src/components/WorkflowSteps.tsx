@@ -4,7 +4,7 @@ import type React from "react";
 import { Steps, Typography } from "antd";
 import Link from "next/link";
 import { useUiProfile } from "@/hooks/useUiProfile";
-import { getStepMilestone, isQuotingStepDelivered } from "@/lib/uiProfile";
+import { getStepMilestone, isQuotingStepDelivered, showsMilestoneScaffold } from "@/lib/uiProfile";
 import type { ArtifactsStatus } from "@/types/task";
 
 const { Text } = Typography;
@@ -43,6 +43,18 @@ export default function WorkflowSteps({
 
     if (!delivered) {
       const milestone = getStepMilestone(stepDef.step);
+      if (showsMilestoneScaffold(profile, stepDef.step)) {
+        const stepStatus: "wait" | "process" = index === currentIndex ? "process" : "wait";
+        return {
+          title: <Link href={stepDef.href}>{stepDef.title}</Link>,
+          status: stepStatus,
+          description: (
+            <span style={{ color: "#8c8c8c", fontSize: 11 }}>
+              {milestone ? `路线图预览 · ${milestone}` : "路线图预览"}
+            </span>
+          ),
+        };
+      }
       return {
         title: <span style={{ color: "#bfbfbf" }}>{stepDef.title}</span>,
         status: "wait" as const,

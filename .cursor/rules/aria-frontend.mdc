@@ -24,6 +24,12 @@ alwaysApply: false
 - **知识库 Debug UI 仅 `dev` Profile + `KB_DEBUG_ENABLED=true`**；`r1` / `experience` / 生产 **不得** 暴露。详见 [kb-debug-ui-spec.md](docs/R1/kb-debug-ui-spec.md)
 - 开发 R1 时在 `release/r1` 实现 Profile；详见 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) §5.2
 
+## 提交前习惯（`.tsx` / 前端）
+
+- **修改 `frontend/src` 下 `.tsx`（或影响类型的 `.ts`）后**：提交前须通过 **`npm run build`**（`cd frontend && npm run build`）
+- Vitest **不**编译全部 `.tsx`，类型错误可能直到 Docker/`next build` 才暴露；全量门禁见 `.\run_tests.ps1`（已串联 vitest + build）
+- Agent / 开发者在改完前端页面或组件后，**应本地跑一次 build**，再进入 `run_tests` 或 `git commit`
+
 ## UI / UX
 
 - 顶栏：EDAG + **「ARIA · 智能应用平台」** + Tag **「报价助手」**

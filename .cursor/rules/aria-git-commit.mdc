@@ -9,7 +9,8 @@ alwaysApply: true
 
 - **仅**在用户明确要求或功能+测试全部完成后提交
 - **正式版 R1+：** 在 **`release/r1`**（或 `feat/r1-*` merge 至其）上提交；**`main` 仅 Demo 热修**
-- 每次 commit 前必须运行 `.\run_tests.ps1` 或 `./run_tests.sh` 并确认全绿
+- 每次 commit 前必须运行 `.\run_tests.ps1` 或 `./run_tests.sh` 并确认全绿（含前端 **vitest + `next build`**）
+- 改动 `frontend/**/*.tsx` 时：若未跑全量门禁，提交前至少 `cd frontend && npm run build`
 - 改动解析/RAG/Prompt/Excel 时运行 `./run_tests.sh --regression`
 
 ## Commit message 格式

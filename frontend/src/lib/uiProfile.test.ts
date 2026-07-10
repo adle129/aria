@@ -9,6 +9,7 @@ import {
   resolveUiProfile,
   shouldBlockPath,
   showDemoChrome,
+  showsMilestoneScaffold,
 } from "./uiProfile";
 
 describe("resolveUiProfile", () => {
@@ -22,17 +23,18 @@ describe("resolveUiProfile", () => {
 });
 
 describe("r1 route lock", () => {
-  it("blocks undelivered quoting steps and debug", () => {
-    expect(isPathLockedInR1("/proposal")).toBe(true);
-    expect(isPathLockedInR1("/qa")).toBe(true);
-    expect(isPathLockedInR1("/quote")).toBe(true);
+  it("blocks only KB debug in r1", () => {
+    expect(isPathLockedInR1("/proposal")).toBe(false);
+    expect(isPathLockedInR1("/qa")).toBe(false);
+    expect(isPathLockedInR1("/quote")).toBe(false);
     expect(isPathLockedInR1("/knowledge/debug")).toBe(true);
     expect(isPathLockedInR1("/rfq")).toBe(false);
     expect(isPathLockedInR1("/knowledge")).toBe(false);
   });
 
-  it("shouldBlockPath only for r1 profile", () => {
-    expect(shouldBlockPath("r1", "/proposal")).toBe(true);
+  it("shouldBlockPath only for r1 locked paths", () => {
+    expect(shouldBlockPath("r1", "/proposal")).toBe(false);
+    expect(shouldBlockPath("r1", "/knowledge/debug")).toBe(true);
     expect(shouldBlockPath("full", "/proposal")).toBe(false);
     expect(shouldBlockPath("experience", "/qa")).toBe(false);
   });
@@ -78,6 +80,24 @@ describe("isFormalDeliveryProfile", () => {
   it("r1 is formal delivery", () => {
     expect(isFormalDeliveryProfile("r1")).toBe(true);
     expect(isFormalDeliveryProfile("experience")).toBe(false);
+  });
+});
+
+describe("showsMilestoneScaffold", () => {
+  it("r1 shows scaffold for M3/M4/M5 steps", () => {
+    expect(showsMilestoneScaffold("r1", "rfq")).toBe(false);
+    expect(showsMilestoneScaffold("r1", "quote")).toBe(true);
+    expect(showsMilestoneScaffold("r1", "qa")).toBe(true);
+    expect(showsMilestoneScaffold("r1", "proposal")).toBe(true);
+  });
+
+  it("experience uses demo pages not scaffold", () => {
+    expect(showsMilestoneScaffold("experience", "quote")).toBe(false);
+  });
+
+  it("m3 scaffold only for undelivered steps", () => {
+    expect(showsMilestoneScaffold("m3", "quote")).toBe(false);
+    expect(showsMilestoneScaffold("m3", "qa")).toBe(true);
   });
 });
 
