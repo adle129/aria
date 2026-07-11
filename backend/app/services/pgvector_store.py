@@ -287,6 +287,41 @@ class PgVectorStore:
             ).scalars().all()
         return {str(row) for row in rows if row}
 
+    def list_source_docs_by_engagement(
+        self,
+        namespace: str | None = None,
+        *,
+        generation_id: str | None = None,
+    ) -> dict[str, set[str]]:
+        """Map engagement_id → source_doc values in the active generation."""
+        self._require_pg()
+        ns = namespace or self.namespace
+        generation_id = generation_id or self.generations.get_active_id(ns)
+        if generation_id is None:
+            return {}
+        sql = text(
+            """
+            SELECT DISTINCT
+              metadata->>'engagement_id' AS engagement_id,
+              metadata->>'source_doc' AS source_doc
+            FROM knowledge_chunks
+            WHERE namespace = :ns
+              AND generation_id = :generation_id
+              AND metadata->>'source_doc' IS NOT NULL
+              AND metadata->>'engagement_id' IS NOT NULL
+            """
+        )
+        by_engagement: dict[str, set[str]] = {}
+        with Session(engine) as session:
+            rows = session.execute(
+                sql,
+                {"ns": ns, "generation_id": generation_id},
+            ).all()
+        for engagement_id, source_doc in rows:
+            if not engagement_id or not source_doc:
+                continue
+            by_engagement.setdefault(str(engagement_id), set()).add(str(source_doc))
+        return by_engagement
     def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
         self._require_pg()
         generation_id = self.generations.get_active_id(self.namespace)

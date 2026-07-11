@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  acknowledgeModuleInScopeNeedsReview,
   computeReviewSummary,
+  displayTierForItem,
   formatModuleStatusLabel,
   inferMatchMeta,
   inferReviewTier,
@@ -219,6 +221,9 @@ export default function DimensionBaselineReview({
   const markModuleReviewed = (moduleCode: string) => {
     setModuleReviewed((prev) => new Set(prev).add(moduleCode));
     setExpandedModules((prev) => new Set(prev).add(moduleCode));
+    setItemAcknowledged((prev) =>
+      acknowledgeModuleInScopeNeedsReview(items, moduleCode, prev),
+    );
   };
 
   const handleCollapseChange = (keys: string | string[]) => {
@@ -227,6 +232,13 @@ export default function DimensionBaselineReview({
     setModuleReviewed((prev) => {
       const next = new Set(prev);
       keyArr.forEach((k) => next.add(k));
+      return next;
+    });
+    setItemAcknowledged((prev) => {
+      let next = prev;
+      for (const code of keyArr) {
+        next = acknowledgeModuleInScopeNeedsReview(items, code, next);
+      }
       return next;
     });
   };
@@ -364,20 +376,15 @@ export default function DimensionBaselineReview({
   };
 
   const renderStatusCell = (row: DimensionDraftItem) => {
-    const tier = inferReviewTier(row);
     if (!row.in_scope) {
+      const tier = inferReviewTier(row);
       if (tier === "auto_include") {
         return <Tag color="green">系统推荐</Tag>;
       }
       return <Text type="secondary">未纳入</Text>;
     }
-    if (tier === "auto_include") {
-      return <Tag color="green">自动纳入</Tag>;
-    }
-    if (tier === "auto_exclude") {
-      return <Tag>已排除</Tag>;
-    }
-    return <Tag color="blue">已纳入</Tag>;
+    const display = displayTierForItem(row, itemAcknowledged);
+    return <Tag color={display.color}>{display.label}</Tag>;
   };
 
   const buildReviewTableColumns = (moduleCode: string, moduleItems: DimensionDraftItem[]) => {
@@ -473,7 +480,7 @@ export default function DimensionBaselineReview({
         type="info"
         showIcon
         message="基准维度确认（F1.10c）"
-        description="仅展示与 RFQ 相关的模块；展开后可查看该模块全部维度（含已排除项）。勾选即纳入，取消勾选即排除。"
+        description="仅展示与 RFQ 相关的模块；展开模块即过目并确认其中已勾选的待确认项。勾选即纳入，取消勾选即排除。"
         style={{ marginBottom: 16 }}
       />
 

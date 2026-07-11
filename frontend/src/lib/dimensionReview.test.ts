@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { DimensionDraftItem } from "@/types/task";
 import {
+  acknowledgeModuleInScopeNeedsReview,
   computeReviewSummary,
+  displayTierForItem,
   formatEvidenceLine,
   formatModuleStatusLabel,
   inferReviewTier,
@@ -151,5 +153,41 @@ describe("needsReviewItems", () => {
     ];
     expect(needsReviewItems(items).map((i) => i.dimension_id)).toEqual(["1"]);
     expect(inferReviewTier(items[1]!)).toBe("needs_review");
+  });
+});
+
+describe("acknowledgeModuleInScopeNeedsReview", () => {
+  it("acks only in-scope needs_review rows for the module", () => {
+    const items: DimensionDraftItem[] = [
+      item({
+        dimension_id: "ee1",
+        name: "EE 架构",
+        module: "EE",
+        in_scope: true,
+        review_tier: "needs_review",
+      }),
+      item({
+        dimension_id: "ee2",
+        name: "线束",
+        module: "EE",
+        in_scope: true,
+        review_tier: "auto_include",
+      }),
+      item({
+        dimension_id: "pkg1",
+        name: "通过性",
+        module: "Package",
+        in_scope: true,
+        review_tier: "needs_review",
+      }),
+    ];
+    const acked = acknowledgeModuleInScopeNeedsReview(items, "EE", new Set());
+    expect(acked.has("ee1")).toBe(true);
+    expect(acked.has("ee2")).toBe(false);
+    expect(acked.has("pkg1")).toBe(false);
+    expect(formatModuleStatusLabel(items.filter((i) => i.module === "EE"), acked)).not.toContain(
+      "待确认",
+    );
+    expect(displayTierForItem(items[0]!, acked).label).toBe("已确认");
   });
 });

@@ -19,7 +19,10 @@ if [[ -f "$ENV_FILE" ]]; then
   line="$(grep -E '^ARIA_DATA_ROOT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r" ' || true)"
   [[ -n "$line" ]] && DATA_ROOT="$line"
 fi
-mkdir -p "$DATA_ROOT/postgres" "$DATA_ROOT/app"/{uploads,outputs,knowledge_base,chroma_db,templates,app/feedback}
+mkdir -p "$DATA_ROOT/postgres" "$DATA_ROOT/app"/{uploads,outputs,knowledge_base,chroma_db,templates,config,feedback}
+export ARIA_ROOT
+export ARIA_DATA_ROOT="$DATA_ROOT"
+bash "$ARIA_ROOT/scripts/seed-runtime-data.sh"
 
 if ! docker info >/dev/null 2>&1; then
   echo "ERROR: Docker is not running." >&2
@@ -46,9 +49,16 @@ if [[ "${MOCK_LLM,,}" != "true" ]]; then
 fi
 
 cd "$ARIA_ROOT"
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --build "$@"
+# Offline compose ships pre-built images — never --build (no network / no Dockerfile context)
+BUILD_ARGS=(--build)
+if [[ "${SKIP_BUILD:-false}" == "true" ]] || [[ "$(basename "$COMPOSE_FILE")" == "docker-compose.offline.yml" ]]; then
+  BUILD_ARGS=()
+fi
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d "${BUILD_ARGS[@]}" "$@"
 
-deadline=$((SECONDS + 180))
+# Staging / first boot may need longer for frontend health after --build
+HEALTH_WAIT_SECONDS="${HEALTH_WAIT_SECONDS:-300}"
+deadline=$((SECONDS + HEALTH_WAIT_SECONDS))
 while (( SECONDS < deadline )); do
   if curl -sf http://localhost/api/v1/health >/dev/null; then
     break

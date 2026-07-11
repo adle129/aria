@@ -117,12 +117,14 @@ class EngagementIngestService:
             if quote_path.is_file():
                 parsed = extract_manpower_baselines(quote_path, include_all_positions=True)
                 rel = str(folder.relative_to(self.kb_root)).replace("\\", "/")
+                from app.utils.knowledge_paths import canonical_knowledge_source_doc
+
                 baseline_project = {
                     "engagement_id": manifest.engagement_id,
                     "project_name": manifest.project_name,
                     "customer": manifest.customer,
                     "year": manifest.year,
-                    "source_doc": f"{self.kb_root.name}/{rel}/{quote['path']}".replace("\\", "/"),
+                    "source_doc": canonical_knowledge_source_doc(rel, quote["path"]),
                     "functions": {
                         fn: {
                             "total_man_days": data.get("total_man_days", 0),

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.config import Settings
@@ -261,6 +263,68 @@ def test_list_documents_production_from_manifest(tmp_path, monkeypatch):
     assert docs[0]["status"] == "indexed"
     assert docs[0]["engagement_id"] == "eng_001"
     assert docs[0]["doc_type"] == "rfq"
+
+
+def test_list_documents_matches_legacy_basename_source_doc(tmp_path, monkeypatch):
+    """Ingest historically stored basename-only source_doc; UI must still show indexed."""
+    kb = tmp_path / "kb" / "test"
+    kb.mkdir(parents=True)
+    (kb / "RFQ_客户A.doc").write_bytes(b"rfq")
+    (kb / "Q_A_模板.xlsx").write_bytes(b"qa")
+    (kb / "报价人力模板.xlsx").write_bytes(b"quote")
+    (kb / "manifest.json").write_text(
+        json.dumps(
+            {
+                "engagement_id": "test",
+                "project_name": "Test",
+                "documents": [
+                    {"path": "RFQ_客户A.doc", "doc_type": "rfq"},
+                    {"path": "Q_A_模板.xlsx", "doc_type": "qa"},
+                    {"path": "报价人力模板.xlsx", "doc_type": "quote_manpower"},
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    baselines = tmp_path / "manpower_baselines.json"
+    baselines.write_text(
+        json.dumps(
+            {
+                "projects": [
+                    {
+                        "engagement_id": "test",
+                        "source_doc": "knowledge_base/test/报价人力模板.xlsx",
+                        "functions": {},
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    rag = RAGService(
+        Settings(
+            mock_rag=False,
+            knowledge_base_path=str(tmp_path / "kb"),
+            manpower_baselines_path=str(baselines),
+        )
+    )
+
+    class FakeIndex:
+        def list_indexed_source_docs_by_engagement(self):
+            return {"test": {"RFQ_客户A.doc", "Q_A_模板.xlsx"}}
+
+        def list_indexed_source_docs(self):
+            return {"RFQ_客户A.doc", "Q_A_模板.xlsx"}
+
+    monkeypatch.setattr(rag, "_index_service", lambda: FakeIndex())
+    docs = {d["path"]: d for d in rag.list_documents()}
+    assert docs["test/RFQ_客户A.doc"]["status"] == "indexed"
+    assert docs["test/Q_A_模板.xlsx"]["status"] == "indexed"
+    assert docs["test/报价人力模板.xlsx"]["status"] == "indexed"
 
 
 def test_mock_stats_includes_function_coverage():

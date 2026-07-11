@@ -374,8 +374,27 @@ class RAGService:
             ManifestLoadError,
             resolve_manifest,
         )
+        from app.services.manpower_baselines_store import ManpowerBaselinesStore
+        from app.utils.knowledge_paths import is_document_source_indexed
 
-        indexed_sources = self._index_service().list_indexed_source_docs()
+        index = self._index_service()
+        by_engagement: dict[str, set[str]] = {}
+        scoped = getattr(index, "list_indexed_source_docs_by_engagement", None)
+        if callable(scoped):
+            by_engagement = scoped() or {}
+        # Older mocks / empty engagement metadata: fall back to flat source_doc set.
+        if not by_engagement:
+            flat = index.list_indexed_source_docs()
+            if flat:
+                by_engagement = {"": flat}
+
+        baseline_sources_by_engagement: dict[str, set[str]] = {}
+        for project in ManpowerBaselinesStore(self.settings).read().get("projects") or []:
+            eng_id = str(project.get("engagement_id") or "")
+            source = str(project.get("source_doc") or "")
+            if eng_id and source:
+                baseline_sources_by_engagement.setdefault(eng_id, set()).add(source)
+
         documents: list[dict[str, Any]] = []
 
         for folder in sorted(p for p in kb.iterdir() if p.is_dir() and not p.name.startswith(".")):
@@ -385,10 +404,24 @@ class RAGService:
                 continue
 
             rel_folder = str(folder.relative_to(kb)).replace("\\", "/")
+            indexed_sources = set(by_engagement.get(manifest.engagement_id) or ())
+            indexed_sources |= by_engagement.get("", set())
+            quote_sources = baseline_sources_by_engagement.get(manifest.engagement_id, set())
+
             for doc in manifest.documents:
                 rel_path = f"{rel_folder}/{doc.path}".replace("\\", "/")
-                source_key = f"knowledge_base/{rel_folder}/{doc.path}".replace("\\", "/")
-                status = "indexed" if source_key in indexed_sources else "pending"
+                if doc.doc_type == "quote_manpower":
+                    status = (
+                        "indexed"
+                        if is_document_source_indexed(quote_sources, rel_folder, doc.path)
+                        else "pending"
+                    )
+                else:
+                    status = (
+                        "indexed"
+                        if is_document_source_indexed(indexed_sources, rel_folder, doc.path)
+                        else "pending"
+                    )
                 doc_path = folder / doc.path
                 entry: dict[str, Any] = {
                     "path": rel_path,

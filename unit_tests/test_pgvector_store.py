@@ -22,3 +22,9 @@ def test_list_source_docs_requires_postgresql():
     store = PgVectorStore(namespace="test")
     with pytest.raises(PgVectorUnavailableError, match="PostgreSQL"):
         store.list_source_docs()
+
+
+def test_list_source_docs_by_engagement_requires_postgresql():
+    store = PgVectorStore(namespace="test")
+    with pytest.raises(PgVectorUnavailableError, match="PostgreSQL"):
+        store.list_source_docs_by_engagement()

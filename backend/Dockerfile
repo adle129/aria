@@ -39,13 +39,15 @@ RUN pip install --upgrade pip setuptools wheel \
 
 COPY app ./app
 COPY prompts ./prompts
+COPY scripts ./scripts
 COPY alembic.ini ./
 COPY alembic ./alembic
 COPY bootstrap_db.py ./
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY data/config/dimension_baseline.v1.json /app/seed/config/dimension_baseline.v1.json
 
 RUN mkdir -p /app/data/uploads /app/data/outputs /app/data/knowledge_base \
-    /app/data/chroma_db /app/data/templates \
+    /app/data/chroma_db /app/data/templates /app/data/config \
     && sed -i 's/\r$//' /app/docker-entrypoint.sh \
     && chmod +x /app/docker-entrypoint.sh
 

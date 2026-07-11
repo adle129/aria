@@ -46,9 +46,9 @@
 | 完整度 | `gold` | 金级 | RFQ + Q&A + 报价齐全 |
 | 完整度 | `silver` | 银级 | 仅缺报价；M3 不可用 |
 | 完整度 | `copper` | 铜级 | 缺 Q&A 或多项；可解析 RFQ 仍可参与 R1 Top-3 |
-| 索引 | `pending` | 待索引 | 已落盘、尚未进入 active generation |
+| 索引 | `pending` | 待索引 | 已落盘、尚未进入 active generation（RFQ/Q&A：向量无匹配；报价：baselines 无记录） |
 | 索引 | `processing` | 索引中 | 当前 staging generation 正在处理 |
-| 索引 | `indexed` | 已索引 | 已进入 active generation |
+| 索引 | `indexed` | 已索引 | RFQ/Q&A：`source_doc` 已进入 active generation（兼容 basename / `knowledge_base/...` 别名）；报价：`manpower_baselines` 含该 engagement |
 | 索引 | `failed` | 索引失败 | 上传仍可能成功；显示具体失败原因 |
 | Job | `queued` | 排队中 | 显示队列位置/ETA（有值时） |
 | Job | `running` | 索引中 | 显示 scan/parse/embed/validate/switch 阶段 |

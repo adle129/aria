@@ -277,3 +277,22 @@ export function displayTierForItem(
   }
   return { label: tierLabel(tier), color: tierTagColor(tier) };
 }
+
+/** Mark in-scope needs_review rows in a module as acknowledged (module 过目). */
+export function acknowledgeModuleInScopeNeedsReview(
+  items: DimensionDraftItem[],
+  moduleCode: string,
+  acknowledged: ReadonlySet<string>,
+): Set<string> {
+  const next = new Set(acknowledged);
+  for (const item of items) {
+    if (
+      item.module === moduleCode &&
+      item.in_scope &&
+      inferReviewTier(item) === "needs_review"
+    ) {
+      next.add(item.dimension_id);
+    }
+  }
+  return next;
+}

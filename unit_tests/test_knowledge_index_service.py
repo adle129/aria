@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from app.config import Settings
-from app.services.knowledge_index_service import KnowledgeIndexService, flatten_preview_chunks
+from app.services.knowledge_index_service import KnowledgeIndexService, flatten_engagement_chunks, flatten_preview_chunks
+from app.schemas.engagement import EngagementManifest
 
 
 def test_flatten_preview_chunks_synthetic():
@@ -162,6 +163,35 @@ def test_search_applies_doc_type_filter(monkeypatch, tmp_path):
     assert hits[0]["metadata"]["doc_type"] == "qa"
 
 
+def test_flatten_engagement_chunks_overwrites_basename_source_doc(tmp_path):
+    """Preview metadata may use basename; production flatten must write canonical path."""
+    folder = tmp_path / "knowledge_base" / "test"
+    folder.mkdir(parents=True)
+    report = {
+        "rfq": {
+            "path": "RFQ.doc",
+            "chunks": [
+                {
+                    "chunk_id": "c1",
+                    "chunk_type": "chapter",
+                    "chunk_chapter": "1",
+                    "content": "scope",
+                    "metadata": {"doc_type": "rfq", "source_doc": "RFQ.doc"},
+                }
+            ],
+        },
+        "qa": {},
+    }
+    manifest = EngagementManifest(
+        engagement_id="test",
+        project_name="Test",
+        documents=[],
+    )
+    chunks = flatten_engagement_chunks(report, manifest, tmp_path / "knowledge_base", folder)
+    assert len(chunks) == 1
+    assert chunks[0]["metadata"]["source_doc"] == "knowledge_base/test/RFQ.doc"
+
+
 def test_list_indexed_source_docs(monkeypatch, tmp_path):
     settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
     svc = KnowledgeIndexService(settings, namespace="prod_ns")
@@ -174,6 +204,32 @@ def test_list_indexed_source_docs(monkeypatch, tmp_path):
     monkeypatch.setattr(svc, "_store", FakeStore())
     docs = svc.list_indexed_source_docs()
     assert "knowledge_base/eng_001/rfq.docx" in docs
+
+
+def test_list_indexed_source_docs_by_engagement(monkeypatch, tmp_path):
+    settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
+    svc = KnowledgeIndexService(settings, namespace="prod_ns")
+
+    class FakeStore:
+        def list_source_docs_by_engagement(self, namespace=None):
+            return {"eng_001": {"RFQ.doc", "Q_A.xlsx"}}
+
+    monkeypatch.setattr(svc, "_store", FakeStore())
+    assert svc.list_indexed_source_docs_by_engagement()["eng_001"] == {"RFQ.doc", "Q_A.xlsx"}
+
+
+def test_list_indexed_source_docs_by_engagement_unavailable(monkeypatch, tmp_path):
+    settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
+    svc = KnowledgeIndexService(settings, namespace="prod_ns")
+
+    from app.services.pgvector_store import PgVectorUnavailableError
+
+    class FailingStore:
+        def list_source_docs_by_engagement(self, namespace=None):
+            raise PgVectorUnavailableError("no pg")
+
+    monkeypatch.setattr(svc, "_store", FailingStore())
+    assert svc.list_indexed_source_docs_by_engagement() == {}
 
 
 def test_list_indexed_source_docs_unavailable_returns_empty(monkeypatch, tmp_path):

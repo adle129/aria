@@ -17,6 +17,7 @@ from app.services.embedding_service import EmbeddingError, embed_texts
 from app.services.ingest.engagement_preview import build_engagement_preview
 from app.services.pgvector_store import PgVectorStore, PgVectorUnavailableError
 from app.services.rag_service import _filter_hits_by_doc_type, _filter_hits_by_functions
+from app.utils.knowledge_paths import canonical_knowledge_source_doc
 
 VALIDATION_NAMESPACE = "validation_corpus"
 PRODUCTION_NAMESPACE = "production"
@@ -119,7 +120,8 @@ def flatten_engagement_chunks(
         meta.setdefault("doc_type", "rfq")
         meta.setdefault("chunk_id", item.get("chunk_id"))
         source = rfq.get("path") or "rfq.docx"
-        meta.setdefault("source_doc", f"knowledge_base/{rel_folder}/{source}".replace("\\", "/"))
+        # Always overwrite: preview/chunkers may set basename-only source_doc.
+        meta["source_doc"] = canonical_knowledge_source_doc(rel_folder, source)
         cid = f"{engagement_id}::{item['chunk_id']}"
         chunks.append(
             {
@@ -143,7 +145,7 @@ def flatten_engagement_chunks(
                 meta.update(base_meta)
                 meta.setdefault("doc_type", "qa")
                 meta.setdefault("chunk_id", item.get("chunk_id"))
-                meta.setdefault("source_doc", f"knowledge_base/{rel_folder}/{qa_path}".replace("\\", "/"))
+                meta["source_doc"] = canonical_knowledge_source_doc(rel_folder, qa_path)
                 if meta.get("area"):
                     meta["functions"] = [meta["area"]]
                 cid = f"{engagement_id}::{item['chunk_id']}"
@@ -200,6 +202,12 @@ class KnowledgeIndexService:
             return self._store.list_source_docs()
         except PgVectorUnavailableError:
             return set()
+
+    def list_indexed_source_docs_by_engagement(self) -> dict[str, set[str]]:
+        try:
+            return self._store.list_source_docs_by_engagement()
+        except PgVectorUnavailableError:
+            return {}
 
     def index_chunks(
         self,

@@ -43,6 +43,7 @@ flowchart TB
 |----|------|
 | **路径（生产）** | `${ARIA_DATA_ROOT}/app/config/dimension_baseline.v1.json` |
 | **路径（开发）** | `backend/data/config/dimension_baseline.v1.json` |
+| **首次部署** | `scripts/seed-runtime-data.sh` 与 backend entrypoint：数据卷缺失时从 seed 复制；镜像内备份路径 `/app/seed/config/` |
 | **版本字段** | `version`: `v1`；升级时新文件 `v2`，任务记录 `baseline_version` |
 
 ### 2.2 JSON Schema
@@ -251,6 +252,8 @@ flowchart TB
 
 - 模块表头 Checkbox：本模块全选/全不选  
 - 行 Checkbox：切换 `in_scope`；勾选即视为已确认，`needs_review` 取消勾选清除 ack  
+- **展开模块（过目）**：将该模块内已勾选的 `needs_review` 项记为 `item_acknowledged`（系统预勾选场景无需再点一次勾选）  
+- 状态列：`needs_review` 显示「待确认」→ 确认后「已确认」；`auto_include` 显示「自动纳入」  
 - `auto_include` 且未勾选行仍展示，状态为「系统推荐」  
 - 编辑 `work_content` 或切换勾选即 `manually_adjusted=true`  
 - 点击 RFQ 依据列打开 Drawer（只读展示，字段见上表）  
@@ -259,8 +262,8 @@ flowchart TB
 **确认门禁：**
 
 1. `in_scope >= 1`  
-2. 含 in_scope 的模块均已 `module_reviewed`  
-3. 所有 `needs_review` 条目均已 `item_acknowledged`  
+2. 含 in_scope 的模块均已 `module_reviewed`（展开即过目）  
+3. 所有 `needs_review` 且 `in_scope` 条目均已 `item_acknowledged`（过目或勾选/改工作内容均可写入）  
 
 ### 6.1.3 旧版线框（v1.0 · 已由 v1.2 单视图替代）
 

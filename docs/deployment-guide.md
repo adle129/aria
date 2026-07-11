@@ -362,18 +362,24 @@ curl -fsSL https://ollama.com/install.sh | sh
 sudo systemctl enable ollama
 ```
 
-### 4.2 安全加固（仅监听本机）
+### 4.2 监听地址（Docker 生产 / Staging）
+
+ARIA 容器经 `host.docker.internal:11434` 访问宿主机 Ollama。若只绑 `127.0.0.1`，容器内会出现 `Connection refused`，UI 显示「LLM 未连接」。
+
+**Compose 部署（推荐）：** 监听全网卡，用安全组/防火墙 **不开放 11434 公网**：
 
 ```bash
 sudo mkdir -p /etc/systemd/system/ollama.service.d/
 sudo tee /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
 [Service]
-Environment="OLLAMA_HOST=127.0.0.1:11434"
+Environment="OLLAMA_HOST=0.0.0.0:11434"
 Environment="OLLAMA_MODELS=/data/ollama/models"
 EOF
 sudo systemctl daemon-reload
 sudo systemctl restart ollama
 ```
+
+**仅本机进程、无 Docker 访问时** 可改回 `127.0.0.1:11434`。Staging 部署脚本默认写入 `0.0.0.0`。
 
 ### 4.3 拉取模型
 
