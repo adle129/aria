@@ -174,9 +174,10 @@ R1 须同时支持客户历史 **`.docx`** 与旧版 **`.doc`** RFQ（验证语�
 - 单文件最大 **50MB**（与 [api-design.md](docs/supplementary/api-design.md) 一致）
 - 前端上传区须接受 `.docx` 与 `.doc`；非法扩展名返回 **400**（不 500）
 - `.doc` 转换失败时返回可读错误（如缺少 LibreOffice、文件损坏），提示另存为 `.docx` 或联系 IT
+- **内容门禁（R1+）：** 扩展名通过后入队；读入正文后若不像客户 RFQ/技术协议（无项目要求、交付物、里程碑等结构，或规则层零命中），任务标 **`failed`**，**不**进入 LLM 补全与维度匹配，避免内部计划/方案类 Word 误解析与幻觉
 - 知识库 **Engagement** 中 `doc_type=rfq` 的 RFQ 文档与上传接口格式一致（`.docx` / `.doc`）
 
-> 实现参考：`backend/app/services/ingest/rfq_document_loader.py`（Spike 已验证 `.doc` 切块）；上传 API / UI 接入见 [dev-tasks.md R1-F04-07](docs/R1/dev-tasks.md)。
+> 实现参考：`rfq_document_loader.py`（读入）· `rfq_document_guard.py`（类型/质量门禁）· `rfq_rules_extractor.py`（规则预抽）；上传 API 见 [dev-tasks.md R1-F04-07](docs/R1/dev-tasks.md)。
 
 #### 3.1.2 技术维度对比表（输出示例）
 

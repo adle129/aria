@@ -148,6 +148,7 @@ export default function KnowledgePage() {
   const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
   const [insufficientEvidence, setInsufficientEvidence] = useState<boolean | null>(null);
   const [importHistoryRefresh, setImportHistoryRefresh] = useState(0);
+  const [indexStartSignal, setIndexStartSignal] = useState(0);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -330,6 +331,10 @@ export default function KnowledgePage() {
             setWizardStep(1);
             void loadDocuments();
           }}
+          onRequestIndex={() => {
+            setWizardStep(1);
+            setIndexStartSignal((n) => n + 1);
+          }}
         />
       )}
 
@@ -337,6 +342,7 @@ export default function KnowledgePage() {
         <KnowledgeIndexJobPanel
           onCompleted={handleIndexCompleted}
           writeProtected={writeProtected}
+          startSignal={indexStartSignal}
         />
       )}
 

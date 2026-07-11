@@ -32,3 +32,54 @@ export function validateEngagementUpload(
   }
   return null;
 }
+
+export type UploadPackOutcome = "failed" | "incomplete" | "indexable";
+
+export interface UploadPackStatusView {
+  outcome: UploadPackOutcome;
+  label: string;
+  color: "error" | "warning" | "success";
+}
+
+/** Map API pack flags to customer-facing upload status. */
+export function formatUploadPackStatus(pack: {
+  stored: boolean;
+  indexable: boolean;
+  missing?: string[] | null;
+}): UploadPackStatusView {
+  if (!pack.stored) {
+    return { outcome: "failed", label: "上传失败", color: "error" };
+  }
+  if (pack.indexable && !(pack.missing?.length)) {
+    return { outcome: "indexable", label: "已上传·可索引", color: "success" };
+  }
+  if (pack.indexable) {
+    return {
+      outcome: "incomplete",
+      label: "已上传·可索引（资料不完整）",
+      color: "warning",
+    };
+  }
+  return { outcome: "incomplete", label: "已上传·资料不完整", color: "warning" };
+}
+
+export function summarizeUploadPacks(
+  packs: Array<{
+    stored: boolean;
+    indexable: boolean;
+    missing?: string[] | null;
+  }>,
+): { failed: number; incomplete: number; indexable: number; stored: number } {
+  let failed = 0;
+  let incomplete = 0;
+  let indexable = 0;
+  let stored = 0;
+  for (const pack of packs) {
+    const view = formatUploadPackStatus(pack);
+    if (view.outcome === "failed") failed += 1;
+    else if (view.outcome === "indexable") indexable += 1;
+    else incomplete += 1;
+    if (pack.stored) stored += 1;
+  }
+  return { failed, incomplete, indexable, stored };
+}

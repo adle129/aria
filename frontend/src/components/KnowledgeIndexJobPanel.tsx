@@ -51,6 +51,8 @@ interface KnowledgeIndexJob {
 interface KnowledgeIndexJobPanelProps {
   onCompleted: () => void | Promise<void>;
   writeProtected?: boolean;
+  /** Increment to trigger the same action as「更新知识库索引」. */
+  startSignal?: number;
 }
 
 interface CapacityErrorData {
@@ -71,6 +73,7 @@ const STATUS_COLOR: Record<KnowledgeIndexJobStatus, string> = {
 export default function KnowledgeIndexJobPanel({
   onCompleted,
   writeProtected = false,
+  startSignal = 0,
 }: KnowledgeIndexJobPanelProps) {
   const [job, setJob] = useState<KnowledgeIndexJob | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -150,7 +153,7 @@ export default function KnowledgeIndexJobPanel({
     return () => window.clearInterval(timer);
   }, [job, loadJob]);
 
-  const start = async () => {
+  const start = useCallback(async () => {
     if (writeProtected) {
       message.error("数据盘处于写保护，暂时无法更新索引");
       return;
@@ -187,7 +190,13 @@ export default function KnowledgeIndexJobPanel({
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [loadJob, onCompleted, writeProtected]);
+
+  useEffect(() => {
+    if (startSignal > 0) {
+      void start();
+    }
+  }, [startSignal, start]);
 
   const cancel = async () => {
     if (!job) return;
@@ -244,8 +253,10 @@ export default function KnowledgeIndexJobPanel({
           type="error"
           showIcon
           style={{ marginBottom: 12 }}
+          role="alert"
+          aria-live="assertive"
           message="更新索引所需空间不足"
-          description={`需要保留 ${formatCapacityBytes(capacityError.required_bytes)}，当前可用 ${formatCapacityBytes(capacityError.available_bytes)}。${capacityError.action}`}
+          description={`需要保留 ${formatCapacityBytes(capacityError.required_bytes)}，当前可用 ${formatCapacityBytes(capacityError.available_bytes)}。请清理数据盘或联系 IT 扩容后再试。${capacityError.action ? `（${capacityError.action}）` : ""}`}
         />
       )}
       {pollError && (
@@ -285,7 +296,16 @@ export default function KnowledgeIndexJobPanel({
                 批次 {job.import_id.slice(0, 8)}
               </Text>
             )}
-            {job.queue_position != null && <Text type="secondary">队列第 {job.queue_position} 位</Text>}
+            {job.queue_position != null && (
+              <Text type="secondary">
+                队列第 {job.queue_position} 位
+                {job.estimated_wait_seconds != null && job.estimated_wait_seconds > 0
+                  ? ` · 预计约 ${Math.ceil(job.estimated_wait_seconds / 60)} 分钟`
+                  : job.queue_position > 0
+                    ? " · 预计等待时间暂不可用"
+                    : ""}
+              </Text>
+            )}
             {(job.active_generation ?? job.generation_id) && (
               <Text type="secondary" copyable>
                 Generation {(job.active_generation ?? job.generation_id)?.slice(0, 8)}

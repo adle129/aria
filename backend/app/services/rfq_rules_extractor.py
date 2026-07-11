@@ -120,41 +120,138 @@ def _format_date(y: str, mo: str, d: str) -> str:
     return f"{y}-{int(mo):02d}-{int(d):02d}"
 
 
+def _milestone_alias_key(cell: str) -> str | None:
+    """Map free-text labels to canonical milestone keys."""
+    text = (cell or "").strip()
+    if not text:
+        return None
+    if re.search(r"(投产|量产|SOP)", text, re.I):
+        return "SOP"
+    if re.search(r"(项目启动|Kick\s*-?\s*off|Kickoff)", text, re.I):
+        return "P1"
+    match = re.search(
+        r"\b(M0|EM1|EM2|EM3|M1|M2|M3|M4|M5|P1|P2|P3|P4|P5|SOP)\b",
+        text,
+        re.I,
+    )
+    if match:
+        return _normalize_ms_key(match.group(1))
+    # 验收表形态：P2节点 / P3节点
+    match = re.search(r"(M0|EM[1-3]|M[1-5]|P[1-5]|SOP)\s*节点", text, re.I)
+    if match:
+        return _normalize_ms_key(match.group(1))
+    return None
+
+
+def _scan_milestone_region(region: str, milestones: dict[str, str]) -> None:
+    flat = region.replace("\x07", "|")
+
+    # Row-oriented: key in one cell, date in another cell of the same row.
+    for raw_line in flat.split("\n"):
+        line = raw_line.strip()
+        if not line:
+            continue
+        cells = [c.strip() for c in line.split("|") if c.strip()]
+        if len(cells) < 2:
+            cells = re.split(r"\s{2,}|\t+", line)
+            cells = [c.strip() for c in cells if c.strip()]
+        if len(cells) < 2:
+            continue
+        key: str | None = None
+        key_idx = -1
+        for idx, cell in enumerate(cells):
+            found = _milestone_alias_key(cell)
+            if found:
+                key = found
+                key_idx = idx
+                break
+        if not key:
+            continue
+        date_match = None
+        for idx, cell in enumerate(cells):
+            if idx == key_idx:
+                continue
+            date_match = _DATE.search(cell)
+            if date_match:
+                break
+        if date_match is None:
+            # Date may still sit in the key cell (e.g. "P1 2022.06.30")
+            date_match = _DATE.search(cells[key_idx])
+        if date_match and key not in milestones:
+            milestones[key] = _format_date(
+                date_match.group(1), date_match.group(2), date_match.group(3)
+            )
+
+    # Fallback: key → nearby date within a wider window (multi-column Word dumps).
+    for match in re.finditer(
+        r"(M0|EM1|EM2|EM3|M1|M2|M3|M4|M5|P1|P2|P3|P4|P5|SOP)(?:\s*数据|\s*节点)?",
+        flat,
+        re.I,
+    ):
+        key = _normalize_ms_key(match.group(1))
+        if key in milestones:
+            continue
+        tail = flat[match.end() : match.end() + 400]
+        date_match = _DATE.search(tail)
+        if date_match:
+            milestones[key] = _format_date(
+                date_match.group(1), date_match.group(2), date_match.group(3)
+            )
+
+    # Alias phrases without canonical key token already handled in row pass;
+    # also catch inline "投产 … 2023.08.30" / "项目启动 … date" in prose.
+    for match in re.finditer(
+        r"(投产|量产|SOP)[^0-9]{0,40}?(\d{4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})",
+        flat,
+        re.I,
+    ):
+        if "SOP" not in milestones:
+            milestones["SOP"] = _format_date(match.group(2), match.group(3), match.group(4))
+    for match in re.finditer(
+        r"(项目启动|Kick\s*-?\s*off|Kickoff)[^0-9]{0,40}?(\d{4})[.\-/年](\d{1,2})[.\-/月](\d{1,2})",
+        flat,
+        re.I,
+    ):
+        if "P1" not in milestones:
+            milestones["P1"] = _format_date(match.group(2), match.group(3), match.group(4))
+
+
 def extract_milestones_rules(text: str, chunks: list[dict[str, Any]] | None = None) -> dict[str, str]:
-    """Parse §3.2.3 开发进度 / 数据主要节点 table (Word \\x07 or pipe cells)."""
+    """Parse 开发进度 / 数据主要节点 / 验收阶段 tables (Word \\x07 or pipe cells)."""
     milestones: dict[str, str] = {}
 
-    def scan_region(region: str) -> None:
-        flat = region.replace("\x07", "|")
-        for match in re.finditer(
-            r"(M0|EM1|EM2|EM3|M1|M2|M3|M4|M5|P1|P2|P3|P4|P5|SOP)(?:\s*数据)?",
-            flat,
-            re.I,
-        ):
-            key = _normalize_ms_key(match.group(1))
-            tail = flat[match.end() : match.end() + 120]
-            date_match = _DATE.search(tail)
-            if date_match and key not in milestones:
-                milestones[key] = _format_date(
-                    date_match.group(1), date_match.group(2), date_match.group(3)
-                )
+    anchors: list[int] = []
+    for marker in ("3.2.3开发进度", "开发进度", "数据主要节点", "验收阶段", "验收表"):
+        start = 0
+        while True:
+            pos = text.find(marker, start)
+            if pos < 0:
+                break
+            anchors.append(pos)
+            start = pos + len(marker)
+    if not anchors and text:
+        anchors = [0]
 
-    anchor = text.find("3.2.3开发进度")
-    if anchor < 0:
-        anchor = text.find("开发进度")
-    if anchor >= 0:
-        scan_region(text[anchor : anchor + 12000])
+    seen_spans: set[tuple[int, int]] = set()
+    for anchor in sorted(set(anchors)):
+        span = (anchor, min(len(text), anchor + 20000))
+        if span in seen_spans:
+            continue
+        seen_spans.add(span)
+        _scan_milestone_region(text[span[0] : span[1]], milestones)
 
-    if len(milestones) < 2 and chunks:
+    if chunks:
         for chunk in chunks:
             body = _chunk_content(chunk)
-            if "开发进度" not in body or "数据主要节点" not in body:
+            if not body:
                 continue
-            if not re.search(r"(M0|EM1|P1)(?:\s*数据)?", body, re.I):
+            if not re.search(
+                r"(开发进度|数据主要节点|验收阶段|验收表|M0|EM1|P1|P2|P4|SOP|投产|量产)",
+                body,
+                re.I,
+            ):
                 continue
-            scan_region(body)
-            if len(milestones) >= 2:
-                break
+            _scan_milestone_region(body, milestones)
 
     return milestones
 
@@ -298,7 +395,7 @@ def extract_scope_rules(chunks: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> tuple[dict[str, list[str]], dict[str, str]]:
-    """Parse §4.2 deliverable table rows (工作内容 column) per 4.2.x section."""
+    """Parse §4.2 deliverable table rows (交付物清单 or 工作内容 column) per 4.2.x section."""
     by_section: dict[str, list[str]] = {}
     section_titles: dict[str, str] = {}
     current_section = ""
@@ -313,8 +410,30 @@ def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> tuple[dict[str, 
         if not current_section:
             continue
         body = _chunk_content(chunk).replace("\x07", "|")
-        if "工作内容" not in body and current_section not in by_section:
+        has_work_header = "工作内容" in body
+        has_deliverable_header = "交付物清单" in body
+        if not has_work_header and not has_deliverable_header and current_section not in by_section:
             continue
+
+        deliverable_col: int | None = None
+        for line in body.split("\n"):
+            cells = [c.strip() for c in line.replace("\x07", "|").split("|") if c.strip()]
+            if len(cells) < 2:
+                continue
+            joined = "".join(cells)
+            if "交付物清单" in joined:
+                for idx, cell in enumerate(cells):
+                    if "交付物清单" in cell:
+                        deliverable_col = idx
+                        break
+                break
+            if "工作内容" in joined and deliverable_col is None:
+                for idx, cell in enumerate(cells):
+                    if "工作内容" in cell:
+                        deliverable_col = idx
+                        break
+                if deliverable_col is not None:
+                    break
 
         deliverables: list[str] = []
         for line in body.split("\n"):
@@ -323,11 +442,23 @@ def extract_deliverables_rules(chunks: list[dict[str, Any]]) -> tuple[dict[str, 
                 continue
             if "类别" in line and "编号" in line:
                 continue
+            # Skip multi-column header rows (not data rows starting with a digit).
+            cells_preview = [c.strip() for c in line.split("|") if c.strip()]
+            if cells_preview and not cells_preview[0].isdigit():
+                if "交付物清单" in line or (
+                    "工作内容" in line and len(cells_preview) >= 2
+                ):
+                    continue
+            if line == "工作内容":
+                continue
             if "详见表" in line and len(line) > 80:
                 continue
             cells = [c.strip() for c in line.split("|") if c.strip()]
             if len(cells) >= 3 and cells[0].isdigit():
-                work = cells[2] if len(cells) > 2 else cells[-1]
+                if deliverable_col is not None and deliverable_col < len(cells):
+                    work = cells[deliverable_col]
+                else:
+                    work = cells[2] if len(cells) > 2 else cells[-1]
                 if work and work not in {"●", "〇", "○", "—", "-"} and len(work) >= 4:
                     deliverables.append(work[:200])
 
@@ -365,7 +496,7 @@ def apply_deliverables_to_modules(
                 continue
             if section_function.get(sec_id) != function:
                 continue
-            matched = items[:8]
+            matched = items[:20]
             assigned_sections.add(sec_id)
             break
         if matched:
@@ -409,6 +540,7 @@ def extract_rfq_rules(
             "development_scope_count": len(scope["development_scope"]),
             "modules_count": len(modules),
             "deliverable_sections": len(deliverables_map),
+            "deliverable_section_ids": sorted(deliverables_map.keys()),
         },
     }
 

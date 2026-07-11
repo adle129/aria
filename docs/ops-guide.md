@@ -292,6 +292,7 @@ prompts/
 | 现象 | 可能原因 | 处理 |
 |------|---------|------|
 | RFQ 上传后一直「解析中」 | Ollama 未响应 / GPU OOM | 检查 `systemctl status ollama`；查看 `nvidia-smi` |
+| **RFQ 很快失败·不像 RFQ** | 上传了非客户 RFQ Word（内部计划/方案等） | 换客户 RFQ/技术协议重传；见 `status_message`；规则见 `rfq_document_guard.py` |
 | JSON 解析失败 | LLM 输出格式异常 | 查看 backend 日志；重试；检查 Prompt 版本 |
 | 相似项目检索为空 | 知识库未导入 / pgvector 空 / 低于拒答阈值 | 执行 ingest；检查 stats；确认 query 与评测集 |
 | Excel 下载打不开 | 模板文件缺失 | 检查 `/data/aria/app/templates/quote_template.xlsx`（生产） |

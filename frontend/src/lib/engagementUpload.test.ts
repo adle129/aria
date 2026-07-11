@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatUploadPackStatus,
   MAX_UPLOAD_FILE_BYTES,
+  summarizeUploadPacks,
   uploadNeedsEngagementId,
   validateEngagementUpload,
 } from "./engagementUpload";
@@ -52,5 +54,41 @@ describe("validateEngagementUpload", () => {
         { name: "Q_A.xlsx", size: 2048 },
       ]),
     ).toBeNull();
+  });
+});
+
+describe("formatUploadPackStatus", () => {
+  it("labels hard failures when not stored", () => {
+    expect(
+      formatUploadPackStatus({ stored: false, indexable: false }),
+    ).toMatchObject({ outcome: "failed", label: "上传失败" });
+  });
+
+  it("labels incomplete stored packs", () => {
+    expect(
+      formatUploadPackStatus({
+        stored: true,
+        indexable: true,
+        missing: ["qa"],
+      }),
+    ).toMatchObject({ outcome: "incomplete" });
+  });
+
+  it("labels fully indexable packs", () => {
+    expect(
+      formatUploadPackStatus({ stored: true, indexable: true, missing: [] }),
+    ).toMatchObject({ outcome: "indexable", color: "success" });
+  });
+});
+
+describe("summarizeUploadPacks", () => {
+  it("counts failed incomplete and indexable", () => {
+    expect(
+      summarizeUploadPacks([
+        { stored: false, indexable: false },
+        { stored: true, indexable: true, missing: ["qa"] },
+        { stored: true, indexable: true, missing: [] },
+      ]),
+    ).toEqual({ failed: 1, incomplete: 1, indexable: 1, stored: 2 });
   });
 });

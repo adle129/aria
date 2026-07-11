@@ -16,13 +16,46 @@ export type ProcessingStepState = "done" | "active" | "pending";
 
 export function isQueueWaiting(
   processingStatus: string,
-  queuePosition?: number | null,
+  _queuePosition?: number | null,
 ): boolean {
-  return (
-    (processingStatus === "queued" || processingStatus === "pending") &&
-    queuePosition != null &&
-    queuePosition > 0
-  );
+  return processingStatus === "queued" || processingStatus === "pending";
+}
+
+/** Human-readable queue / ETA line for RFQ analysis progress. */
+export function formatQueueWaitHint(opts: {
+  processingStatus: string;
+  queuePosition?: number | null;
+  estimatedWaitSeconds?: number | null;
+  stalled?: boolean;
+  useRealLlm?: boolean | null;
+}): string {
+  const {
+    processingStatus,
+    queuePosition,
+    estimatedWaitSeconds,
+    stalled,
+    useRealLlm,
+  } = opts;
+  const queued =
+    processingStatus === "queued" || processingStatus === "pending";
+  if (queued) {
+    const pos =
+      queuePosition != null && queuePosition > 0
+        ? `第 ${queuePosition} 位`
+        : "排队中";
+    const eta =
+      estimatedWaitSeconds != null && estimatedWaitSeconds > 0
+        ? `预计约 ${Math.ceil(estimatedWaitSeconds / 60)} 分钟`
+        : "预计等待时间暂不可用";
+    return `排队中：${pos} · ${eta}`;
+  }
+  if (stalled) {
+    return "后台仍在处理，可继续等待或稍后从左侧任务列表打开";
+  }
+  if (useRealLlm) {
+    return "本地模型分析中，通常需要 1–3 分钟，请稍候";
+  }
+  return "正在处理，请稍候";
 }
 
 export function resolveProcessingStepIndex(processingStatus: string, progress: number): number {
@@ -104,20 +137,17 @@ export default function RfqAnalysisProgress({
   stalled,
   onResumePolling,
 }: RfqAnalysisProgressProps) {
-  const waitHint =
-    queuePosition != null && queuePosition > 0
-      ? `排队中：第 ${queuePosition} 位${
-          estimatedWaitSeconds != null && estimatedWaitSeconds > 0
-            ? ` · 预计约 ${Math.ceil(estimatedWaitSeconds / 60)} 分钟`
-            : ""
-        }`
-      : stalled
-        ? "后台仍在处理，可继续等待或稍后从左侧任务列表打开"
-        : useRealLlm
-          ? "本地模型分析中，通常需要 1–3 分钟，请稍候"
-          : "正在处理，请稍候";
+  const waitHint = formatQueueWaitHint({
+    processingStatus,
+    queuePosition,
+    estimatedWaitSeconds,
+    stalled,
+    useRealLlm,
+  });
 
   const stepVisuals = resolveProcessingStepVisuals(processingStatus, progress, queuePosition);
+  const showQueueBadge =
+    processingStatus === "queued" || processingStatus === "pending";
 
   return (
     <div
@@ -131,16 +161,39 @@ export default function RfqAnalysisProgress({
       <Title level={4} style={{ marginBottom: 8, fontWeight: 500 }}>
         {message || "正在分析 RFQ…"}
       </Title>
-      <Text type="secondary" style={{ display: "block", marginBottom: 28, fontSize: 13 }}>
-        {waitHint}
-      </Text>
+      {showQueueBadge ? (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            display: "inline-block",
+            marginBottom: 16,
+            padding: "6px 14px",
+            borderRadius: 4,
+            background: "#FFF7E6",
+            border: "1px solid #FFD591",
+            color: "#AD6800",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          {waitHint}
+        </div>
+      ) : (
+        <Text type="secondary" style={{ display: "block", marginBottom: 28, fontSize: 13 }}>
+          {waitHint}
+        </Text>
+      )}
       <Progress
         percent={progress}
         status={stalled ? "exception" : progress === 100 ? "success" : "active"}
         strokeColor={stalled ? "#E30613" : progress < 100 ? "#8C8C8C" : undefined}
         trailColor="#F0F0F0"
         showInfo
-        style={{ maxWidth: 360, margin: "0 auto 28px" }}
+        style={{
+          maxWidth: 360,
+          margin: showQueueBadge ? "0 auto 28px" : "0 auto 28px",
+        }}
       />
       <div
         style={{

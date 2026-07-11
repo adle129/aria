@@ -401,6 +401,8 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 {"code": 500, "msg": "服务器内部错误，请联系管理员"}
 ```
 
+RFQ 异步流水线：`processing_status=failed` 时 `status_message` / `error_msg` 可为用户可读文案（如非 RFQ 内容门禁），见 [api-design.md](docs/supplementary/api-design.md) · `rfq_document_guard.py`。
+
 - 500 禁止暴露 StackTrace；服务端 `exc_info=True` 记日志
 - LLM/文件异常必须降级，不可导致进程崩溃
 

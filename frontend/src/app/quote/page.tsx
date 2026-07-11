@@ -46,6 +46,7 @@ function QuotePageContent() {
   const [generateResult, setGenerateResult] = useState<GenerateResult | null>(null);
   const [breakdown, setBreakdown] = useState<ManpowerBreakdownItem[]>([]);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const scaffoldOnly = showsMilestoneScaffold(profile, "quote");
 
   const loadBreakdown = useCallback(async (id: string) => {
     setBreakdownLoading(true);
@@ -53,7 +54,7 @@ function QuotePageContent() {
       const resp = await apiClient.get<{
         code: number;
         data: { items: ManpowerBreakdownItem[]; demo_preview?: boolean };
-      }>(`/rfq/tasks/${id}/manpower-breakdown-preview`);
+      }>(`/rfq/tasks/${id}/manpower-breakdown-preview`, { silentError: true });
       setBreakdown(resp.data.data.items || []);
     } catch {
       setBreakdown([]);
@@ -66,19 +67,19 @@ function QuotePageContent() {
     const fromUrl = searchParams.get("task_id")?.trim();
     if (fromUrl) {
       setTaskId(fromUrl);
+      if (scaffoldOnly) return;
       void loadTask(fromUrl).then((payload) => {
         if (payload) void loadBreakdown(fromUrl);
       });
     }
-  }, [searchParams, loadTask, setTaskId, loadBreakdown]);
+  }, [searchParams, loadTask, setTaskId, loadBreakdown, scaffoldOnly]);
 
   useEffect(() => {
-    if (task?.task_id) {
-      void loadBreakdown(task.task_id);
-    }
-  }, [task?.task_id, loadBreakdown]);
+    if (scaffoldOnly || !task?.task_id) return;
+    void loadBreakdown(task.task_id);
+  }, [task?.task_id, loadBreakdown, scaffoldOnly]);
 
-  if (showsMilestoneScaffold(profile, "quote")) {
+  if (scaffoldOnly) {
     return <MilestoneStepScaffold step="quote" />;
   }
 

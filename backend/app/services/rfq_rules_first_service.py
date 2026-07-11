@@ -21,6 +21,7 @@ from app.services.rfq_parse_spike import (
     validate_rfq_parse_result,
     _run_single_pass,
 )
+from app.services.rfq_document_guard import assert_looks_like_rfq, assert_rfq_parse_quality
 from app.services.rfq_rules_extractor import (
     extract_rfq_rules,
     is_deliverable_table_chunk,
@@ -65,6 +66,8 @@ def run_parse_report(
 
     rules_result = extract_rfq_rules(raw_text, chunks)
     rules_stats = dict(rules_result.pop("_rules_stats", {}))
+    assert_looks_like_rfq(raw_text, rules_stats)
+    assert_rfq_parse_quality(rules_stats)
 
     prompt_root = _prompt_root(settings)
     llm = LLMService(settings)

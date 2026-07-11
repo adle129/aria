@@ -25,6 +25,8 @@ import {
   type EngagementTier,
 } from "@/lib/engagementCompleteness";
 import {
+  formatUploadPackStatus,
+  summarizeUploadPacks,
   uploadNeedsEngagementId,
   validateEngagementUpload,
 } from "@/lib/engagementUpload";
@@ -61,11 +63,13 @@ const MISSING_LABEL: Record<string, string> = {
 
 interface EngagementUploadPanelProps {
   onUploaded?: () => void;
+  onRequestIndex?: () => void;
   writeProtected?: boolean;
 }
 
 export default function EngagementUploadPanel({
   onUploaded,
+  onRequestIndex,
   writeProtected = false,
 }: EngagementUploadPanelProps) {
   const [engagementId, setEngagementId] = useState("");
@@ -73,6 +77,7 @@ export default function EngagementUploadPanel({
   const [uploading, setUploading] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [lastResults, setLastResults] = useState<EngagementPackResult[] | null>(null);
+  const [showPostUploadActions, setShowPostUploadActions] = useState(false);
   const [capacityError, setCapacityError] =
     useState<CapacityErrorData | null>(null);
 
@@ -89,6 +94,10 @@ export default function EngagementUploadPanel({
   );
   const needsEngagementId = uploadNeedsEngagementId(fileNames);
   const zipCount = fileNames.filter((n) => n.toLowerCase().endsWith(".zip")).length;
+  const summary = useMemo(
+    () => (lastResults ? summarizeUploadPacks(lastResults) : null),
+    [lastResults],
+  );
 
   const handleUpload = async () => {
     if (writeProtected) {
@@ -150,20 +159,21 @@ export default function EngagementUploadPanel({
       }>("/knowledge/engagements/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setLastResults(resp.data.data.packs);
-      const failed = resp.data.data.packs.filter((p) => !p.stored).length;
-      const incomplete = resp.data.data.packs.filter((p) => p.missing?.length).length;
-      if (failed > 0) {
+      const packs = resp.data.data.packs;
+      setLastResults(packs);
+      const counts = summarizeUploadPacks(packs);
+      if (counts.failed > 0) {
         message.warning(
-          `已处理 ${resp.data.data.uploaded} 套，其中 ${failed} 套上传失败；请查看下表`,
+          `已处理 ${resp.data.data.uploaded} 套：失败 ${counts.failed}，不完整 ${counts.incomplete}，可索引 ${counts.indexable}`,
         );
-      } else if (incomplete > 0) {
+      } else if (counts.incomplete > 0) {
         message.info(
-          `已上传 ${resp.data.data.uploaded} 套，其中 ${incomplete} 套资料不完整；可索引项目请查看下表`,
+          `已上传 ${counts.stored} 套：不完整 ${counts.incomplete}，可索引 ${counts.indexable}`,
         );
       } else {
-        message.success(`已上传 ${resp.data.data.uploaded} 套，请点击「更新知识库索引」`);
+        message.success(`已上传 ${counts.stored} 套，可建立检索索引`);
       }
+      setShowPostUploadActions(counts.stored > 0);
       setFileList([]);
       setReplaceExisting(false);
       onUploaded?.();
@@ -200,8 +210,10 @@ export default function EngagementUploadPanel({
           type="error"
           showIcon
           style={{ marginBottom: 12 }}
+          role="alert"
+          aria-live="assertive"
           message="上传所需空间不足"
-          description={`需要 ${formatCapacityBytes(capacityError.required_bytes)}，可用 ${formatCapacityBytes(capacityError.available_bytes)}（使用率 ${capacityError.usage_percent}%）。${capacityError.action}`}
+          description={`需要保留 ${formatCapacityBytes(capacityError.required_bytes)}，当前可用 ${formatCapacityBytes(capacityError.available_bytes)}（使用率 ${capacityError.usage_percent}%）。请清理数据盘或联系 IT 扩容后再试。${capacityError.action ? `（${capacityError.action}）` : ""}`}
         />
       )}
 
@@ -225,12 +237,15 @@ export default function EngagementUploadPanel({
         beforeUpload={() => false}
         onChange={({ fileList: next }) => setFileList(next)}
         accept=".zip,.docx,.doc,.xlsx,.json"
+        aria-describedby="engagement-upload-hint"
       >
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
         <p className="ant-upload-text">点击或拖拽 ZIP / RFQ / Q_A / 报价 Excel / manifest.json</p>
-        <p className="ant-upload-hint">ZIP 无需填 ID；散文件须先填 Engagement ID</p>
+        <p className="ant-upload-hint" id="engagement-upload-hint">
+          ZIP 无需填 ID；散文件须先填 Engagement ID
+        </p>
       </Upload.Dragger>
 
       <Space style={{ marginTop: 16 }}>
@@ -264,64 +279,110 @@ export default function EngagementUploadPanel({
         />
       )}
 
-      {lastResults && lastResults.length > 0 && (
-        <Table
-          style={{ marginTop: 16 }}
-          rowKey="engagement_id"
-          size="small"
-          pagination={false}
-          scroll={{ x: "max-content" }}
-          dataSource={lastResults}
-          columns={[
-            { title: "项目目录名", dataIndex: "engagement_id", width: 160 },
-            { title: "项目名称", dataIndex: "project_name", ellipsis: true },
-            {
-              title: "资料完整度",
-              key: "tier",
-              width: 72,
-              render: (_: unknown, row: EngagementPackResult) => (
-                <Tag color={ENGAGEMENT_TIER_COLOR[row.tier]}>
-                  {ENGAGEMENT_TIER_LABEL[row.tier]}
-                </Tag>
+      {summary && lastResults && lastResults.length > 0 && (
+        <>
+          <Alert
+            type={summary.failed ? "warning" : "success"}
+            showIcon
+            style={{ marginTop: 16 }}
+            aria-live="polite"
+            message={`本批结果：成功落盘 ${summary.stored}，可索引 ${summary.indexable}，资料不完整 ${summary.incomplete}，失败 ${summary.failed}`}
+          />
+          <Table
+            style={{ marginTop: 12 }}
+            rowKey="engagement_id"
+            size="small"
+            pagination={false}
+            scroll={{ x: "max-content" }}
+            dataSource={lastResults}
+            expandable={{
+              expandedRowRender: (row) => (
+                <Space direction="vertical" size={4}>
+                  {row.path ? <Text type="secondary">路径：{row.path}</Text> : null}
+                  {row.files?.length ? (
+                    <Text type="secondary">文件：{row.files.join("、")}</Text>
+                  ) : null}
+                  {row.errors?.length ? (
+                    <Text type="danger">
+                      错误：
+                      {row.errors
+                        .map((e) => `${e.file || "—"}：${e.error || "未知错误"}`)
+                        .join("；")}
+                    </Text>
+                  ) : null}
+                  {!row.files?.length && !row.errors?.length && !row.path ? (
+                    <Text type="secondary">无更多详情</Text>
+                  ) : null}
+                </Space>
               ),
-            },
-            {
-              title: "状态",
-              dataIndex: "status",
-              width: 136,
-              render: (_: string, row: EngagementPackResult) => (
-                <Tag color={row.indexable ? "green" : "red"}>
-                  {row.indexable ? "已上传·可索引" : "已上传·不可索引"}
-                </Tag>
-              ),
-            },
-            {
-              title: "缺件",
-              dataIndex: "missing",
-              render: (missing: string[] | undefined) =>
-                missing?.length
-                  ? missing.map((m) => MISSING_LABEL[m] || m).join("、")
-                  : "—",
-            },
-            {
-              title: "自动化影响",
-              key: "impact",
-              render: (_: unknown, row: EngagementPackResult) =>
-                row.automation_impacts.length
-                  ? row.automation_impacts.join("；")
-                  : "三件套齐全，可支撑 R1 检索与后续里程碑",
-            },
-            { title: "路径", dataIndex: "path", ellipsis: true },
-          ]}
-        />
+            }}
+            columns={[
+              { title: "项目目录名", dataIndex: "engagement_id", width: 160 },
+              { title: "项目名称", dataIndex: "project_name", ellipsis: true },
+              {
+                title: "资料完整度",
+                key: "tier",
+                width: 72,
+                render: (_: unknown, row: EngagementPackResult) => (
+                  <Tag color={ENGAGEMENT_TIER_COLOR[row.tier]}>
+                    {ENGAGEMENT_TIER_LABEL[row.tier]}
+                  </Tag>
+                ),
+              },
+              {
+                title: "状态",
+                key: "upload_status",
+                width: 168,
+                render: (_: unknown, row: EngagementPackResult) => {
+                  const view = formatUploadPackStatus(row);
+                  return <Tag color={view.color}>{view.label}</Tag>;
+                },
+              },
+              {
+                title: "缺件",
+                dataIndex: "missing",
+                render: (missing: string[] | undefined) =>
+                  missing?.length
+                    ? missing.map((m) => MISSING_LABEL[m] || m).join("、")
+                    : "—",
+              },
+              {
+                title: "自动化影响",
+                key: "impact",
+                render: (_: unknown, row: EngagementPackResult) =>
+                  row.automation_impacts.length
+                    ? row.automation_impacts.join("；")
+                    : row.stored
+                      ? "三件套齐全，可支撑 R1 检索与后续里程碑"
+                      : "—",
+              },
+            ]}
+          />
+        </>
       )}
 
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginTop: 16 }}
-        message="上传后须点击「更新知识库索引」方可检索"
-      />
+      {showPostUploadActions && summary && summary.stored > 0 ? (
+        <Space style={{ marginTop: 16 }}>
+          <Button
+            type="primary"
+            disabled={writeProtected}
+            onClick={() => {
+              setShowPostUploadActions(false);
+              onRequestIndex?.();
+            }}
+          >
+            为本批建立检索索引
+          </Button>
+          <Button onClick={() => setShowPostUploadActions(false)}>稍后处理</Button>
+        </Space>
+      ) : (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginTop: 16 }}
+          message="上传后须建立检索索引方可检索"
+        />
+      )}
     </Card>
   );
 }

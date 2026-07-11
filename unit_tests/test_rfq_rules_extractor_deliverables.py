@@ -64,3 +64,54 @@ def test_enrich_unknown_module_functions():
     modules = [{"function": "未知", "module_name": "P3阶段相应电子电器工作", "deliverables": []}]
     enrich_unknown_module_functions(modules)
     assert modules[0]["function"] == "EE"
+
+
+def test_extract_deliverables_清单_header_columns():
+    """Customer template uses 交付物清单 (not 工作内容) as the work column."""
+    table = """
+序号 | 条件 | 交付物清单 | 交付物格式 | 节点
+1 | 常规 | 完成整车总布置方案 | CATIA | P2
+2 | 常规 | 完成尺寸工程校核报告 | PDF | P3
+"""
+    chunks = [{"chunk_chapter": "4.2.1 总布置与尺寸工程", "content": table}]
+    by_section, _ = extract_deliverables_rules(chunks)
+    assert by_section["4.2.1"] == ["完成整车总布置方案", "完成尺寸工程校核报告"]
+
+
+def test_extract_deliverables_covers_seven_sections():
+    titles = {
+        "4.2.1": "总布置",
+        "4.2.2": "车身",
+        "4.2.3": "底盘",
+        "4.2.4": "电子电器",
+        "4.2.5": "内外饰",
+        "4.2.6": "CAE",
+        "4.2.7": "试验验证",
+    }
+    chunks = []
+    for sec_id, title in titles.items():
+        chunks.append(
+            {
+                "chunk_chapter": f"{sec_id} {title}",
+                "content": (
+                    f"序号 | 条件 | 交付物清单 | 交付物格式 | 节点\n"
+                    f"1 | 常规 | {title}交付物A报告 | PDF | P2\n"
+                    f"2 | 常规 | {title}交付物B数据 | CATIA | P3\n"
+                ),
+            }
+        )
+    by_section, section_titles = extract_deliverables_rules(chunks)
+    expected = {f"4.2.{i}" for i in range(1, 8)}
+    assert expected.issubset(by_section.keys())
+    assert all(len(by_section[s]) == 2 for s in expected)
+    assert section_titles["4.2.3"] == "底盘"
+
+
+def test_extract_deliverables_skips_intro_only_chunk():
+    intro = (
+        "4.2.2 车身开发内容详见表二，其中表中未能识别的支架类的分析也应视为协议内容。"
+        "兼顾增程和纯电两种配置，分析阶段根据数据发布阶段定义。"
+    )
+    chunks = [{"chunk_chapter": "4.2.2 车身开发", "content": intro}]
+    by_section, _ = extract_deliverables_rules(chunks)
+    assert "4.2.2" not in by_section

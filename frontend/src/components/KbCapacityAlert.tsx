@@ -18,6 +18,8 @@ export default function KbCapacityAlert({
     <Alert
       type={alert.type}
       showIcon
+      role="status"
+      aria-live="polite"
       message={alert.message}
       description={alert.description}
       style={{ marginBottom: 16 }}

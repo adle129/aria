@@ -19,6 +19,7 @@ from app.services.embedding_service import EmbeddingError
 from app.services.llm_service import LLMService
 from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
+from app.services.rfq_document_guard import RfqDocumentRejectedError
 from app.services.rfq_parse_service import RFQParseService
 from app.services.rfq_upload import validate_rfq_upload_filename
 from app.services.task_job_service import TaskJobService
@@ -178,7 +179,9 @@ class RFQAnalysisService:
             err = str(exc)
             task.processing_status = "failed"
             task.error_msg = err
-            if "timeout" in err.lower() or "timed out" in err.lower():
+            if isinstance(exc, RfqDocumentRejectedError):
+                task.status_message = err
+            elif "timeout" in err.lower() or "timed out" in err.lower():
                 task.status_message = "分析失败：本地模型响应超时"
             else:
                 task.status_message = "分析失败"
