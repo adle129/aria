@@ -1,4 +1,6 @@
 import json
+import logging
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,8 @@ from app.services.mock_data import (
     MOCK_KNOWLEDGE_STATS,
     MOCK_RAG_HITS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RAGProductionError(RuntimeError):
@@ -120,7 +124,10 @@ class RAGService:
         top_k: int = 5,
         function_filter: list[str] | None = None,
         doc_type_filter: list[str] | None = None,
+        *,
+        request_type: str = "query",
     ) -> list[dict[str, Any]]:
+        started = time.monotonic()
         if self.settings.mock_rag:
             hits = _filter_hits_by_functions(MOCK_RAG_HITS, function_filter)
             hits = _filter_hits_by_doc_type(hits, doc_type_filter)
@@ -132,6 +139,21 @@ class RAGService:
             top_k=top_k,
             function_filter=function_filter,
             doc_type_filter=doc_type_filter,
+            request_type=request_type,
+        )
+        max_score = max(
+            (float(h.get("similarity_score") or 0.0) for h in hits),
+            default=0.0,
+        )
+        logger.info(
+            "rag_search request_type=%s top_k=%s hits=%d max_similarity=%.3f "
+            "insufficient=%s elapsed_ms=%d",
+            request_type,
+            top_k,
+            len(hits),
+            max_score,
+            self.is_insufficient_evidence(hits),
+            int((time.monotonic() - started) * 1000),
         )
         return hits
 

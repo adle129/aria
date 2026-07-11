@@ -190,3 +190,27 @@ def test_recover_stale_jobs_requeues_when_under_max_attempts(db_session):
     db_session.refresh(task)
     assert task.processing_status == "queued"
     assert task.error_msg is None
+
+
+def test_recover_stale_jobs_recovers_orphaned_confirm_phase(db_session):
+    from datetime import timedelta, timezone
+
+    task = RFQTask(
+        file_name="orphan.docx",
+        file_path="/tmp/orphan.docx",
+        processing_status="retrieving",
+        progress="55",
+        status_message="正在检索相似历史项目...",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"in_scope": True, "name": "x"}]},
+        updated_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    worker = WorkerService(Settings(database_url="sqlite://", task_job_stale_seconds=900))
+    reset = worker.recover_stale_jobs(db_session)
+    assert reset == 1
+    db_session.refresh(task)
+    assert task.processing_status == "dimension_review"
+    assert task.progress == "40"

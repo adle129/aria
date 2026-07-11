@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import logging
 import shutil
 import tempfile
 from collections.abc import Callable
@@ -8,6 +9,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from app.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class DiskUsage(NamedTuple):
@@ -85,6 +88,15 @@ class DiskGuardService:
                 status["write_protected"]
                 or status["free_bytes"] < required
             ):
+                logger.warning(
+                    "disk_guard_reject volume=%s required_bytes=%s available_bytes=%s "
+                    "usage_percent=%.1f write_protected=%s",
+                    name,
+                    required,
+                    status["free_bytes"],
+                    status["usage_percent"],
+                    status["write_protected"],
+                )
                 raise DiskCapacityError(
                     volume=name,
                     required_bytes=required,
@@ -103,6 +115,13 @@ class DiskGuardService:
             return None
         path = self.temp_path if volume == "tmp" else self.data_path
         status = self._volume_status(volume, path)
+        logger.warning(
+            "disk_guard_enospc volume=%s required_bytes=%s available_bytes=%s usage_percent=%.1f",
+            volume,
+            max(0, int(required_bytes)),
+            status["free_bytes"],
+            status["usage_percent"],
+        )
         return DiskCapacityError(
             volume=volume,
             required_bytes=max(0, int(required_bytes)),

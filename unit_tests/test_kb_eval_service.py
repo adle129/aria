@@ -59,7 +59,15 @@ def test_run_production_retrieval_eval_uses_rag_service(monkeypatch, tmp_path):
     settings = Settings(mock_rag=False, knowledge_base_path=str(kb))
 
     class FakeIndex:
-        def search(self, query, *, top_k=5, function_filter=None, doc_type_filter=None):
+        def search(
+            self,
+            query,
+            *,
+            top_k=5,
+            function_filter=None,
+            doc_type_filter=None,
+            request_type="query",
+        ):
             return [{"metadata": {"area": "Packaging"}, "similarity_score": 0.9, "content": "x"}]
 
     monkeypatch.setattr(

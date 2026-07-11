@@ -243,21 +243,12 @@ export default function KnowledgePage() {
         <Tag color="blue">平台能力</Tag>
       </Space>
       <Paragraph type="secondary">
-        历史项目 RFQ、方案、报价等工程资料 · 平台共享检索底座。报价工程师日常在「RFQ
-        分析」查看对标结果即可；本页供管理员入库、索引与检索验证。
+        历史项目 RFQ、方案、报价等工程资料 · 平台共享检索底座。日常在「RFQ
+        分析」查看对标结果；本页可检索与查看统计
+        {authEnabled && isKbAdmin ? "，并完成入库与索引。" : "。"}
       </Paragraph>
 
       <PlatformKnowledgeExplainer />
-
-      {authEnabled && !isKbAdmin && (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message="当前为只读模式"
-          description="项目包上传与索引更新仅资料库管理员（kb_admin）可操作；报价工程师账号可检索与查看统计。若需上传 RFQ，请使用 kb_admin 账号或联系管理员调整角色。"
-        />
-      )}
 
       {stats?.mock_rag && showDemoChrome && (
         <Alert

@@ -36,6 +36,7 @@ export function resolveProcessingStepIndex(processingStatus: string, progress: n
       return 3;
     case "retrieving":
     case "generating":
+      // Past engineer confirmation; keep review step done and show active on last step.
       return 3;
     default:
       return 1;
@@ -55,6 +56,22 @@ export function resolveProcessingStepVisuals(
       { label: RFQ_PROCESSING_STEPS[1].label, state: "pending" },
       { label: RFQ_PROCESSING_STEPS[2].label, state: "pending" },
       { label: RFQ_PROCESSING_STEPS[3].label, state: "pending" },
+    ];
+  }
+
+  if (processingStatus === "retrieving" || processingStatus === "generating") {
+    return [
+      { label: RFQ_PROCESSING_STEPS[0].label, state: "done" },
+      { label: RFQ_PROCESSING_STEPS[1].label, state: "done" },
+      { label: RFQ_PROCESSING_STEPS[2].label, state: "done" },
+      { label: RFQ_PROCESSING_STEPS[3].label, state: "done" },
+      {
+        label:
+          processingStatus === "retrieving"
+            ? "检索相似历史项目"
+            : "生成对比矩阵",
+        state: "active",
+      },
     ];
   }
 

@@ -192,6 +192,25 @@ def test_engineer_cannot_reindex(auth_client, monkeypatch):
     assert resp.json()["msg"] == "需要资料库管理员权限"
 
 
+def test_engineer_can_read_kb_maintenance(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/knowledge/maintenance",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["active"] is False
+
+
+def test_engineer_cannot_read_imports_active(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/knowledge/imports/active",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
 def test_kb_admin_can_reindex(auth_client, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
     get_settings.cache_clear()

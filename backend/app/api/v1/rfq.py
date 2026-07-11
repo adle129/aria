@@ -16,6 +16,8 @@ from app.services.dimension_baseline_service import (
     DimensionBaselineNotFoundError,
     DimensionBaselineService,
 )
+from app.services.embedding_service import EmbeddingError
+from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.quote_service import QuoteService
 from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.rfq_upload import RFQ_UPLOAD_REJECT_MSG, is_allowed_rfq_filename
@@ -104,6 +106,7 @@ def list_tasks(
     )
     rows = []
     for t in tasks:
+        t = analysis_service.recover_orphaned_confirm_phase(db, t)
         mods = t.rfq_modules if isinstance(t.rfq_modules, dict) else {}
         project_name = mods.get("project_name")
         customer = mods.get("customer")
@@ -132,6 +135,7 @@ def get_task(
     task = RFQTaskRepository(db).get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
+    task = analysis_service.recover_orphaned_confirm_phase(db, task)
     return {"code": 200, "data": analysis_service.get_task_payload(task)}
 
 
@@ -185,6 +189,25 @@ def confirm_dimensions(
         updated = analysis_service.confirm_dimensions(db, task, body.model_dump(exclude_none=True))
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    except OllamaLeaseTimeout:
+        return JSONResponse(
+            status_code=503,
+            content={"code": 503, "msg": "本地模型资源繁忙，请稍后重试确认维度"},
+        )
+    except EmbeddingError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"code": 503, "msg": str(exc) or "相似项目检索失败，请稍后重试"},
+        )
+    except Exception:
+        db.refresh(task)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": 500,
+                "msg": task.status_message or "确认维度后生成对比矩阵失败",
+            },
+        )
     payload = analysis_service.get_task_payload(updated)
     return {
         "code": 200,

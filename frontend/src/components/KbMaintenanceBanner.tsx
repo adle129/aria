@@ -3,7 +3,7 @@
 import { Alert } from "antd";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
-import { ACTIVE_INDEX_JOB_STATUSES } from "@/lib/knowledgeIndexJob";
+import { INDEX_JOB_PHASE_LABEL } from "@/lib/knowledgeIndexJob";
 
 export default function KbMaintenanceBanner() {
   const [visible, setVisible] = useState(false);
@@ -15,14 +15,12 @@ export default function KbMaintenanceBanner() {
       try {
         const resp = await apiClient.get<{
           code: number;
-          data: { status?: string; phase?: string | null } | null;
-        }>("/knowledge/imports/active");
-        const job = resp.data.data;
+          data: { active?: boolean; phase?: string | null };
+        }>("/knowledge/maintenance", { silentError: true });
         if (cancelled) return;
-        const active =
-          job != null && ACTIVE_INDEX_JOB_STATUSES.has(job.status as never);
-        setVisible(active);
-        setPhase(job?.phase ?? null);
+        const data = resp.data.data;
+        setVisible(Boolean(data?.active));
+        setPhase(data?.phase ?? null);
       } catch {
         if (!cancelled) setVisible(false);
       }
@@ -37,6 +35,10 @@ export default function KbMaintenanceBanner() {
 
   if (!visible) return null;
 
+  const phaseLabel = phase
+    ? INDEX_JOB_PHASE_LABEL[phase] ?? phase
+    : null;
+
   return (
     <Alert
       type="info"
@@ -44,8 +46,8 @@ export default function KbMaintenanceBanner() {
       banner
       message="知识库正在后台更新索引"
       description={
-        phase
-          ? `当前阶段：${phase}。检索与 RFQ 对标仍使用上一版稳定索引，无需等待。`
+        phaseLabel
+          ? `当前阶段：${phaseLabel}。检索与 RFQ 对标仍使用上一版稳定索引，无需等待。`
           : "检索与 RFQ 对标仍使用上一版稳定索引，无需等待。"
       }
     />

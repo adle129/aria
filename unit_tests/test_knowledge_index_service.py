@@ -155,7 +155,7 @@ def test_search_applies_doc_type_filter(monkeypatch, tmp_path):
     monkeypatch.setattr(svc, "_store", FakeStore())
     monkeypatch.setattr(
         "app.services.knowledge_index_service.embed_texts",
-        lambda s, texts: [[0.01] * 768 for _ in texts],
+        lambda s, texts, **_kwargs: [[0.01] * 768 for _ in texts],
     )
     hits = svc.search("tolerance", top_k=5, doc_type_filter=["qa"])
     assert len(hits) == 1

@@ -20,6 +20,11 @@ import axios from "axios";
 import { useMemo, useState } from "react";
 import { apiClient } from "@/api/client";
 import {
+  ENGAGEMENT_TIER_COLOR,
+  ENGAGEMENT_TIER_LABEL,
+  type EngagementTier,
+} from "@/lib/engagementCompleteness";
+import {
   uploadNeedsEngagementId,
   validateEngagementUpload,
 } from "@/lib/engagementUpload";
@@ -32,7 +37,7 @@ export interface EngagementPackResult {
   project_name?: string;
   status: string;
   stored: boolean;
-  tier: "gold" | "silver" | "copper";
+  tier: EngagementTier;
   indexable: boolean;
   missing?: string[];
   automation_impacts: string[];
@@ -47,18 +52,6 @@ interface CapacityErrorData {
   usage_percent: number;
   action: string;
 }
-
-const TIER_COLOR: Record<string, string> = {
-  gold: "green",
-  silver: "blue",
-  copper: "orange",
-};
-
-const TIER_LABEL: Record<EngagementPackResult["tier"], string> = {
-  gold: "金级",
-  silver: "银级",
-  copper: "铜级",
-};
 
 const MISSING_LABEL: Record<string, string> = {
   rfq: "RFQ",
@@ -280,14 +273,16 @@ export default function EngagementUploadPanel({
           scroll={{ x: "max-content" }}
           dataSource={lastResults}
           columns={[
-            { title: "Engagement", dataIndex: "engagement_id", width: 160 },
-            { title: "项目名", dataIndex: "project_name", ellipsis: true },
+            { title: "项目目录名", dataIndex: "engagement_id", width: 160 },
+            { title: "项目名称", dataIndex: "project_name", ellipsis: true },
             {
-              title: "等级",
+              title: "资料完整度",
               key: "tier",
               width: 72,
               render: (_: unknown, row: EngagementPackResult) => (
-                <Tag color={TIER_COLOR[row.tier]}>{TIER_LABEL[row.tier]}</Tag>
+                <Tag color={ENGAGEMENT_TIER_COLOR[row.tier]}>
+                  {ENGAGEMENT_TIER_LABEL[row.tier]}
+                </Tag>
               ),
             },
             {

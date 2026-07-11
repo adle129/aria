@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_kb_admin
+from app.api.deps import get_current_user, require_kb_admin
 from app.config import get_settings
 from app.database import get_db
 from app.repositories.engagement_repository import EngagementRepository
@@ -253,6 +253,29 @@ def knowledge_import_jobs(
                 service.serialize(db, job)
                 for job in service.list(db, limit=limit, offset=offset)
             ]
+        },
+    }
+
+
+@router.get("/maintenance")
+def knowledge_maintenance_status(
+    db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Read-only index maintenance hint for all authenticated users (incl. engineers)."""
+    service = KnowledgeIndexJobService(get_settings())
+    job = service.get_active(db)
+    if job is None:
+        return {"code": 200, "data": {"active": False, "phase": None}}
+    status = job.status
+    if status == "running" and job.cancel_requested_at:
+        status = "cancelling"
+    active = status in {"queued", "running", "cancelling"}
+    return {
+        "code": 200,
+        "data": {
+            "active": active,
+            "phase": job.phase if active else None,
         },
     }
 

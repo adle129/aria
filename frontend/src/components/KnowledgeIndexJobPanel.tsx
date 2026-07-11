@@ -77,12 +77,15 @@ export default function KnowledgeIndexJobPanel({
   const [capacityError, setCapacityError] =
     useState<CapacityErrorData | null>(null);
   const completedJobs = useRef(new Set<string>());
+  const failedJobs = useRef(new Set<string>());
+  const [pollError, setPollError] = useState(false);
 
   const acceptJob = useCallback(
     async (next: KnowledgeIndexJob | null) => {
       setJob(next);
+      if (!next) return;
       if (
-        next?.status === "completed" &&
+        next.status === "completed" &&
         !completedJobs.current.has(next.job_id)
       ) {
         completedJobs.current.add(next.job_id);
@@ -90,6 +93,13 @@ export default function KnowledgeIndexJobPanel({
           `索引完成：${next.new_documents ?? 0} 篇文档，${next.new_chunks ?? 0} 个片段`,
         );
         await onCompleted();
+      }
+      if (
+        next.status === "failed" &&
+        !failedJobs.current.has(next.job_id)
+      ) {
+        failedJobs.current.add(next.job_id);
+        message.error(next.error || "知识库索引失败，请查看失败详情");
       }
     },
     [onCompleted],
@@ -101,6 +111,7 @@ export default function KnowledgeIndexJobPanel({
         `/knowledge/imports/${jobId}`,
         { silentError: true },
       );
+      setPollError(false);
       await acceptJob(resp.data.data);
     },
     [acceptJob],
@@ -108,29 +119,33 @@ export default function KnowledgeIndexJobPanel({
 
   useEffect(() => {
     const loadInitialJob = async () => {
-      const activeResp = await apiClient.get<{
-        code: number;
-        data: KnowledgeIndexJob | null;
-      }>("/knowledge/imports/active", { silentError: true });
-      if (activeResp.data.data) {
-        await acceptJob(activeResp.data.data);
-        return;
-      }
+      try {
+        const activeResp = await apiClient.get<{
+          code: number;
+          data: KnowledgeIndexJob | null;
+        }>("/knowledge/imports/active", { silentError: true });
+        if (activeResp.data.data) {
+          await acceptJob(activeResp.data.data);
+          return;
+        }
 
-      const historyResp = await apiClient.get<{
-        code: number;
-        data: { jobs: KnowledgeIndexJob[] };
-      }>("/knowledge/imports?limit=1&offset=0", { silentError: true });
-      await acceptJob(historyResp.data.data.jobs[0] ?? null);
+        const historyResp = await apiClient.get<{
+          code: number;
+          data: { jobs: KnowledgeIndexJob[] };
+        }>("/knowledge/imports?limit=1&offset=0", { silentError: true });
+        await acceptJob(historyResp.data.data.jobs[0] ?? null);
+      } catch {
+        setPollError(true);
+      }
     };
 
-    void loadInitialJob().catch(() => undefined);
+    void loadInitialJob();
   }, [acceptJob]);
 
   useEffect(() => {
     if (!job || !ACTIVE_INDEX_JOB_STATUSES.has(job.status)) return;
     const timer = window.setInterval(() => {
-      void loadJob(job.job_id).catch(() => undefined);
+      void loadJob(job.job_id).catch(() => setPollError(true));
     }, 2000);
     return () => window.clearInterval(timer);
   }, [job, loadJob]);
@@ -233,8 +248,21 @@ export default function KnowledgeIndexJobPanel({
           description={`需要保留 ${formatCapacityBytes(capacityError.required_bytes)}，当前可用 ${formatCapacityBytes(capacityError.available_bytes)}。${capacityError.action}`}
         />
       )}
+      {pollError && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="无法刷新索引任务状态"
+          description="请检查网络或重新打开本页；任务可能仍在后台运行。"
+        />
+      )}
       {!job ? (
-        <Text type="secondary">当前没有索引任务。上传项目包后可启动更新。</Text>
+        <Text type="secondary">
+          {pollError
+            ? "暂时无法加载索引任务状态。"
+            : "当前没有索引任务。上传项目包后可启动更新。"}
+        </Text>
       ) : (
         <Space direction="vertical" style={{ width: "100%" }} size={8}>
           <Space wrap>
@@ -244,6 +272,9 @@ export default function KnowledgeIndexJobPanel({
                 : INDEX_JOB_STATUS_LABEL[job.status]}
             </Tag>
             <Text>{phaseLabel}</Text>
+            <Text type="secondary" copyable={{ text: job.job_id }}>
+              任务 {job.job_id.slice(0, 8)}
+            </Text>
             {job.mode && (
               <Text type="secondary">
                 {job.mode === "full" ? "全量" : "增量"}
@@ -262,8 +293,22 @@ export default function KnowledgeIndexJobPanel({
             )}
           </Space>
           <Progress
-            percent={job.status === "completed" ? 100 : job.progress}
-            status={job.status === "failed" ? "exception" : undefined}
+            percent={
+              job.status === "completed"
+                ? 100
+                : active
+                  ? Math.min(job.progress ?? 0, 99)
+                  : (job.progress ?? 0)
+            }
+            status={
+              job.status === "failed"
+                ? "exception"
+                : active
+                  ? "active"
+                  : job.status === "completed"
+                    ? "success"
+                    : undefined
+            }
           />
           {job.status === "completed" && (
             <Text type="secondary">

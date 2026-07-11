@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import socket
 import threading
@@ -10,6 +11,8 @@ from contextlib import contextmanager
 from app.config import Settings, get_settings
 from app.database import SessionLocal, engine
 from app.repositories.ollama_lease_repository import OllamaLeaseRepository
+
+logger = logging.getLogger(__name__)
 
 REQUEST_PRIORITIES = {
     "query": 400,
@@ -51,10 +54,33 @@ class OllamaConcurrencyGate:
 
         holder = holder_id or self._holder_id(request_type)
         timeout = wait_timeout_seconds or self._wait_timeout(request_type)
-        lease_id = self._wait_for_lease(
-            request_type=request_type,
-            holder_id=holder,
-            wait_timeout_seconds=timeout,
+        wait_started = time.monotonic()
+        logger.info(
+            "ollama_lease_wait request_type=%s holder=%s timeout_s=%.1f",
+            request_type,
+            holder,
+            timeout,
+        )
+        try:
+            lease_id = self._wait_for_lease(
+                request_type=request_type,
+                holder_id=holder,
+                wait_timeout_seconds=timeout,
+            )
+        except OllamaLeaseTimeout:
+            logger.warning(
+                "ollama_lease_timeout request_type=%s holder=%s waited_ms=%d",
+                request_type,
+                holder,
+                int((time.monotonic() - wait_started) * 1000),
+            )
+            raise
+        logger.info(
+            "ollama_lease_acquired request_type=%s holder=%s lease_id=%s waited_ms=%d",
+            request_type,
+            holder,
+            lease_id,
+            int((time.monotonic() - wait_started) * 1000),
         )
         heartbeat_stop = threading.Event()
         heartbeat = threading.Thread(
@@ -63,6 +89,7 @@ class OllamaConcurrencyGate:
             daemon=True,
         )
         heartbeat.start()
+        held_started = time.monotonic()
         try:
             with self._local_slot():
                 yield lease_id
@@ -73,6 +100,12 @@ class OllamaConcurrencyGate:
             )
             with SessionLocal() as db:
                 OllamaLeaseRepository(db).release(lease_id)
+            logger.info(
+                "ollama_lease_released request_type=%s lease_id=%s held_ms=%d",
+                request_type,
+                lease_id,
+                int((time.monotonic() - held_started) * 1000),
+            )
 
     @contextmanager
     def _local_slot(self):

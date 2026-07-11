@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+import time
+
 import httpx
 
 from app.config import Settings
 from app.services.ollama_concurrency import get_ollama_gate
 from app.services.ollama_service import ollama_http_client
+
+logger = logging.getLogger(__name__)
 
 # nomic-embed-text on Ollama defaults to num_ctx=2048 tokens; dense CN/EN RFQ
 # chunks exceed that near ~3000 chars. Keep head for retrieval relevance.
@@ -107,6 +112,14 @@ def embed_texts(
     batch_size = max(1, settings.embedding_batch_size)
 
     gate = get_ollama_gate(settings)
+    started = time.monotonic()
+    logger.info(
+        "embed_start request_type=%s texts=%d model=%s batch_size=%d",
+        request_type,
+        len(prompts),
+        settings.embedding_model,
+        batch_size,
+    )
     try:
         with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
             all_vectors: list[list[float]] = []
@@ -121,6 +134,18 @@ def embed_texts(
                             client, base, settings.embedding_model, batch
                         )
                 all_vectors.extend(vectors)
+            logger.info(
+                "embed_ok request_type=%s texts=%d elapsed_ms=%d",
+                request_type,
+                len(all_vectors),
+                int((time.monotonic() - started) * 1000),
+            )
             return all_vectors
     except httpx.HTTPError as exc:
+        logger.exception(
+            "embed_failed request_type=%s texts=%d elapsed_ms=%d",
+            request_type,
+            len(prompts),
+            int((time.monotonic() - started) * 1000),
+        )
         raise EmbeddingError(f"Ollama embedding failed: {exc}") from exc

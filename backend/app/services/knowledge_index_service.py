@@ -400,13 +400,16 @@ class KnowledgeIndexService:
         top_k: int = 5,
         function_filter: list[str] | None = None,
         doc_type_filter: list[str] | None = None,
+        request_type: str = "query",
     ) -> list[dict[str, Any]]:
         if self.settings.mock_rag:
             raise EmbeddingError("MOCK_RAG=true：R1 检索需 MOCK_RAG=false")
         if self._store.count() == 0:
             return []
 
-        query_vec = embed_texts(self.settings, [query])[0]
+        query_vec = embed_texts(
+            self.settings, [query], request_type=request_type
+        )[0]
         hits = self._store.search_by_embedding(query_vec, top_k=top_k * 3)
         for hit in hits:
             meta = hit.get("metadata") or {}

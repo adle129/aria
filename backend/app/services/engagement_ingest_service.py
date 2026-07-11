@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from collections.abc import Callable
@@ -21,6 +22,8 @@ from app.services.knowledge_index_service import (
     flatten_engagement_chunks,
 )
 from app.services.manpower_baselines_store import ManpowerBaselinesStore
+
+logger = logging.getLogger(__name__)
 
 
 class EngagementIngestError(ValueError):
@@ -370,7 +373,7 @@ class EngagementIngestService:
         if progress_callback:
             progress_callback("finalizing", total, total)
 
-        return {
+        result = {
             "new_documents": new_documents,
             "new_chunks": state.get("chunk_count", len(changed_chunks)),
             "skipped": skipped,
@@ -380,6 +383,18 @@ class EngagementIngestService:
             "doc_type_counts": doc_type_counts,
             "engagements": engagement_reports,
         }
+        logger.info(
+            "kb_ingest_done mode=%s job_id=%s generation_id=%s new_chunks=%s "
+            "skipped=%s failed=%s deleted=%s",
+            mode,
+            created_by_job_id,
+            state.get("active_generation") or state.get("generation_id"),
+            result["new_chunks"],
+            skipped,
+            len(failed_files),
+            len(deleted_engagement_ids),
+        )
+        return result
 
     def get_baselines(
         self,

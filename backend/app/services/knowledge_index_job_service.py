@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,6 +15,8 @@ from app.services.disk_guard_service import DiskGuardService
 from app.services.engagement_ingest_service import EngagementIngestService
 from app.services.knowledge_import_service import KnowledgeImportService
 from app.services.task_job_service import TaskJobService
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeIndexJobService:
@@ -34,6 +38,12 @@ class KnowledgeIndexJobService:
         key = f"kb_index:{self.settings.knowledge_vector_namespace}"
         existing = repo.get_active_by_single_flight(TaskJobService.JOB_KB_INDEX, key)
         if existing:
+            logger.info(
+                "kb_job_deduped job_id=%s mode=%s triggered_by=%s",
+                existing.id,
+                mode,
+                triggered_by,
+            )
             return existing, True
 
         now = datetime.now(timezone.utc)
@@ -57,12 +67,25 @@ class KnowledgeIndexJobService:
         try:
             created = repo.create(job)
             KnowledgeImportService(db).create_for_job(created)
+            logger.info(
+                "kb_job_enqueued job_id=%s mode=%s triggered_by=%s batch_id=%s",
+                created.id,
+                mode,
+                triggered_by,
+                batch_id,
+            )
             return created, False
         except IntegrityError:
             db.rollback()
             existing = repo.get_active_by_single_flight(TaskJobService.JOB_KB_INDEX, key)
             if existing is None:
                 raise
+            logger.info(
+                "kb_job_deduped job_id=%s mode=%s triggered_by=%s",
+                existing.id,
+                mode,
+                triggered_by,
+            )
             return existing, True
 
     def sync_import_started(self, db: Session, job: TaskJob) -> None:
@@ -119,9 +142,16 @@ class KnowledgeIndexJobService:
         def record_generation(generation_id: str) -> None:
             job.payload = {**(job.payload or {}), "generation_id": generation_id}
             TaskJobRepository(db).update(job)
+            logger.info(
+                "kb_job_generation job_id=%s generation_id=%s",
+                job.id,
+                generation_id,
+            )
 
         mode = (job.payload or {}).get("mode", "full")
-        return EngagementIngestService(self.settings, db).import_all(
+        started = time.monotonic()
+        logger.info("kb_job_execute_start job_id=%s mode=%s", job.id, mode)
+        result = EngagementIngestService(self.settings, db).import_all(
             progress_callback=report_progress,
             cancel_check=cancel_requested,
             created_by_job_id=job.id,
@@ -131,11 +161,50 @@ class KnowledgeIndexJobService:
             ),
             mode=mode,
         )
+        logger.info(
+            "kb_job_execute_done job_id=%s mode=%s new_chunks=%s skipped=%s "
+            "failed=%s elapsed_ms=%d",
+            job.id,
+            mode,
+            result.get("new_chunks"),
+            result.get("skipped"),
+            len(result.get("failed_files") or []),
+            int((time.monotonic() - started) * 1000),
+        )
+        return result
+
+    @staticmethod
+    def display_progress(job: TaskJob) -> int:
+        """Map job phase to a UI percent that stays <100 until the job completes.
+
+        Parsing uses file counts; embedding/validate/switch/finalize are long-running
+        stages that historically reported current==total and looked "done" while still running.
+        """
+        if job.status == "completed":
+            return 100
+        phase = job.phase or ""
+        phase_floor = {
+            "queued": 0,
+            "scanning": 5,
+            "embedding": 85,
+            "validating": 92,
+            "switching": 95,
+            "finalizing": 98,
+        }
+        if phase in phase_floor and phase != "parsing":
+            return phase_floor[phase]
+        total = job.progress_total or 0
+        current = job.progress_current or 0
+        if total <= 0:
+            return phase_floor.get(phase, 0)
+        # parsing (and any count-based phase): 5% .. 80%
+        pct = 5 + round((max(0, current) / total) * 75)
+        return min(80, max(5, pct))
 
     def serialize(self, db: Session, job: TaskJob) -> dict[str, Any]:
         queue = self.jobs.get_queue_info(db, job)
         total = job.progress_total or 0
-        progress = round((job.progress_current / total) * 100) if total else 0
+        progress = self.display_progress(job)
         data: dict[str, Any] = {
             "job_id": job.id,
             "status": "cancelling"

@@ -94,9 +94,45 @@ def test_serialize_running_cancel_request_as_cancelling():
         data = service.serialize(db, job)
 
         assert data["status"] == "cancelling"
-        assert data["progress"] == 50
+        assert data["progress"] == 85
     finally:
         db.close()
+
+
+def test_display_progress_caps_late_phases_until_completed():
+    now = datetime.now(timezone.utc)
+    running = TaskJob(
+        job_type="kb_index",
+        ref_id="production",
+        status="running",
+        phase="embedding",
+        progress_current=11,
+        progress_total=11,
+        created_at=now,
+        queued_at=now,
+        updated_at=now,
+    )
+    assert KnowledgeIndexJobService.display_progress(running) == 85
+
+    running.phase = "switching"
+    assert KnowledgeIndexJobService.display_progress(running) == 95
+
+    running.status = "completed"
+    running.phase = "completed"
+    assert KnowledgeIndexJobService.display_progress(running) == 100
+
+    parsing = TaskJob(
+        job_type="kb_index",
+        ref_id="production",
+        status="running",
+        phase="parsing",
+        progress_current=2,
+        progress_total=4,
+        created_at=now,
+        queued_at=now,
+        updated_at=now,
+    )
+    assert KnowledgeIndexJobService.display_progress(parsing) == 43
 
 
 def test_completed_job_no_longer_blocks_new_job():
