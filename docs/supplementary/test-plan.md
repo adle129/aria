@@ -62,7 +62,7 @@ aria/
 | **RFQ 协作取消** | `test_rfq_analysis_cancel.py` · `test_rfq_cancel_api.py` | Phase 1/2 取消、回滚 `dimension_review`、`cancelling` 幂等、stale 恢复 |
 | **LLM/Embedding 取消** | `test_llm_service_cancel.py` · `test_embedding_service_cancel.py` | 流式连接关闭、无重试、embedding 批次边界 |
 | **F1.10c 前端逻辑** | `frontend/src/lib/dimensionReview.test.ts` | 摘要/表格可见行、依据展示、ack 计数（Vitest） |
-| **RFQ 取消前端** | `taskStatus.test.ts` · `rfqWorkspace.test.ts` · `RfqAnalysisProgress` | `cancelling`/`cancelled` 轮询、Modal 确认、Phase 1 进度不误显 |
+| **RFQ 取消前端** | `taskStatus.test.ts` · `rfqWorkspace.test.ts` · `RfqAnalysisProgress` | `cancelling`/`cancelled` 轮询、Modal 确认、Phase 1 进度不误显；侧栏「失败 / 已取消」筛选 |
 
 ### 3.2 示例用例
 

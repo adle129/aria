@@ -556,6 +556,12 @@ draft → in_review → approved → exported
 - 取消检查对 DB **节流轮询**（约 0.5s），避免每个 token chunk 打库；当前 LLM 调用结束后队列方可处理下一任务（`OLLAMA_MAX_CONCURRENT=1`）
 - `cancelling` 超时（`task_job_cancel_stale_seconds`，默认 120s）由 worker 恢复为 Phase 2 的 `dimension_review` 或 Phase 1 的 `cancelled`
 
+**侧栏「最近 RFQ」筛选（R1 · F1.11）：**
+
+- 筛选项：**全部** / **进行中** / **已完成** / **失败 / 已取消**
+- **失败 / 已取消** 合并展示 `processing_status=failed` 与 `cancelled`（均可 **重新解析** 或归档/删除），避免取消测试后「全部」列表噪音过大
+- `cancelled` **不**归入「进行中」或「已完成」
+
 > **命名区分：** 本节 **任务归档** = 列表隐藏，**不**删除数据盘文件；**archive-to-knowledge**（§11.3 · 合同外）= 定稿项目写入 Engagement 知识库，二者独立。
 
 **队列保护：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）时，`POST /rfq/upload` 返回 **429**，响应含 `queue_depth` 与友好提示。

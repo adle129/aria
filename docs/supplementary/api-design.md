@@ -385,6 +385,8 @@ POST /api/v1/rfq/tasks/{task_id}/cancel
 
 **成功：** `200`，`data` 为 status payload（`status` 可为 `cancelling` 或 `cancelled`）。
 
+**前端：** 侧栏「最近 RFQ」筛选项 **失败 / 已取消** 合并展示 `failed` 与 `cancelled`（见 prod §5.5 · [user-manual.md](../user-manual.md) §4）。
+
 | HTTP | `msg` 示例 |
 |------|-----------|
 | 404 | 任务 ID 不存在 |

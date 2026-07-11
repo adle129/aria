@@ -36,6 +36,7 @@
 | 任务历史、五步导航 | R1–M6 | F1.8, §5.4 | — | GET `/rfq/tasks`（**按 owner 过滤**） | prod §5.4 · dev-context | M6 UAT |
 | 失败重试、归档、删除 | R1 | F1.11, §5.5 | — | POST `.../retry` · PATCH `.../archive` · DELETE `.../tasks/{id}` | api-design §2.2 · prod §5.5 | lifecycle API 测试 |
 | 协作取消分析 | R1 | F1.11, §5.5 | — | POST `.../cancel` | api-design §2.2 · prod §5.5 | `test_rfq_cancel_api` · `test_rfq_analysis_cancel` |
+| 侧栏失败/已取消筛选 | R1 | F1.11, §5.5 | — | AppLayout Segmented + `matchesInboxFilter` | prod §5.5 · user-manual §4 | `taskStatus.test.ts` |
 | 上传队列深度保护 | R1 | F1.11, §4.4 | — | POST `/rfq/upload`（429 + `queue_depth`） | api-design §2.2 / §3 | test_task_lifecycle_api |
 | worker 僵死任务恢复 | R1 | §5.5 | — | —（worker 内部） | api-design §3 · prod §5.5 | test_worker_service |
 | **登录 + 两角色 RBAC** | R1 | NF18–NF22 | — | POST `/auth/login` · GET `/auth/me` | api-design §0 · prod §4.1.1 | AUTH-01～07 |
