@@ -67,6 +67,7 @@ def test_run_production_retrieval_eval_uses_rag_service(monkeypatch, tmp_path):
             function_filter=None,
             doc_type_filter=None,
             request_type="query",
+            cancel_check=None,
         ):
             return [{"metadata": {"area": "Packaging"}, "similarity_score": 0.9, "content": "x"}]
 

@@ -23,7 +23,7 @@ from app.services.rfq_analysis_service import RFQAnalysisService
 from app.services.rfq_upload import RFQ_UPLOAD_REJECT_MSG, is_allowed_rfq_filename
 from app.utils.datetime_utils import to_api_utc_iso
 
-_IN_PROGRESS_STATUSES = frozenset({"queued", "parsing", "retrieving", "generating"})
+_IN_PROGRESS_STATUSES = frozenset({"queued", "parsing", "retrieving", "generating", "cancelling"})
 
 router = APIRouter(prefix="/rfq", tags=["rfq"])
 analysis_service = RFQAnalysisService()
@@ -149,6 +149,20 @@ def get_task_status(
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     return analysis_service.get_status_payload(task, db)
+
+
+@router.post("/tasks/{task_id}/cancel")
+def cancel_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    owner_id: str | None = Depends(resolve_owner_id),
+):
+    repo = RFQTaskRepository(db)
+    task = repo.get_by_id_for_owner(task_id, owner_id)
+    if not task:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
+    updated = analysis_service.cancel_task(db, task)
+    return {"code": 200, "data": analysis_service.get_status_payload(updated, db)}
 
 
 @router.put("/tasks/{task_id}")
@@ -310,8 +324,11 @@ def retry_task(
     task = repo.get_by_id_for_owner(task_id, owner_id)
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
-    if task.processing_status != "failed":
-        return JSONResponse(status_code=400, content={"code": 400, "msg": "只有失败状态的任务才能重试"})
+    if task.processing_status not in {"failed", "cancelled"}:
+        return JSONResponse(
+            status_code=400,
+            content={"code": 400, "msg": "只有失败或已取消状态的任务才能重试"},
+        )
     if task.archived:
         return JSONResponse(status_code=400, content={"code": 400, "msg": "已归档任务不支持重试"})
     try:
@@ -332,7 +349,10 @@ def delete_task(
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     if task.processing_status in _IN_PROGRESS_STATUSES:
-        return JSONResponse(status_code=409, content={"code": 409, "msg": "进行中的任务不可删除，请等待处理完成"})
+        return JSONResponse(
+            status_code=409,
+            content={"code": 409, "msg": "进行中的任务不可删除，请先取消分析或等待处理完成"},
+        )
     for path_str in (task.file_path, task.excel_path, task.qa_excel_path):
         if path_str:
             try:
@@ -354,7 +374,10 @@ def archive_task(
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     if task.processing_status in _IN_PROGRESS_STATUSES:
-        return JSONResponse(status_code=409, content={"code": 409, "msg": "进行中的任务不可归档"})
+        return JSONResponse(
+            status_code=409,
+            content={"code": 409, "msg": "进行中的任务不可归档，请先取消分析或等待处理完成"},
+        )
     task.archived = True
     repo.update(task)
     return {"code": 200}

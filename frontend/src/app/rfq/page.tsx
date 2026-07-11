@@ -73,7 +73,14 @@ function deriveProcessingArtifacts(progress: number, processingStatus: string): 
   };
 }
 
-const IN_FLIGHT_PROCESSING = new Set(["queued", "pending", "parsing", "retrieving", "generating"]);
+const IN_FLIGHT_PROCESSING = new Set([
+  "queued",
+  "pending",
+  "parsing",
+  "retrieving",
+  "generating",
+  "cancelling",
+]);
 
 function buildKnowledgeVerifyQuery(task: TaskData): string {
   const mods = task.rfq_modules as Record<string, unknown> | undefined;
@@ -110,6 +117,7 @@ export default function RfqPage() {
   >([]);
   const [dimensionDraft, setDimensionDraft] = useState<DimensionDraft | null>(null);
   const [confirmingDimensions, setConfirmingDimensions] = useState(false);
+  const [cancellingAnalysis, setCancellingAnalysis] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const activePollEpochRef = useRef(0);
   const [taskSwitching, setTaskSwitching] = useState(false);
@@ -233,8 +241,12 @@ export default function RfqPage() {
           void refreshRecentTasks();
         }
         applyStatus(status);
+        if (status.status === "cancelling") {
+          setCancellingAnalysis(true);
+        }
         const done =
           status.status === "failed" ||
+          status.status === "cancelled" ||
           status.status === stopAt ||
           (stopAt === "completed" && status.status === "completed");
         if (done) {
@@ -245,6 +257,9 @@ export default function RfqPage() {
           syncMatrixFromTask(taskResp.data.data);
           if (status.status === "failed") {
             message.error(status.message || "RFQ 分析失败");
+          }
+          if (status.status === "cancelled") {
+            setCancellingAnalysis(false);
           }
           setAnalysisProgress(status.status === "completed" ? 100 : status.progress ?? 0);
           setActivePollTaskId(null);
@@ -265,6 +280,13 @@ export default function RfqPage() {
             message.error(status.message || "RFQ 分析失败");
             setActivePollTaskId(null);
             return "failed";
+          }
+          if (status.status === "cancelled") {
+            const taskResp = await apiClient.get<{ code: number; data: TaskData }>(`/rfq/tasks/${taskId}`);
+            syncMatrixFromTask(taskResp.data.data);
+            setActivePollTaskId(null);
+            setCancellingAnalysis(false);
+            return "cancelled";
           }
           if (
             status.status === stopAt ||
@@ -440,6 +462,7 @@ export default function RfqPage() {
     if (!task) return;
     const taskId = task.task_id;
     setUploading(true);
+    setCancellingAnalysis(false);
     setMatrixRows([]);
     setConfirmed(false);
     setDimensionDraft(null);
@@ -461,13 +484,68 @@ export default function RfqPage() {
     }
   }, [task, pollTask, refreshRecentTasks]);
 
+  const handleCancelAnalysis = useCallback(async () => {
+    if (!task) return;
+    setCancellingAnalysis(true);
+    try {
+      const resp = await apiClient.post<{ code: number; data: TaskStatusPayload }>(
+        `/rfq/tasks/${task.task_id}/cancel`,
+      );
+      const status = resp.data.data;
+      setAnalysisProgress(status.progress ?? 0);
+      setAnalysisMessage(status.message || PROCESSING_STATUS_LABELS[status.status] || "");
+      setTask((prev) =>
+        prev
+          ? {
+              ...prev,
+              processing_status: status.status,
+              status_message: status.message,
+            }
+          : prev,
+      );
+      if (status.status === "cancelled") {
+        const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
+          `/rfq/tasks/${task.task_id}`,
+        );
+        syncMatrixFromTask(taskResp.data.data);
+        setUploading(false);
+        setActivePollTaskId(null);
+        setCancellingAnalysis(false);
+        void refreshRecentTasks();
+        message.info("分析已取消");
+      }
+    } catch {
+      setCancellingAnalysis(false);
+    }
+  }, [task, refreshRecentTasks, syncMatrixFromTask]);
+
   const triggerUploadPicker = useCallback(() => {
     uploadInputRef.current?.click();
   }, []);
 
   const handleUploadNewRequest = useCallback(() => {
-    if (!task || task.processing_status === "failed") {
+    if (!task || task.processing_status === "failed" || task.processing_status === "cancelled") {
       triggerUploadPicker();
+      return;
+    }
+    const inFlight = IN_FLIGHT_PROCESSING.has(task.processing_status);
+    if (inFlight) {
+      Modal.confirm({
+        title: "当前任务仍在分析中",
+        content: "建议先取消当前分析再上传新 RFQ，以免占用模型资源。也可保留当前任务并继续上传。",
+        okText: "先取消当前分析",
+        cancelText: "继续上传新文件",
+        onOk: () => void handleCancelAnalysis(),
+        onCancel: () => {
+          Modal.confirm({
+            title: "上传新 RFQ",
+            content: "上传新文件后，当前任务将保留在历史列表，可随时从左侧切回。确认继续？",
+            okText: "继续上传",
+            cancelText: "返回",
+            onOk: triggerUploadPicker,
+          });
+        },
+      });
       return;
     }
     Modal.confirm({
@@ -477,7 +555,7 @@ export default function RfqPage() {
       cancelText: "取消",
       onOk: triggerUploadPicker,
     });
-  }, [task, triggerUploadPicker]);
+  }, [task, triggerUploadPicker, handleCancelAnalysis]);
 
   const handleTrySample = async (filename: string) => {
     try {
@@ -518,11 +596,25 @@ export default function RfqPage() {
     setConfirmingDimensions(true);
     setUploading(true);
     try {
-      await apiClient.post(`/rfq/tasks/${task.task_id}/confirm-dimensions`, {
+      const resp = await apiClient.post<{
+        code: number;
+        data: {
+          processing_status: string;
+          task?: TaskData;
+        };
+      }>(`/rfq/tasks/${task.task_id}/confirm-dimensions`, {
         baseline_version: dimensionDraft.baseline_version,
         items: dimensionDraft.items,
         custom_items: dimensionDraft.custom_items || [],
       });
+      const resultStatus = resp.data.data.processing_status;
+      if (resultStatus === "dimension_review") {
+        if (resp.data.data.task) {
+          syncMatrixFromTask(resp.data.data.task);
+        }
+        message.info("矩阵生成已取消，可重新确认维度");
+        return;
+      }
       message.success("已确认维度，正在生成对比矩阵...");
       await pollUntilTerminal(task.task_id, "completed");
     } catch {
@@ -605,7 +697,7 @@ export default function RfqPage() {
           silentError: true,
         });
         const status = statusResp.data;
-        if (["dimension_review", "completed", "failed"].includes(status.status)) {
+        if (["dimension_review", "completed", "failed", "cancelled"].includes(status.status)) {
           const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
             `/rfq/tasks/${taskId}`,
             { silentError: true },
@@ -653,6 +745,7 @@ export default function RfqPage() {
   const inDimensionReview = workspaceStage === "dimension_review";
   const showComparisonMatrix = workspaceStage === "matrix";
   const showFailed = workspaceStage === "failed";
+  const showCancelled = workspaceStage === "cancelled";
 
   const renderMainWorkspace = () => {
     if (taskSwitching) {
@@ -681,8 +774,29 @@ export default function RfqPage() {
           estimatedWaitSeconds={estimatedWaitSeconds}
           useRealLlm={useRealLlm}
           stalled={stalledPolling}
+          cancelling={cancellingAnalysis || task?.processing_status === "cancelling"}
           onResumePolling={() => void handleResumePolling()}
+          onCancel={() => void handleCancelAnalysis()}
         />
+      );
+    }
+
+    if (showCancelled && task) {
+      return (
+        <div style={{ maxWidth: 480, margin: "40px auto", textAlign: "center" }}>
+          <Title level={4} style={{ fontWeight: 500, marginBottom: 8 }}>
+            分析已取消
+          </Title>
+          <Paragraph type="secondary" style={{ marginBottom: 24 }}>
+            {task.status_message || "本次分析已停止，已消耗的计算不会保留。"}
+          </Paragraph>
+          <Space>
+            <Button type="primary" loading={uploading} onClick={() => void handleRetry()}>
+              重新解析
+            </Button>
+            <Button onClick={triggerUploadPicker}>重新上传</Button>
+          </Space>
+        </div>
       );
     }
 

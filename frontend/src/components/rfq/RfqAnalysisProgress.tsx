@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircleFilled, LoadingOutlined } from "@ant-design/icons";
-import { Progress, Typography } from "antd";
+import { Button, Modal, Progress, Typography } from "antd";
 
 const { Text, Title } = Typography;
 
@@ -69,6 +69,7 @@ export function resolveProcessingStepIndex(processingStatus: string, progress: n
       return 3;
     case "retrieving":
     case "generating":
+    case "cancelling":
       // Past engineer confirmation; keep review step done and show active on last step.
       return 3;
     default:
@@ -92,7 +93,11 @@ export function resolveProcessingStepVisuals(
     ];
   }
 
-  if (processingStatus === "retrieving" || processingStatus === "generating") {
+  if (
+    processingStatus === "retrieving"
+    || processingStatus === "generating"
+    || (processingStatus === "cancelling" && progress >= 40)
+  ) {
     return [
       { label: RFQ_PROCESSING_STEPS[0].label, state: "done" },
       { label: RFQ_PROCESSING_STEPS[1].label, state: "done" },
@@ -100,9 +105,11 @@ export function resolveProcessingStepVisuals(
       { label: RFQ_PROCESSING_STEPS[3].label, state: "done" },
       {
         label:
-          processingStatus === "retrieving"
-            ? "检索相似历史项目"
-            : "生成对比矩阵",
+          processingStatus === "cancelling"
+            ? "正在取消"
+            : processingStatus === "retrieving"
+              ? "检索相似历史项目"
+              : "生成对比矩阵",
         state: "active",
       },
     ];
@@ -125,7 +132,11 @@ interface RfqAnalysisProgressProps {
   useRealLlm?: boolean | null;
   stalled?: boolean;
   onResumePolling?: () => void;
+  onCancel?: () => void;
+  cancelling?: boolean;
 }
+
+const CANCELLABLE_STATUSES = new Set(["queued", "pending", "parsing", "retrieving", "generating"]);
 
 export default function RfqAnalysisProgress({
   progress,
@@ -136,6 +147,8 @@ export default function RfqAnalysisProgress({
   useRealLlm,
   stalled,
   onResumePolling,
+  onCancel,
+  cancelling = false,
 }: RfqAnalysisProgressProps) {
   const waitHint = formatQueueWaitHint({
     processingStatus,
@@ -148,6 +161,22 @@ export default function RfqAnalysisProgress({
   const stepVisuals = resolveProcessingStepVisuals(processingStatus, progress, queuePosition);
   const showQueueBadge =
     processingStatus === "queued" || processingStatus === "pending";
+  const showCancel =
+    CANCELLABLE_STATUSES.has(processingStatus) && onCancel != null;
+  const isPhase1Cancelling =
+    processingStatus === "cancelling" && progress < 40;
+
+  const handleCancelClick = () => {
+    if (!onCancel || cancelling) return;
+    Modal.confirm({
+      title: "取消分析",
+      content: "将停止当前分析，已消耗的计算不会保留。确定取消？",
+      okText: "确定取消",
+      cancelText: "继续等待",
+      okButtonProps: { danger: true },
+      onOk: onCancel,
+    });
+  };
 
   return (
     <div
@@ -256,6 +285,23 @@ export default function RfqAnalysisProgress({
           >
             继续等待
           </button>
+        </div>
+      ) : null}
+      {showCancel ? (
+        <div style={{ marginTop: 20 }}>
+          <Button danger disabled={cancelling} loading={cancelling} onClick={handleCancelClick}>
+            {cancelling ? "正在取消…" : "取消分析"}
+          </Button>
+          {cancelling ? (
+            <Text
+              type="secondary"
+              style={{ display: "block", marginTop: 8, fontSize: 12 }}
+            >
+              {isPhase1Cancelling
+                ? "正在等待当前模型输出结束，结束后立即释放队列"
+                : "当前模型调用结束后停止"}
+            </Text>
+          ) : null}
         </div>
       ) : null}
     </div>

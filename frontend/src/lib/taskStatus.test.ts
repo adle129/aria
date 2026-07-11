@@ -13,6 +13,8 @@ describe("formatProcessingStatus", () => {
   it("maps known statuses to Chinese", () => {
     expect(formatProcessingStatus("queued")).toBe("排队等待中");
     expect(formatProcessingStatus("parsing")).toBe("解析中");
+    expect(formatProcessingStatus("cancelling")).toBe("正在取消");
+    expect(formatProcessingStatus("cancelled")).toBe("已取消");
   });
 
   it("falls back to raw status", () => {
@@ -26,6 +28,8 @@ describe("getProcessingStatusTagColor", () => {
     expect(getProcessingStatusTagColor("dimension_review")).toBe("warning");
     expect(getProcessingStatusTagColor("completed")).toBe("success");
     expect(getProcessingStatusTagColor("failed")).toBe("error");
+    expect(getProcessingStatusTagColor("cancelled")).toBe("default");
+    expect(getProcessingStatusTagColor("cancelling")).toBe("warning");
   });
 });
 
@@ -84,16 +88,19 @@ describe("formatRecentTaskLabel", () => {
 });
 
 describe("matchesInboxFilter", () => {
-  it("includes only failed tasks in failed filter", () => {
+  it("includes failed and cancelled tasks in failed filter", () => {
     expect(matchesInboxFilter("failed", "failed")).toBe(true);
+    expect(matchesInboxFilter("cancelled", "failed")).toBe(true);
     expect(matchesInboxFilter("completed", "failed")).toBe(false);
     expect(matchesInboxFilter("parsing", "failed")).toBe(false);
     expect(matchesInboxFilter("dimension_review", "failed")).toBe(false);
   });
 
-  it("excludes failed from in_progress and done", () => {
+  it("excludes failed and cancelled from in_progress and done", () => {
     expect(matchesInboxFilter("failed", "in_progress")).toBe(false);
+    expect(matchesInboxFilter("cancelled", "in_progress")).toBe(false);
     expect(matchesInboxFilter("failed", "done")).toBe(false);
+    expect(matchesInboxFilter("cancelled", "done")).toBe(false);
     expect(matchesInboxFilter("parsing", "in_progress")).toBe(true);
     expect(matchesInboxFilter("completed", "done")).toBe(true);
   });

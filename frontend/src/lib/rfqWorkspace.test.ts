@@ -34,4 +34,22 @@ describe("resolveRfqWorkspaceStage", () => {
       ),
     ).toBe("matrix");
   });
+
+  it("returns cancelled for cancelled tasks", () => {
+    expect(
+      resolveRfqWorkspaceStage(
+        { task_id: "1", processing_status: "cancelled", status: "draft" },
+        { uploading: false, restoring: false, hasMatrix: false },
+      ),
+    ).toBe("cancelled");
+  });
+
+  it("returns processing for cancelling tasks", () => {
+    expect(
+      resolveRfqWorkspaceStage(
+        { task_id: "1", processing_status: "cancelling", status: "draft" },
+        { uploading: false, restoring: false, hasMatrix: false },
+      ),
+    ).toBe("processing");
+  });
 });

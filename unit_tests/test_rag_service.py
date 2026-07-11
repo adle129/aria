@@ -121,6 +121,7 @@ def test_search_delegates_to_knowledge_index_service(monkeypatch, tmp_path):
             function_filter: list[str] | None = None,
             doc_type_filter: list[str] | None = None,
             request_type: str = "query",
+            cancel_check=None,
         ):
             calls.append((query, top_k, function_filter, doc_type_filter, request_type))
             return [
@@ -168,6 +169,7 @@ def test_real_search_empty_returns_no_mock_fallback(monkeypatch, tmp_path):
             function_filter: list[str] | None = None,
             doc_type_filter: list[str] | None = None,
             request_type: str = "query",
+            cancel_check=None,
         ):
             return []
 

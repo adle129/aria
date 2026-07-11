@@ -120,8 +120,8 @@
 - [ ] PG 任务队列 + worker（非 `BackgroundTasks`）  
   - 关联任务：R1-I01–I03
 
-- [ ] **任务生命周期**：失败重试、归档、删除；队列满 429；僵死作业恢复  
-  - 关联任务：R1-I10a–I10e · prod §5.5 · `test_task_lifecycle_api.py`
+- [ ] **任务生命周期**：失败重试、**协作取消**、归档、删除；队列满 429；僵死作业恢复；侧栏 **失败 / 已取消** 筛选  
+  - 关联任务：R1-I10a–I10e · R1-F11 · prod §5.5 · `test_task_lifecycle_api.py` · `test_rfq_cancel_api.py`
 
 - [ ] pgvector + Ollama Embedding（非 Chroma Mock 兜底）  
   - 关联任务：R1-I05–I08
@@ -141,7 +141,7 @@
 - [ ] **`run_tests.ps1` 全绿**；涉及解析/RAG/Prompt 时 **`--regression` 通过**  
   - 关联任务：R1-A06, R1-F10, R1-I09, R1-KH13
 
-- [ ] **任务生命周期（F1.11）：** 失败重试、归档、删除；队列满 429；stale 恢复  
+- [ ] **任务生命周期（F1.11）：** 失败重试、**协作取消**、归档、删除；队列满 429；stale 恢复；侧栏 **失败 / 已取消** 筛选  
   - 关联任务：R1-I10 · `test_task_lifecycle_api`（75 用例）
 
 ---

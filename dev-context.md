@@ -1,7 +1,7 @@
 # ARIA 智能应用平台 — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.14 · 2026-07-10
+**版本：** v1.15 · 2026-07-11
 **受众：** 工程师、Cursor Agent  
 **产品基线：** [prod.md](prod.md) v1.9 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
 
@@ -193,7 +193,8 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
 | GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`、`include_archived`） |
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
-| POST | `/api/v1/rfq/tasks/{id}/retry` | **F1.11** 失败任务重新解析（无需重传） |
+| POST | `/api/v1/rfq/tasks/{id}/retry` | **F1.11** 失败/已取消任务重新解析（无需重传） |
+| POST | `/api/v1/rfq/tasks/{id}/cancel` | **F1.11** 协作取消分析（Phase 1→`cancelled`；Phase 2→回滚 `dimension_review`） |
 | DELETE | `/api/v1/rfq/tasks/{id}` | **F1.11** 删除任务及关联文件 |
 | PATCH | `/api/v1/rfq/tasks/{id}/archive` | **F1.11** 归档（默认列表隐藏） |
 | GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（含 `dimension_review`） |
@@ -229,7 +230,8 @@ class RFQTask(Base):
 
     # 系统处理状态
     processing_status = Column(String, default="pending")
-    # pending → parsing → dimension_review → retrieving → generating → completed / failed
+    # pending → parsing → dimension_review → retrieving → generating → completed / failed / cancelled
+    # cancelling：协作取消软状态（轮询可见）
 
     # 人机协同状态（见 prod.md §5）
     review_status     = Column(String, default="draft")
@@ -371,7 +373,7 @@ generator.generate(context, template_path, output_path)
 
 | 路由 | 组件要点 |
 |------|---------|
-| `/rfq` | 上传、最近分析、对比矩阵、相似项目 Expand、**Function 缺口 Alert**（P0） |
+| `/rfq` | 上传、**取消分析**（解析/检索/生成）、最近分析（侧栏 **失败 / 已取消** 筛选）、对比矩阵、相似项目 Expand、**Function 缺口 Alert**（P0） |
 | `/proposal` | 按 Function 的模块卡片、Stub 生成、`solution_draft` |
 | `/qa` | Q_A 列结构表格、Stub 生成、可编辑、`qa_items` |
 | `/quote` | Excel 生成下载、人天构成明细 Mock 表 |

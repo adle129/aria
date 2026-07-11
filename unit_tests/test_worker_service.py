@@ -13,6 +13,7 @@ from app.models.rfq_task import RFQTask
 from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.engagement_ingest_service import EngagementIngestCancelled
+from app.services.rfq_analysis_service import RFQAnalysisCancelled
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.worker_service import WorkerService
 
@@ -126,6 +127,35 @@ def test_process_one_cancels_kb_index_at_safe_boundary(db_session, monkeypatch):
     assert processed.status == "cancelled"
 
 
+def test_process_one_marks_cancelled_for_rfq_cancel(db_session, monkeypatch):
+    task = RFQTask(
+        file_name="a.docx",
+        file_path="/tmp/a.docx",
+        processing_status="parsing",
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    job = TaskJob(
+        job_type="rfq_analysis",
+        ref_id=task.id,
+        status="queued",
+    )
+    TaskJobRepository(db_session).create(job)
+
+    worker = WorkerService(Settings(database_url="sqlite://"))
+    monkeypatch.setattr(
+        worker.analysis_service,
+        "analyze_task",
+        MagicMock(side_effect=RFQAnalysisCancelled()),
+    )
+    processed = worker.process_one(db_session)
+    assert processed is not None
+    assert processed.status == "cancelled"
+    db_session.refresh(task)
+    assert task.processing_status == "cancelled"
+
+
 def test_recover_stale_jobs_marks_failed_when_max_attempts_reached(db_session):
     from datetime import timedelta, timezone
 
@@ -214,3 +244,41 @@ def test_recover_stale_jobs_recovers_orphaned_confirm_phase(db_session):
     db_session.refresh(task)
     assert task.processing_status == "dimension_review"
     assert task.progress == "40"
+
+
+def test_recover_stale_jobs_honours_cancel_requested(db_session):
+    from datetime import timedelta, timezone
+
+    task = RFQTask(
+        file_name="cancel_stale.docx",
+        file_path="/tmp/cancel_stale.docx",
+        processing_status="parsing",
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    stale = TaskJob(
+        job_type="rfq_analysis",
+        ref_id=task.id,
+        status="running",
+        attempts=1,
+        max_attempts=3,
+        started_at=datetime.now(timezone.utc),
+        heartbeat_at=datetime.now(timezone.utc),
+        cancel_requested_at=datetime.now(timezone.utc) - timedelta(seconds=180),
+    )
+    TaskJobRepository(db_session).create(stale)
+
+    worker = WorkerService(
+        Settings(
+            database_url="sqlite://",
+            task_job_stale_seconds=900,
+            task_job_cancel_stale_seconds=120,
+        )
+    )
+    reset = worker.recover_stale_jobs(db_session)
+    assert reset == 1
+    reloaded_job = TaskJobRepository(db_session).get_by_id(stale.id)
+    assert reloaded_job.status == "cancelled"
+    db_session.refresh(task)
+    assert task.processing_status == "cancelled"

@@ -1,6 +1,6 @@
 # R1 开发任务清单
 
-**版本：** v1.9 · 2026-07-10
+**版本：** v1.10 · 2026-07-11
 **索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
@@ -14,6 +14,7 @@
 | R1-E / Profile / 生产门禁 | E03/E05 已实现；E02 规则已同步 | Compose 全链路手验 |
 | R1-I / AUTH | 主体已完成 | 排队 UI polish |
 | **R1-I10 任务生命周期** | **已完成** | — |
+| **R1-F11 RFQ 协作取消** | **已完成** | — |
 | R1-K / F1.10 / U | 主体已完成 | `bootstrap_r1_internal.ps1` + ingest + eval |
 | R1-A 验收 | 彩排脚本已编写 | smoke / eval / 内网手验 |
 | **客户 O-01～O-05** | **阻塞 R1-β 签字** | PM 跟进；开发用 `seed_internal_engagement` |
@@ -21,7 +22,7 @@
 **内部一键：** `.\scripts\bootstrap_r1_internal.ps1` → seed → ingest → 15 题 eval → health smoke  
 **R1 正式 UI：** `ARIA_UI_PROFILE=r1` · 见 `.env.r1-dev.example` · 彩排见 [r1-rehearsal-script.md](r1-rehearsal-script.md)
 
-**代码已完成（2026-07-09 对照）：** R1-I01–I09 · **R1-I10** · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
+**代码已完成（2026-07-11 对照）：** R1-I01–I09 · **R1-I10** · **R1-F11** · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
 
 **2026-07-09 新增：** R1-I10（Wave 6 任务生命周期）· KB 服务优化（embedding 批量、pgvector upsert 分批）
 **2026-07-10 架构审查新增：** **R1-KH 知识库生产稳定性加固**；P0 阻塞真实 bulk/UAT，P1 在 R1-β 前完成，P2 进入 M6/运营增强。
@@ -69,6 +70,16 @@
 | R1-I10c | `task_max_queue_size` 上传门控 | 429 + `queue_depth` | 同上 |
 | R1-I10d | `recover_stale_jobs` + `max_attempts` | 超时重排队或 failed | `test_worker_service` · `test_task_lifecycle` |
 | R1-I10e | Alembic `005_wave6_task_lifecycle` | `rfq_tasks.archived` | 迁移随 bootstrap |
+
+### R1-F11 RFQ 协作取消（2026-07-11 · **已完成**）
+
+| ID | 任务 | 产出 | 测试 |
+|----|------|------|------|
+| R1-F11a | `POST .../cancel` + 状态机 | Phase 1 `cancelled`；Phase 2 回滚 `dimension_review`；`cancelling` 软状态 | `test_rfq_cancel_api` |
+| R1-F11b | worker/API 协作检查 | `cancel_requested_at`、LLM 流式 abort、embedding `cancel_check`、节流轮询 | `test_rfq_analysis_cancel` · `test_llm_service_cancel` · `test_embedding_service_cancel` |
+| R1-F11c | 前端取消 UX | 进度条取消按钮、Modal、`cancelling`/`cancelled` 轮询与 CTA | `taskStatus.test.ts` · `rfqWorkspace.test.ts` |
+| R1-F11d | stale `cancelling` 恢复 | `task_job_cancel_stale_seconds` 默认 120s | `test_worker_service` |
+| R1-F11e | 侧栏任务筛选 | 「失败 / 已取消」合并 `failed`+`cancelled`；不新增 Tab | `taskStatus.test.ts` |
 
 ---
 

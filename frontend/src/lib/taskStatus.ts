@@ -7,6 +7,8 @@ export const PROCESSING_STATUS_LABELS: Record<string, string> = {
   dimension_review: "等待基准维度勾选",
   retrieving: "检索相似项目",
   generating: "生成对比矩阵",
+  cancelling: "正在取消",
+  cancelled: "已取消",
   completed: "分析完成",
   failed: "分析失败",
 };
@@ -18,12 +20,21 @@ export const PROCESSING_STATUS_TAG_STYLE: Record<string, { color: string; backgr
   parsing: { color: "#5B7C99", background: "#F0F5FA", borderColor: "#D6E4F0" },
   retrieving: { color: "#5B7C99", background: "#F0F5FA", borderColor: "#D6E4F0" },
   generating: { color: "#5B7C99", background: "#F0F5FA", borderColor: "#D6E4F0" },
+  cancelling: { color: "#8C6D3F", background: "#FBF6EB", borderColor: "#EDE0C4" },
+  cancelled: { color: "#666666", background: "#F5F5F5", borderColor: "#E8E8E8" },
   dimension_review: { color: "#A67C2D", background: "#FBF6EB", borderColor: "#EDE0C4" },
   completed: { color: "#3D7A5A", background: "#EEF6F1", borderColor: "#CDE5D8" },
   failed: { color: "#B33A3A", background: "#FBF0F0", borderColor: "#E8C9C9" },
 };
 
-const IN_FLIGHT_STATUSES = new Set(["queued", "pending", "parsing", "retrieving", "generating"]);
+const IN_FLIGHT_STATUSES = new Set([
+  "queued",
+  "pending",
+  "parsing",
+  "retrieving",
+  "generating",
+  "cancelling",
+]);
 
 export type InboxFilterKey = "all" | "in_progress" | "done" | "failed";
 
@@ -34,7 +45,7 @@ const INBOX_IN_PROGRESS_STATUSES = new Set([
 
 export function matchesInboxFilter(status: string, filter: InboxFilterKey): boolean {
   if (filter === "all") return true;
-  if (filter === "failed") return status === "failed";
+  if (filter === "failed") return status === "failed" || status === "cancelled";
   if (filter === "done") return status === "completed";
   if (filter === "in_progress") return INBOX_IN_PROGRESS_STATUSES.has(status);
   return false;
@@ -44,8 +55,10 @@ export function getProcessingStatusTagColor(
   status: string,
 ): "default" | "processing" | "warning" | "success" | "error" {
   if (status === "failed") return "error";
+  if (status === "cancelled") return "default";
   if (status === "completed") return "success";
   if (status === "dimension_review") return "warning";
+  if (status === "cancelling") return "warning";
   if (IN_FLIGHT_STATUSES.has(status)) return "processing";
   return "default";
 }

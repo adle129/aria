@@ -29,6 +29,7 @@ class TaskJobService:
         job_type: str,
         ref_id: str,
         payload: dict[str, Any] | None = None,
+        priority: int = 0,
     ) -> TaskJob:
         repo = TaskJobRepository(db)
         existing = repo.get_active_by_ref(job_type, ref_id)
@@ -41,6 +42,7 @@ class TaskJobService:
             ref_id=ref_id,
             status="queued",
             payload=payload,
+            priority=priority,
             queued_at=now,
             created_at=now,
             updated_at=now,

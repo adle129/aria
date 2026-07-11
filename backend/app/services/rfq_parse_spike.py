@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from app.config import Settings
 from app.services.ingest.engagement_preview import _find_file
@@ -296,6 +296,7 @@ def _run_single_pass(
     chunks: list[dict[str, Any]],
     prompt_root: Path,
     bundle_max_chars: int,
+    cancel_check: Callable[[], None] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int]:
     batches = batch_chunks(chunks, max_chars=bundle_max_chars)
     parts: list[dict[str, Any]] = []
@@ -303,6 +304,8 @@ def _run_single_pass(
     elapsed_ms = 0
     total_batches = len(batches)
     for batch_idx, batch in enumerate(batches):
+        if cancel_check is not None:
+            cancel_check()
         text = bundle_text(batch, max_chars=bundle_max_chars)
         chapters = [c.get("chunk_chapter") for c in batch]
         _progress(
@@ -311,7 +314,7 @@ def _run_single_pass(
         )
         prompt = build_pass_prompt(parse_pass, text, prompt_root)
         started = time.perf_counter()
-        result = llm.complete_json(prompt, rfq_text=text)
+        result = llm.complete_json(prompt, rfq_text=text, cancel_check=cancel_check)
         batch_ms = int((time.perf_counter() - started) * 1000)
         elapsed_ms += batch_ms
         ok = not result.get("parse_error")

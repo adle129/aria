@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.config import Settings
 from app.database import Base
 from app.models.rfq_task import RFQTask
+from app.models.task_job import TaskJob
 from app.services.rfq_analysis_service import RFQAnalysisService
 
 SEED = Path(__file__).resolve().parents[1] / "backend" / "data" / "config" / "dimension_baseline.v1.json"
@@ -20,7 +21,7 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine, tables=[RFQTask.__table__])
+    Base.metadata.create_all(bind=engine, tables=[RFQTask.__table__, TaskJob.__table__])
     session = sessionmaker(bind=engine)()
     yield session
     session.close()
@@ -58,7 +59,7 @@ def test_analyze_task_stops_at_dimension_review(db_session, analysis_service, mo
     monkeypatch.setattr(
         analysis_service.parse_service,
         "parse_rules_first",
-        lambda _path: rfq_modules,
+        lambda _path, **kwargs: rfq_modules,
     )
 
     analysis_service.analyze_task(db_session, task.id)
