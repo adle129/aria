@@ -9,6 +9,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from collections.abc import Callable
 
 from app.config import Settings
 from app.repositories.knowledge_generation_repository import KnowledgeGenerationRepository
@@ -401,6 +402,7 @@ class KnowledgeIndexService:
         function_filter: list[str] | None = None,
         doc_type_filter: list[str] | None = None,
         request_type: str = "query",
+        cancel_check: Callable[[], None] | None = None,
     ) -> list[dict[str, Any]]:
         if self.settings.mock_rag:
             raise EmbeddingError("MOCK_RAG=true：R1 检索需 MOCK_RAG=false")
@@ -408,7 +410,10 @@ class KnowledgeIndexService:
             return []
 
         query_vec = embed_texts(
-            self.settings, [query], request_type=request_type
+            self.settings,
+            [query],
+            request_type=request_type,
+            cancel_check=cancel_check,
         )[0]
         hits = self._store.search_by_embedding(query_vec, top_k=top_k * 3)
         for hit in hits:

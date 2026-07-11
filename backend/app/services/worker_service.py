@@ -17,12 +17,14 @@ from app.repositories.task_job_repository import TaskJobRepository
 from app.services.disk_guard_service import DiskCapacityError
 from app.services.engagement_ingest_service import EngagementIngestCancelled
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
-from app.services.rfq_analysis_service import RFQAnalysisService
+from app.services.rfq_analysis_service import RFQAnalysisCancelled, RFQAnalysisService
 from app.services.task_job_service import TaskJobService
 
 logger = logging.getLogger(__name__)
 
-IN_FLIGHT_RFQ_STATUSES = frozenset({"queued", "pending", "parsing", "retrieving", "generating"})
+IN_FLIGHT_RFQ_STATUSES = frozenset(
+    {"queued", "pending", "parsing", "retrieving", "generating", "cancelling"}
+)
 
 
 class WorkerService:
@@ -34,8 +36,11 @@ class WorkerService:
 
     def recover_stale_jobs(self, db: Session) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.settings.task_job_stale_seconds)
+        cancel_cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=self.settings.task_job_cancel_stale_seconds
+        )
         task_repo = RFQTaskRepository(db)
-        jobs = list(
+        stale_jobs = list(
             db.scalars(
                 select(TaskJob).where(
                     TaskJob.status == "running",
@@ -44,6 +49,22 @@ class WorkerService:
                 )
             )
         )
+        cancel_stale_jobs = list(
+            db.scalars(
+                select(TaskJob).where(
+                    TaskJob.status == "running",
+                    TaskJob.cancel_requested_at.isnot(None),
+                    TaskJob.cancel_requested_at < cancel_cutoff,
+                )
+            )
+        )
+        seen: set[str] = set()
+        jobs: list[TaskJob] = []
+        for job in stale_jobs + cancel_stale_jobs:
+            if job.id in seen:
+                continue
+            seen.add(job.id)
+            jobs.append(job)
         recovered = 0
         for job in jobs:
             logger.warning(
@@ -54,6 +75,14 @@ class WorkerService:
                 job.worker_id,
                 job.attempts,
             )
+            if job.cancel_requested_at is not None:
+                self.job_service.mark_cancelled(db, job)
+                if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
+                    task = task_repo.get_by_id(job.ref_id)
+                    if task and task.processing_status in IN_FLIGHT_RFQ_STATUSES:
+                        self.analysis_service.apply_task_cancelled(db, task)
+                recovered += 1
+                continue
             self.job_service.mark_failed(db, job, "任务执行超时（worker 无响应）")
             if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
                 task = task_repo.get_by_id(job.ref_id)
@@ -93,6 +122,12 @@ class WorkerService:
             self.job_service.mark_cancelled(db, job)
             if job.job_type == TaskJobService.JOB_KB_INDEX:
                 kb_jobs.sync_import_finished(db, job)
+        except RFQAnalysisCancelled:
+            self.job_service.mark_cancelled(db, job)
+            if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
+                task = RFQTaskRepository(db).get_by_id(job.ref_id)
+                if task and task.processing_status != "cancelled":
+                    self.analysis_service.apply_task_cancelled(db, task)
         except DiskCapacityError as exc:
             logger.error(
                 "job_disk_capacity_failed job_id=%s job_type=%s ref_id=%s volume=%s "

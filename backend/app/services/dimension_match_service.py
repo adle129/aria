@@ -327,6 +327,8 @@ class DimensionMatchService:
         self,
         rfq_modules: dict[str, Any],
         batch: list[tuple[DimensionBaselineModule, DimensionBaselineItem]],
+        *,
+        cancel_check: Callable[[], None] | None = None,
     ) -> list[dict[str, Any]]:
         prompt_path = self._prompt_root() / "rfq_baseline_match.txt"
         template = prompt_path.read_text(encoding="utf-8")
@@ -344,7 +346,11 @@ class DimensionMatchService:
             template.replace("{rfq_modules_json}", json.dumps(rfq_modules, ensure_ascii=False, indent=2))
             .replace("{dimension_batch_json}", json.dumps(dim_payload, ensure_ascii=False, indent=2))
         )
-        parsed = self.llm.complete_json(prompt, rfq_text=json.dumps(rfq_modules, ensure_ascii=False))
+        parsed = self.llm.complete_json(
+            prompt,
+            rfq_text=json.dumps(rfq_modules, ensure_ascii=False),
+            cancel_check=cancel_check,
+        )
         items = parsed.get("items")
         if not isinstance(items, list):
             return []
@@ -404,6 +410,7 @@ class DimensionMatchService:
         self,
         rfq_modules: dict[str, Any],
         on_progress: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         baseline = self.baseline_service.load()
         corpus = _rfq_corpus(rfq_modules)
@@ -425,11 +432,13 @@ class DimensionMatchService:
 
             total_batches = len(llm_batch_starts)
             for batch_no, i in enumerate(llm_batch_starts, start=1):
+                if cancel_check is not None:
+                    cancel_check()
                 if on_progress is not None:
                     on_progress(batch_no, total_batches)
                 batch = rows[i : i + self.BATCH_SIZE]
                 batch_rule = items[i : i + self.BATCH_SIZE]
-                llm_items = self._llm_batch(rfq_modules, batch)
+                llm_items = self._llm_batch(rfq_modules, batch, cancel_check=cancel_check)
                 items[i : i + self.BATCH_SIZE] = self._merge_llm_items(batch_rule, llm_items)
 
         items = [self._finalize_item(it) for it in items]

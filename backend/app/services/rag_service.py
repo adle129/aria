@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -126,6 +127,7 @@ class RAGService:
         doc_type_filter: list[str] | None = None,
         *,
         request_type: str = "query",
+        cancel_check: Callable[[], None] | None = None,
     ) -> list[dict[str, Any]]:
         started = time.monotonic()
         if self.settings.mock_rag:
@@ -140,6 +142,7 @@ class RAGService:
             function_filter=function_filter,
             doc_type_filter=doc_type_filter,
             request_type=request_type,
+            cancel_check=cancel_check,
         )
         max_score = max(
             (float(h.get("similarity_score") or 0.0) for h in hits),

@@ -5,7 +5,7 @@
 **产品品牌：** ARIA（**A**ssisted **R**easoning & **I**ntelligence **A**pplications）  
 **中文名：** ARIA 智能应用平台  
 **版本：** v1.9 · 2026-07-10
-**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 2026-07-04；**使用场景问卷 SURVEY-01~06 确认 2026-07-07**；**F1.1 增补 `.doc` 上传 2026-07-07**；**F1.11 任务生命周期 2026-07-09**）  
+**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 2026-07-04；**使用场景问卷 SURVEY-01~06 确认 2026-07-07**；**F1.1 增补 `.doc` 上传 2026-07-07**；**F1.11 任务生命周期 2026-07-09**；**F1.11 协作取消 2026-07-11**）  
 **客户：** EDAG（爱达克）车辆工程服务  
 
 > 品牌与平台定位详见 [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md)。  
@@ -156,7 +156,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | F1.6 | 标注来源引用与置信度 | ✓ | R1 | — | P0 |
 | F1.7 | 差异总结与报价参考概览 | ✓ | R1 | LLM | P1 |
 | F1.8 | RFQ 任务历史列表与切换回看 | ✓（框架） | R1 | — | P0 |
-| F1.11 | **任务生命周期管理**：失败重试、归档、删除；队列满拒绝上传 | — | **R1** | — | P1 |
+| F1.11 | **任务生命周期管理**：失败重试、**协作取消**、归档、删除；队列满拒绝上传 | — | **R1** | — | P1 |
 | F1.9 | 相似项目展开（RAG 片段 + 来源） | ✓（框架） | R1 | RAG | P1 |
 
 #### 3.1.1a RFQ 上传格式（F1.1）
@@ -467,7 +467,9 @@ AI 输出均为**草稿**，工程师必须二次校验后方可定稿导出。
 **① 后台处理状态 `processing_status`（机器流水线）**
 
 ```
-pending → parsing → dimension_review → retrieving → generating → completed / failed
+pending → parsing → dimension_review → retrieving → generating → completed / failed / cancelled
+                              ↑______________________________|
+                         （Phase 2 取消回滚，保留维度勾选）
 ```
 
 | 状态 | 说明 |
@@ -477,7 +479,8 @@ pending → parsing → dimension_review → retrieving → generating → compl
 | `dimension_review` | **F1.10c：** 等待工程师 **基准库勾选复核**（~100 项匹配结果；确认页全表） |
 | `retrieving` | RAG 检索 Top-3 相似项目 |
 | `generating` | 按已确认 in_scope 维度生成对比矩阵 |
-| `completed` / `failed` | 分析结束 |
+| `cancelling` | **F1.11：** 用户已请求取消，worker/API 在 LLM/RAG **安全边界**协作退出（软状态，轮询可见） |
+| `completed` / `failed` / `cancelled` | 分析结束（`cancelled` 可 **重新解析**） |
 
 **② 人工审阅状态 `review_status`（API 字段名 `status`）**
 
@@ -541,9 +544,17 @@ draft → in_review → approved → exported
 
 | 操作 | 说明 | 限制 |
 |------|------|------|
-| **重新解析** | 失败任务（`processing_status=failed`）无需重新上传，一键重入队列 | 原始 RFQ 文件须仍在磁盘；已归档任务不可重试 |
-| **归档** | 从默认任务列表隐藏（`archived=true`），可通过 `include_archived=true` 查看 | 进行中的任务（queued/parsing/retrieving/generating）不可归档 |
-| **删除** | 硬删除任务记录，并清理上传文件与已生成 Excel/QA 附件 | 进行中任务不可删除 |
+| **取消分析** | 解析/检索/生成阶段可协作取消；`dimension_review` 无取消按钮（删除或重传） | Phase 1（`queued`/`parsing`）终态 `cancelled` 并清理部分产物；Phase 2（`retrieving`/`generating`）回滚 `dimension_review` 并保留维度勾选 |
+| **重新解析** | 失败或已取消任务（`processing_status=failed` 或 `cancelled`）无需重新上传，一键重入队列 | 原始 RFQ 文件须仍在磁盘；已归档任务不可重试 |
+| **归档** | 从默认任务列表隐藏（`archived=true`），可通过 `include_archived=true` 查看 | 进行中的任务（queued/parsing/retrieving/generating/**cancelling**）不可归档 |
+| **删除** | 硬删除任务记录，并清理上传文件与已生成 Excel/QA 附件 | 进行中任务（含 **cancelling**）不可删除 |
+
+**协作取消（R1 · 不杀 Ollama 进程）：**
+
+- 用户 `POST .../cancel` 后，Phase 1 通过 `TaskJob.cancel_requested_at` 通知 worker；Phase 2 将任务标 `cancelling`
+- worker/API 在解析批次、维度匹配、LLM 流式输出、query embedding 等边界检查取消标志；LLM 取消时 **关闭 HTTP 流** 以尽快释放 Ollama 租约
+- 取消检查对 DB **节流轮询**（约 0.5s），避免每个 token chunk 打库；当前 LLM 调用结束后队列方可处理下一任务（`OLLAMA_MAX_CONCURRENT=1`）
+- `cancelling` 超时（`task_job_cancel_stale_seconds`，默认 120s）由 worker 恢复为 Phase 2 的 `dimension_review` 或 Phase 1 的 `cancelled`
 
 > **命名区分：** 本节 **任务归档** = 列表隐藏，**不**删除数据盘文件；**archive-to-knowledge**（§11.3 · 合同外）= 定稿项目写入 Engagement 知识库，二者独立。
 

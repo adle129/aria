@@ -297,7 +297,7 @@ GET /api/v1/rfq/tasks/{task_id}
   "data": {
     "task_id": "uuid",
     "status": "draft | in_review | approved | exported",
-    "processing_status": "pending | parsing | dimension_review | retrieving | generating | completed | failed",
+    "processing_status": "pending | queued | parsing | dimension_review | retrieving | generating | cancelling | cancelled | completed | failed",
     "rfq_modules": { ... },
     "dimension_draft": {
       "baseline_version": "v1",
@@ -356,14 +356,38 @@ PUT /api/v1/rfq/tasks/{task_id}
 POST /api/v1/rfq/tasks/{task_id}/retry
 ```
 
-**前置：** `processing_status=failed`；`archived=false`；原始 RFQ 文件存在。
+**前置：** `processing_status=failed` 或 `cancelled`；`archived=false`；原始 RFQ 文件存在。
 
 **成功：** `200`，`data` 含更新后的 status payload（`processing_status=queued`）。
 
 | HTTP | `msg` 示例 |
 |------|-----------|
 | 404 | 任务 ID 不存在 |
-| 400 | 只有失败状态的任务才能重试 / 已归档任务不支持重试 / 原始 RFQ 文件已丢失，请重新上传 |
+| 400 | 只有失败或已取消状态的任务才能重试 / 已归档任务不支持重试 / 原始 RFQ 文件已丢失，请重新上传 |
+
+#### 取消分析（R1 · F1.11）
+
+```
+POST /api/v1/rfq/tasks/{task_id}/cancel
+```
+
+**前置：** 任务处于可取消阶段（`queued` / `parsing` / `retrieving` / `generating`）；`dimension_review` 及终态幂等 no-op。
+
+**行为：**
+- Phase 1（`TaskJob` active）：`queued` 立即 `cancelled`；`running` 协作取消（`cancelling` 软状态 → `cancelled`）
+- Phase 2（无 active Job）：`retrieving`/`generating` 标 `cancelling`，在 RAG/生成边界回滚 `dimension_review`（保留维度勾选）
+
+**实现要点（协作，非杀进程）：**
+- Phase 1：worker 在解析/匹配/LLM 边界读取 `TaskJob.cancel_requested_at`；LLM 使用 **流式 generate** 并在取消时 **关闭 HTTP 连接** 释放 Ollama 租约
+- Phase 2：`confirm-dimensions` 同步路径读取 `RFQTask.processing_status=cancelling`；query **embedding** 与后续步骤同样支持 `cancel_check`
+- 取消标志 DB 查询 **节流**（约 0.5s），避免每个 stream chunk 打库
+- `cancelling` 超过 `task_job_cancel_stale_seconds`（默认 120s）由 worker 恢复终态或回滚 `dimension_review`
+
+**成功：** `200`，`data` 为 status payload（`status` 可为 `cancelling` 或 `cancelled`）。
+
+| HTTP | `msg` 示例 |
+|------|-----------|
+| 404 | 任务 ID 不存在 |
 
 #### 删除任务（R1 · F1.11）
 
@@ -965,7 +989,7 @@ GET /api/v1/rfq/tasks/{task_id}/status
 
 ```json
 {
-  "status": "pending | queued | parsing | dimension_review | retrieving | generating | completed | failed",
+  "status": "pending | queued | parsing | dimension_review | retrieving | generating | cancelling | cancelled | completed | failed",
   "progress": 60,
   "message": "正在生成技术维度对比表...",
   "queue_position": 2,

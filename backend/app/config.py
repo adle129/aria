@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     task_worker_poll_seconds: float = 2.0
     task_job_avg_seconds: int = 120
     task_job_stale_seconds: int = 900
+    task_job_cancel_stale_seconds: int = 120
     task_max_queue_size: int = 20
     kb_async_index_enabled: bool = True
     disk_warning_percent: float = 80.0

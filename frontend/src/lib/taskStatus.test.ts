@@ -13,6 +13,8 @@ describe("formatProcessingStatus", () => {
   it("maps known statuses to Chinese", () => {
     expect(formatProcessingStatus("queued")).toBe("排队等待中");
     expect(formatProcessingStatus("parsing")).toBe("解析中");
+    expect(formatProcessingStatus("cancelling")).toBe("正在取消");
+    expect(formatProcessingStatus("cancelled")).toBe("已取消");
   });
 
   it("falls back to raw status", () => {
@@ -26,6 +28,8 @@ describe("getProcessingStatusTagColor", () => {
     expect(getProcessingStatusTagColor("dimension_review")).toBe("warning");
     expect(getProcessingStatusTagColor("completed")).toBe("success");
     expect(getProcessingStatusTagColor("failed")).toBe("error");
+    expect(getProcessingStatusTagColor("cancelled")).toBe("default");
+    expect(getProcessingStatusTagColor("cancelling")).toBe("warning");
   });
 });
 

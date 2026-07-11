@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 
 import httpx
 
 from app.config import Settings
+from app.services.cooperative_cancel import CooperativeCancelled
 from app.services.ollama_concurrency import get_ollama_gate
 from app.services.ollama_service import ollama_http_client
 
@@ -73,11 +75,15 @@ def _serial_embed(
     base: str,
     model: str,
     prompts: list[str],
+    *,
+    cancel_check: Callable[[], None] | None = None,
 ) -> list[list[float]]:
     """Serial embedding via legacy /api/embeddings (one request per chunk)."""
     url = f"{base}/api/embeddings"
     vectors: list[list[float]] = []
     for prompt in prompts:
+        if cancel_check is not None:
+            cancel_check()
         resp = client.post(url, json={"model": model, "prompt": prompt})
         resp.raise_for_status()
         data = resp.json()
@@ -95,6 +101,7 @@ def embed_texts(
     texts: list[str],
     *,
     request_type: str = "query",
+    cancel_check: Callable[[], None] | None = None,
 ) -> list[list[float]]:
     """Embed a list of texts via Ollama.
 
@@ -121,9 +128,13 @@ def embed_texts(
         batch_size,
     )
     try:
+        if cancel_check is not None:
+            cancel_check()
         with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
             all_vectors: list[list[float]] = []
             for start in range(0, len(prompts), batch_size):
+                if cancel_check is not None:
+                    cancel_check()
                 batch = prompts[start : start + batch_size]
                 with gate.acquire(request_type=request_type):
                     vectors = _try_batch_embed(
@@ -131,7 +142,11 @@ def embed_texts(
                     )
                     if vectors is None:
                         vectors = _serial_embed(
-                            client, base, settings.embedding_model, batch
+                            client,
+                            base,
+                            settings.embedding_model,
+                            batch,
+                            cancel_check=cancel_check,
                         )
                 all_vectors.extend(vectors)
             logger.info(
@@ -141,6 +156,8 @@ def embed_texts(
                 int((time.monotonic() - started) * 1000),
             )
             return all_vectors
+    except CooperativeCancelled:
+        raise
     except httpx.HTTPError as exc:
         logger.exception(
             "embed_failed request_type=%s texts=%d elapsed_ms=%d",

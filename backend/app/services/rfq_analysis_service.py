@@ -28,8 +28,19 @@ from app.utils.paths import resolve_data_path, resolve_task_file_path
 
 logger = logging.getLogger(__name__)
 
+from app.services.cooperative_cancel import CooperativeCancelled
+
 # confirm-dimensions runs in the HTTP request (not a TaskJob); restart leaves these orphaned.
-ORPHAN_CONFIRM_STATUSES = frozenset({"retrieving", "generating"})
+ORPHAN_CONFIRM_STATUSES = frozenset({"retrieving", "generating", "cancelling"})
+
+RFQ_JOB_PRIORITY = 300
+
+CANCELLABLE_PHASE1_STATUSES = frozenset({"queued", "pending", "parsing"})
+CANCELLABLE_PHASE2_STATUSES = frozenset({"retrieving", "generating"})
+
+
+class RFQAnalysisCancelled(CooperativeCancelled):
+    """Cooperative cancel at a safe processing boundary."""
 
 
 class RFQAnalysisService:
@@ -78,6 +89,7 @@ class RFQAnalysisService:
             db,
             job_type=TaskJobService.JOB_RFQ_ANALYSIS,
             ref_id=task.id,
+            priority=RFQ_JOB_PRIORITY,
         )
         logger.info(
             "rfq_enqueue task_id=%s job_id=%s inline=%s",
@@ -92,7 +104,7 @@ class RFQAnalysisService:
             db.refresh(task)
 
     def retry_task(self, db: Session, task: RFQTask) -> RFQTask:
-        """Re-queue a failed task for reprocessing without re-uploading the file."""
+        """Re-queue a failed or cancelled task for reprocessing without re-uploading the file."""
         from pathlib import Path as _Path
 
         if not _Path(task.file_path).exists():
@@ -117,6 +129,101 @@ class RFQAnalysisService:
         db.refresh(task)
         return task
 
+    def _clear_analysis_artifacts(self, task: RFQTask) -> None:
+        task.rfq_modules = None
+        task.dimension_draft = None
+        task.similar_projects = None
+        task.comparison_table = None
+        task.solution_draft = None
+        task.qa_items = None
+        task.excel_path = None
+        task.qa_excel_path = None
+        task.error_msg = None
+        task.progress = "0"
+        task.review_status = "draft"
+
+    def apply_task_cancelled(self, db: Session, task: RFQTask) -> RFQTask:
+        repo = RFQTaskRepository(db)
+        self._clear_analysis_artifacts(task)
+        task.processing_status = "cancelled"
+        task.status_message = "分析已取消"
+        return repo.update(task)
+
+    def _rollback_confirm_to_review(self, repo: RFQTaskRepository, task: RFQTask) -> RFQTask:
+        task.similar_projects = None
+        task.comparison_table = None
+        task.processing_status = "dimension_review"
+        task.progress = "40"
+        task.status_message = "矩阵生成已取消，维度勾选已保留，可重新确认"
+        task.error_msg = None
+        return repo.update(task)
+
+    def _make_job_cancel_check(self, db: Session, job_id: str | None):
+        if not job_id:
+            return None
+
+        last_check = 0.0
+        interval = 0.5
+
+        def cancel_check() -> None:
+            nonlocal last_check
+            now = time.monotonic()
+            if now - last_check < interval:
+                return
+            last_check = now
+            job = TaskJobRepository(db).get_by_id(job_id)
+            if job and job.cancel_requested_at is not None:
+                raise RFQAnalysisCancelled("RFQ 分析已取消")
+
+        return cancel_check
+
+    def _make_task_cancel_check(self, db: Session, task_id: str):
+        last_check = 0.0
+        interval = 0.5
+
+        def cancel_check() -> None:
+            nonlocal last_check
+            now = time.monotonic()
+            if now - last_check < interval:
+                return
+            last_check = now
+            task = RFQTaskRepository(db).get_by_id(task_id)
+            if task and task.processing_status == "cancelling":
+                raise RFQAnalysisCancelled("矩阵生成已取消")
+
+        return cancel_check
+
+    def cancel_task(self, db: Session, task: RFQTask) -> RFQTask:
+        repo = RFQTaskRepository(db)
+        if task.processing_status in {"completed", "failed", "cancelled", "dimension_review"}:
+            return task
+
+        job_repo = TaskJobRepository(db)
+        job = job_repo.get_active_by_ref(TaskJobService.JOB_RFQ_ANALYSIS, task.id)
+        if job is not None:
+            job = self.job_service.request_cancel(db, job)
+            if job.status == "cancelled":
+                logger.info("rfq_cancel_immediate task_id=%s job_id=%s", task.id, job.id)
+                return self.apply_task_cancelled(db, task)
+            if job.cancel_requested_at is not None:
+                task.status_message = "正在取消分析，当前模型调用结束后停止"
+                repo.update(task)
+                logger.info("rfq_cancel_requested task_id=%s job_id=%s", task.id, job.id)
+            db.refresh(task)
+            return task
+
+        if task.processing_status in CANCELLABLE_PHASE2_STATUSES:
+            task.processing_status = "cancelling"
+            task.status_message = "正在取消矩阵生成，当前模型调用结束后停止"
+            repo.update(task)
+            logger.info("rfq_cancel_phase2 task_id=%s", task.id)
+            return task
+
+        if task.processing_status == "cancelling":
+            return task
+
+        return task
+
     def analyze_task(self, db: Session, task_id: str) -> None:
         repo = RFQTaskRepository(db)
         task = repo.get_by_id(task_id)
@@ -130,7 +237,15 @@ class RFQAnalysisService:
             task.id,
             task.file_name,
         )
+        job = TaskJobRepository(db).get_active_by_ref(
+            TaskJobService.JOB_RFQ_ANALYSIS,
+            task.id,
+        )
+        cancel_check = self._make_job_cancel_check(db, job.id if job else None)
         try:
+            if cancel_check is not None:
+                cancel_check()
+
             task.processing_status = "parsing"
             task.progress = "20"
             task.status_message = "正在解析 RFQ 文档..."
@@ -138,7 +253,9 @@ class RFQAnalysisService:
 
             rfq_path = resolve_task_file_path(task.file_path, upload_dir=self.settings.upload_path)
             parse_started = time.monotonic()
-            rfq_modules = self.parse_service.parse_rules_first(rfq_path)
+            rfq_modules = self.parse_service.parse_rules_first(rfq_path, cancel_check=cancel_check)
+            if cancel_check is not None:
+                cancel_check()
             task.rfq_modules = rfq_modules
             logger.info(
                 "rfq_parse_ok task_id=%s elapsed_ms=%d modules=%d",
@@ -162,7 +279,10 @@ class RFQAnalysisService:
             dimension_draft = self.dimension_match.match_rfq_to_baseline(
                 rfq_modules,
                 on_progress=on_match_progress,
+                cancel_check=cancel_check,
             )
+            if cancel_check is not None:
+                cancel_check()
             task.dimension_draft = dimension_draft
             task.processing_status = "dimension_review"
             task.progress = "40"
@@ -175,6 +295,14 @@ class RFQAnalysisService:
                 int((time.monotonic() - match_started) * 1000),
                 int((time.monotonic() - started) * 1000),
             )
+        except RFQAnalysisCancelled:
+            self.apply_task_cancelled(db, task)
+            logger.info(
+                "rfq_analyze_cancelled task_id=%s elapsed_ms=%d",
+                task.id,
+                int((time.monotonic() - started) * 1000),
+            )
+            raise
         except Exception as exc:
             err = str(exc)
             task.processing_status = "failed"
@@ -275,12 +403,17 @@ class RFQAnalysisService:
             query,
         )
         started = time.monotonic()
+        phase2_cancel = self._make_task_cancel_check(db, task.id)
         try:
             similar_docs = self.rag.search_similar_projects(
                 query,
                 top_k=3,
                 request_type="rfq",
+                cancel_check=phase2_cancel,
             )
+            db.refresh(task)
+            if task.processing_status == "cancelling":
+                return self._rollback_confirm_to_review(repo, task)
             logger.info(
                 "rfq_confirm_retrieve_ok task_id=%s hits=%s elapsed_ms=%d",
                 task.id,
@@ -293,6 +426,10 @@ class RFQAnalysisService:
             task.status_message = "正在生成技术维度对比表..."
             task.similar_projects = similar_docs
             repo.update(task)
+
+            db.refresh(task)
+            if task.processing_status == "cancelling":
+                return self._rollback_confirm_to_review(repo, task)
 
             comparison_table = self.rag.build_comparison_table_from_draft(
                 task.rfq_modules,
@@ -310,6 +447,11 @@ class RFQAnalysisService:
                 int((time.monotonic() - started) * 1000),
             )
             return updated
+        except CooperativeCancelled:
+            db.refresh(task)
+            if task.processing_status == "cancelling" or task.rfq_modules:
+                return self._rollback_confirm_to_review(repo, task)
+            return self.apply_task_cancelled(db, task)
         except OllamaLeaseTimeout as exc:
             self._mark_confirm_failed(
                 repo,
@@ -384,7 +526,7 @@ class RFQAnalysisService:
         }
 
     def recover_orphaned_confirm_phase(self, db: Session, task: RFQTask) -> RFQTask:
-        """If confirm-dimensions was interrupted mid-flight, roll back to dimension_review."""
+        """If confirm-dimensions or cancel was interrupted mid-flight, roll back safely."""
         if task.processing_status not in ORPHAN_CONFIRM_STATUSES:
             return task
         updated = task.updated_at
@@ -397,10 +539,15 @@ class RFQAnalysisService:
             return task
 
         repo = RFQTaskRepository(db)
+        was_cancelling = task.processing_status == "cancelling"
         if task.rfq_modules and task.dimension_draft:
             task.processing_status = "dimension_review"
             task.progress = "40"
-            task.status_message = "检索中断，请重新确认维度后继续"
+            task.status_message = (
+                "取消请求超时，已回到维度复核"
+                if was_cancelling
+                else "检索中断，请重新确认维度后继续"
+            )
             task.error_msg = "orphaned confirm phase recovered after stall"
         else:
             task.processing_status = "failed"
@@ -433,19 +580,31 @@ class RFQAnalysisService:
                 recovered += 1
         return recovered
 
+    def _resolve_public_status(self, task: RFQTask, job) -> str:
+        if task.processing_status == "cancelling":
+            return "cancelling"
+        if task.processing_status == "cancelled":
+            return "cancelled"
+        if job is not None and job.status == "running" and job.cancel_requested_at is not None:
+            return "cancelling"
+        return task.processing_status
+
     def get_status_payload(self, task: RFQTask, db: Session | None = None) -> dict[str, Any]:
         if db is not None:
             task = self.recover_orphaned_confirm_phase(db, task)
-        payload: dict[str, Any] = {
-            "status": task.processing_status,
-            "progress": int(task.progress or "0"),
-            "message": task.status_message or "",
-        }
+        job = None
         if db is not None:
             job = TaskJobRepository(db).get_active_by_ref(
                 TaskJobService.JOB_RFQ_ANALYSIS,
                 task.id,
             )
+        public_status = self._resolve_public_status(task, job)
+        payload: dict[str, Any] = {
+            "status": public_status,
+            "progress": int(task.progress or "0"),
+            "message": task.status_message or "",
+        }
+        if db is not None:
             payload.update(self.job_service.get_queue_info(db, job))
         return payload
 

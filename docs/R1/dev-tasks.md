@@ -70,6 +70,15 @@
 | R1-I10d | `recover_stale_jobs` + `max_attempts` | 超时重排队或 failed | `test_worker_service` · `test_task_lifecycle` |
 | R1-I10e | Alembic `005_wave6_task_lifecycle` | `rfq_tasks.archived` | 迁移随 bootstrap |
 
+### R1-F11 RFQ 协作取消（2026-07-11）
+
+| ID | 任务 | 产出 | 测试 |
+|----|------|------|------|
+| R1-F11a | `POST .../cancel` + 状态机 | Phase 1 `cancelled`；Phase 2 回滚 `dimension_review`；`cancelling` 软状态 | `test_rfq_cancel_api` |
+| R1-F11b | worker/API 协作检查 | `cancel_requested_at`、LLM 流式 abort、embedding `cancel_check`、节流轮询 | `test_rfq_analysis_cancel` · `test_llm_service_cancel` · `test_embedding_service_cancel` |
+| R1-F11c | 前端取消 UX | 进度条取消按钮、Modal、`cancelling`/`cancelled` 轮询与 CTA | `taskStatus.test.ts` · `rfqWorkspace.test.ts` |
+| R1-F11d | stale `cancelling` 恢复 | `task_job_cancel_stale_seconds` 默认 120s | `test_worker_service` |
+
 ---
 
 ## R1-AUTH 认证与权限（P0-1 · Week 1–2 · 与 R1-I 并行）

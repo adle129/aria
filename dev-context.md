@@ -193,7 +193,8 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
 | GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`、`include_archived`） |
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
-| POST | `/api/v1/rfq/tasks/{id}/retry` | **F1.11** 失败任务重新解析（无需重传） |
+| POST | `/api/v1/rfq/tasks/{id}/retry` | **F1.11** 失败/已取消任务重新解析（无需重传） |
+| POST | `/api/v1/rfq/tasks/{id}/cancel` | **F1.11** 协作取消分析（Phase 1→`cancelled`；Phase 2→回滚 `dimension_review`） |
 | DELETE | `/api/v1/rfq/tasks/{id}` | **F1.11** 删除任务及关联文件 |
 | PATCH | `/api/v1/rfq/tasks/{id}/archive` | **F1.11** 归档（默认列表隐藏） |
 | GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（含 `dimension_review`） |

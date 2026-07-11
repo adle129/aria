@@ -33,7 +33,7 @@ def test_parse_rules_first_production_delegates_to_spike(monkeypatch, tmp_path):
     rfq.touch()
     captured: dict = {}
 
-    def fake_parse(_settings, path):
+    def fake_parse(_settings, path, **_kwargs):
         captured["path"] = path
         return {"project_name": "Spike Project", "functions_in_scope": ["PM"]}
 

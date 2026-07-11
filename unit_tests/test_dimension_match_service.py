@@ -174,7 +174,7 @@ def test_match_invalid_llm_json_degrades(monkeypatch, match_service):
 def test_match_rfq_reports_llm_batch_progress(match_service, monkeypatch):
     calls: list[tuple[int, int]] = []
 
-    def fake_llm_batch(_rfq_modules, batch):
+    def fake_llm_batch(_rfq_modules, batch, **_kwargs):
         return []
 
     monkeypatch.setattr(match_service, "_llm_batch", fake_llm_batch)

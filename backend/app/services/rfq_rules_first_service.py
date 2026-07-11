@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from app.config import Settings
 from app.services.ingest.rfq_chunker import chunk_rfq_text
@@ -39,9 +39,15 @@ def parse_rfq_modules(
     rfq_path: Path | str,
     *,
     bundle_max_chars: int = DEFAULT_BUNDLE_MAX_CHARS,
+    cancel_check: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Run rules-first pipeline; return merged rfq_modules dict."""
-    report = run_parse_report(settings, rfq_path=rfq_path, bundle_max_chars=bundle_max_chars)
+    report = run_parse_report(
+        settings,
+        rfq_path=rfq_path,
+        bundle_max_chars=bundle_max_chars,
+        cancel_check=cancel_check,
+    )
     result = report.get("result")
     if not isinstance(result, dict):
         raise ValueError("rules_first parse did not return rfq_modules dict")
@@ -54,6 +60,7 @@ def run_parse_report(
     rfq_path: Path | str | None = None,
     corpus_dir: Path | None = None,
     bundle_max_chars: int = DEFAULT_BUNDLE_MAX_CHARS,
+    cancel_check: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     """Full parse report (spike CLI / validation)."""
     path = resolve_rfq_path(Path(rfq_path) if rfq_path else None, corpus_dir)
@@ -121,12 +128,15 @@ def run_parse_report(
         )
 
     for parse_pass, selected, reason in llm_plan:
+        if cancel_check is not None:
+            cancel_check()
         parts, logs, elapsed = _run_single_pass(
             llm,
             parse_pass=parse_pass,
             chunks=selected,
             prompt_root=prompt_root,
             bundle_max_chars=bundle_max_chars,
+            cancel_check=cancel_check,
         )
         all_parts.extend(parts)
         pass_logs.extend(logs)

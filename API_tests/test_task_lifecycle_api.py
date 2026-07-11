@@ -188,7 +188,7 @@ class TestRetry:
 
     @pytest.mark.parametrize(
         "status",
-        ["queued", "parsing", "retrieving", "generating", "completed", "dimension_review", "pending"],
+        ["queued", "parsing", "retrieving", "generating", "cancelling", "completed", "dimension_review", "pending"],
     )
     def test_non_failed_status_returns_400(self, client, status):
         db = _db(client)
@@ -198,7 +198,7 @@ class TestRetry:
     def test_non_failed_message_exact(self, client):
         db = _db(client)
         task = _make_task(db, processing_status="completed")
-        assert client.post(f"/api/v1/rfq/tasks/{task.id}/retry").json()["msg"] == "只有失败状态的任务才能重试"
+        assert client.post(f"/api/v1/rfq/tasks/{task.id}/retry").json()["msg"] == "只有失败或已取消状态的任务才能重试"
 
     def test_archived_returns_400(self, client):
         db = _db(client)
@@ -257,7 +257,7 @@ class TestRetry:
         assert client.post(f"/api/v1/rfq/tasks/{task.id}/retry").status_code == 200
         r2 = client.post(f"/api/v1/rfq/tasks/{task.id}/retry")
         assert r2.status_code == 400
-        assert r2.json()["msg"] == "只有失败状态的任务才能重试"
+        assert r2.json()["msg"] == "只有失败或已取消状态的任务才能重试"
 
 
 # =============================================================================
@@ -272,15 +272,15 @@ class TestDeleteComprehensive:
     def test_unknown_id_message(self, client):
         assert client.delete("/api/v1/rfq/tasks/does-not-exist").json()["msg"] == "任务 ID 不存在"
 
-    @pytest.mark.parametrize("status", ["queued", "parsing", "retrieving", "generating"])
+    @pytest.mark.parametrize("status", ["queued", "parsing", "retrieving", "generating", "cancelling"])
     def test_in_progress_returns_409(self, client, status):
         db = _db(client)
         task = _make_task(db, processing_status=status)
         r = client.delete(f"/api/v1/rfq/tasks/{task.id}")
         assert r.status_code == 409
-        assert r.json()["msg"] == "进行中的任务不可删除，请等待处理完成"
+        assert r.json()["msg"] == "进行中的任务不可删除，请先取消分析或等待处理完成"
 
-    @pytest.mark.parametrize("status", ["failed", "completed", "dimension_review", "pending"])
+    @pytest.mark.parametrize("status", ["failed", "completed", "dimension_review", "pending", "cancelled"])
     def test_deletable_returns_204(self, client, status):
         db = _db(client)
         task = _make_task(db, processing_status=status)
@@ -348,15 +348,15 @@ class TestArchiveComprehensive:
     def test_unknown_id_message(self, client):
         assert client.patch("/api/v1/rfq/tasks/does-not-exist/archive").json()["msg"] == "任务 ID 不存在"
 
-    @pytest.mark.parametrize("status", ["queued", "parsing", "retrieving", "generating"])
+    @pytest.mark.parametrize("status", ["queued", "parsing", "retrieving", "generating", "cancelling"])
     def test_in_progress_returns_409(self, client, status):
         db = _db(client)
         task = _make_task(db, processing_status=status)
         r = client.patch(f"/api/v1/rfq/tasks/{task.id}/archive")
         assert r.status_code == 409
-        assert r.json()["msg"] == "进行中的任务不可归档"
+        assert r.json()["msg"] == "进行中的任务不可归档，请先取消分析或等待处理完成"
 
-    @pytest.mark.parametrize("status", ["failed", "completed", "dimension_review", "pending"])
+    @pytest.mark.parametrize("status", ["failed", "completed", "dimension_review", "pending", "cancelled"])
     def test_archivable_returns_200(self, client, status):
         db = _db(client)
         task = _make_task(db, processing_status=status)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from app.config import Settings
 from app.services.ingest.rfq_document_loader import load_rfq_text
@@ -17,7 +17,12 @@ class RFQParseService:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def parse_rules_first(self, rfq_path: Path | str) -> dict[str, Any]:
+    def parse_rules_first(
+        self,
+        rfq_path: Path | str,
+        *,
+        cancel_check: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
         path = Path(rfq_path)
         if not path.is_file():
             raise FileNotFoundError(f"文件不存在: {path}")
@@ -32,4 +37,4 @@ class RFQParseService:
 
         from app.services.rfq_rules_first_service import parse_rfq_modules
 
-        return parse_rfq_modules(self.settings, path)
+        return parse_rfq_modules(self.settings, path, cancel_check=cancel_check)
