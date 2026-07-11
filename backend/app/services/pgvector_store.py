@@ -197,6 +197,48 @@ class PgVectorStore:
 
         return len(chunk_ids)
 
+    def copy_engagement_chunks(
+        self,
+        *,
+        from_generation_id: str,
+        to_generation_id: str,
+        engagement_ids: list[str],
+        namespace: str | None = None,
+    ) -> int:
+        self._require_pg()
+        if not engagement_ids:
+            return 0
+        ns = namespace or self.namespace
+        with Session(engine) as session:
+            rows = session.scalars(
+                select(KnowledgeChunk).where(
+                    KnowledgeChunk.namespace == ns,
+                    KnowledgeChunk.generation_id == from_generation_id,
+                )
+            ).all()
+            copied = 0
+            for row in rows:
+                meta = dict(row.chunk_metadata or {})
+                if meta.get("engagement_id") not in engagement_ids:
+                    continue
+                existing = session.get(
+                    KnowledgeChunk, (to_generation_id, row.chunk_id)
+                )
+                if existing is None:
+                    existing = KnowledgeChunk(
+                        generation_id=to_generation_id,
+                        chunk_id=row.chunk_id,
+                        namespace=ns,
+                    )
+                    session.add(existing)
+                existing.namespace = ns
+                existing.content = row.content
+                existing.embedding = row.embedding
+                existing.chunk_metadata = meta
+                copied += 1
+            session.commit()
+            return copied
+
     def count(
         self,
         namespace: str | None = None,

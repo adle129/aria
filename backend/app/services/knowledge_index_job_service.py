@@ -129,6 +129,7 @@ class KnowledgeIndexJobService:
             index_request_type=(
                 "kb_incremental" if mode == "incremental" else "kb_full"
             ),
+            mode=mode,
         )
 
     def serialize(self, db: Session, job: TaskJob) -> dict[str, Any]:

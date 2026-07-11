@@ -48,6 +48,27 @@ class ManpowerBaselinesStore:
         self._atomic_write(merged)
         return merged
 
+    def remove_projects(self, engagement_ids: list[str]) -> dict[str, Any]:
+        if not engagement_ids:
+            return self.read()
+        wanted = set(engagement_ids)
+        store = self.read()
+        projects = [
+            p
+            for p in store.get("projects", [])
+            if p.get("engagement_id") not in wanted
+        ]
+        merged = {
+            **store,
+            "projects": projects,
+            "updated_at": datetime.now(UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z"),
+        }
+        self._atomic_write(merged)
+        return merged
+
     def query(
         self,
         *,

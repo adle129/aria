@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models.engagement import Engagement
 from app.repositories.engagement_repository import EngagementRepository
-from app.schemas.engagement import EngagementManifest
 from app.services.engagement_completeness import classify_engagement
 from app.services.engagement_content_hash import compute_engagement_content_hash
 from app.services.engagement_manifest_service import resolve_manifest
@@ -139,6 +138,7 @@ class EngagementIngestService:
         created_by_job_id: str | None = None,
         generation_callback: Callable[[str], None] | None = None,
         index_request_type: str = "kb_full",
+        mode: str = "full",
     ) -> dict[str, Any]:
         if self.settings.mock_rag:
             raise EngagementIngestError("MOCK_RAG=true：生产 ingest 需 MOCK_RAG=false")
@@ -147,19 +147,73 @@ class EngagementIngestService:
         total = len(folders)
         if progress_callback:
             progress_callback("scanning", 0, total)
-        all_chunks: list[dict[str, Any]] = []
+        changed_chunks: list[dict[str, Any]] = []
+        carry_engagement_ids: list[str] = []
         baseline_projects: list[dict[str, Any]] = []
         failed_files: list[dict[str, str]] = []
         engagement_reports: list[dict[str, Any]] = []
         new_documents = 0
         skipped = 0
+        incremental = mode == "incremental"
+        active_generation_id: str | None = None
+        deleted_engagement_ids: list[str] = []
+        if incremental and self.db is not None:
+            index = KnowledgeIndexService(self.settings, namespace=self.namespace)
+            active_generation_id = index._generations.get_active_id(self.namespace)
+            repo = EngagementRepository(self.db)
+            current_ids = {
+                resolve_manifest(folder).engagement_id for folder in folders
+            }
+            for row in repo.list_all():
+                if row.id not in current_ids and row.index_status == "indexed":
+                    deleted_engagement_ids.append(row.id)
+                    engagement_reports.append(
+                        {
+                            "engagement_id": row.id,
+                            "status": "deleted",
+                            "missing": [],
+                            "tier": row.tier or "copper",
+                            "indexable": False,
+                            "automation_impacts": [],
+                        }
+                    )
 
         for position, folder in enumerate(folders, start=1):
             if cancel_check and cancel_check():
                 raise EngagementIngestCancelled("知识库索引任务已取消")
             try:
+                manifest = resolve_manifest(folder)
+                content_hash = compute_engagement_content_hash(folder)
+                existing = (
+                    EngagementRepository(self.db).get_by_id(manifest.engagement_id)
+                    if self.db is not None
+                    else None
+                )
+                if (
+                    incremental
+                    and active_generation_id
+                    and existing
+                    and existing.content_hash == content_hash
+                    and existing.index_status == "indexed"
+                ):
+                    skipped += 1
+                    carry_engagement_ids.append(manifest.engagement_id)
+                    engagement_reports.append(
+                        {
+                            "engagement_id": manifest.engagement_id,
+                            "status": "skipped",
+                            "missing": [],
+                            "tier": existing.tier or "copper",
+                            "indexable": True,
+                            "automation_impacts": [],
+                        }
+                    )
+                    if progress_callback:
+                        progress_callback("parsing", position, total)
+                    continue
+
                 manifest, chunks, baseline = self.prepare_engagement(folder)
-                all_chunks.extend(chunks)
+                changed_chunks.extend(chunks)
                 new_documents += len({(c.get("metadata") or {}).get("source_doc") for c in chunks})
                 if baseline:
                     baseline_projects.append(baseline)
@@ -225,7 +279,19 @@ class EngagementIngestService:
             if progress_callback:
                 progress_callback("parsing", position, total)
 
-        if not all_chunks:
+        if not changed_chunks and not deleted_engagement_ids:
+            now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            return {
+                "new_documents": 0,
+                "new_chunks": 0,
+                "skipped": skipped,
+                "failed_files": failed_files,
+                "last_import_at": now,
+                "engagements_indexed": skipped,
+                "engagements": engagement_reports,
+            }
+
+        if not changed_chunks and not carry_engagement_ids:
             now = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
             return {
                 "new_documents": 0,
@@ -242,12 +308,34 @@ class EngagementIngestService:
         if progress_callback:
             progress_callback("embedding", total, total)
         index = KnowledgeIndexService(self.settings, namespace=self.namespace)
-        staged = index.build_generation(
-            all_chunks,
-            corpus_path=str(self.kb_root.resolve()),
-            created_by_job_id=created_by_job_id,
-            request_type=index_request_type,
-        )
+        if incremental and active_generation_id and (
+            carry_engagement_ids or deleted_engagement_ids
+        ):
+            staged = index.build_incremental_generation(
+                changed_chunks,
+                carry_engagement_ids=carry_engagement_ids,
+                carry_from_generation_id=active_generation_id,
+                corpus_path=str(self.kb_root.resolve()),
+                created_by_job_id=created_by_job_id,
+                request_type=index_request_type,
+            )
+        else:
+            if not changed_chunks:
+                changed_chunks = []
+                for folder in folders:
+                    if any(f["path"] == folder.name for f in failed_files):
+                        continue
+                    try:
+                        _, chunks, _ = self.prepare_engagement(folder)
+                        changed_chunks.extend(chunks)
+                    except Exception:
+                        pass
+            staged = index.build_generation(
+                changed_chunks,
+                corpus_path=str(self.kb_root.resolve()),
+                created_by_job_id=created_by_job_id,
+                request_type=index_request_type,
+            )
         if generation_callback:
             generation_callback(staged["generation_id"])
         if progress_callback:
@@ -257,6 +345,8 @@ class EngagementIngestService:
                 raise EngagementIngestCancelled("知识库索引任务已取消")
             if baseline_projects:
                 self.baselines.upsert_projects(baseline_projects)
+            if deleted_engagement_ids:
+                self.baselines.remove_projects(deleted_engagement_ids)
             if progress_callback:
                 progress_callback("switching", total, total)
             state = index.activate_generation(staged)
@@ -276,13 +366,13 @@ class EngagementIngestService:
             if report["status"] == "pending":
                 report["status"] = "indexed"
 
-        doc_type_counts = summarize_doc_type_counts(all_chunks)
+        doc_type_counts = summarize_doc_type_counts(changed_chunks)
         if progress_callback:
             progress_callback("finalizing", total, total)
 
         return {
             "new_documents": new_documents,
-            "new_chunks": state.get("chunk_count", len(all_chunks)),
+            "new_chunks": state.get("chunk_count", len(changed_chunks)),
             "skipped": skipped,
             "failed_files": failed_files,
             "last_import_at": state.get("last_index_at"),

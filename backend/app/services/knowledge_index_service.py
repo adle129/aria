@@ -287,6 +287,72 @@ class KnowledgeIndexService:
             self.fail_generation(generation_id, str(exc))
             raise
 
+    def build_incremental_generation(
+        self,
+        changed_chunks: list[dict[str, Any]],
+        *,
+        carry_engagement_ids: list[str],
+        carry_from_generation_id: str | None,
+        corpus_path: str | None = None,
+        created_by_job_id: str | None = None,
+        request_type: str = "kb_incremental",
+    ) -> dict[str, Any]:
+        if self.settings.mock_rag:
+            raise EmbeddingError("MOCK_RAG=true：R1 索引需 MOCK_RAG=false + Ollama embedding")
+        if not changed_chunks and not carry_engagement_ids:
+            raise ValueError("No chunks to index")
+        self.ensure_ready()
+        generation_id = str(uuid.uuid4())
+        self._generations.create(
+            generation_id=generation_id,
+            namespace=self.namespace,
+            embedding_model=self.settings.embedding_model,
+            created_by_job_id=created_by_job_id,
+            content_fingerprint="incremental",
+        )
+        try:
+            if changed_chunks:
+                texts = [c["content"] for c in changed_chunks]
+                embeddings = embed_texts(
+                    self.settings, texts, request_type=request_type
+                )
+                chunk_ids = [str(c["chunk_id"]) for c in changed_chunks]
+                metadatas = []
+                for c in changed_chunks:
+                    meta = dict(c.get("metadata") or {})
+                    meta["chunk_id"] = c["chunk_id"]
+                    meta["chunk_type"] = c.get("chunk_type") or ""
+                    meta["chunk_chapter"] = c.get("chunk_chapter") or ""
+                    metadatas.append(meta)
+                self._store.upsert_batch(
+                    chunk_ids=chunk_ids,
+                    contents=texts,
+                    embeddings=embeddings,
+                    metadatas=metadatas,
+                    generation_id=generation_id,
+                )
+            if carry_engagement_ids and carry_from_generation_id:
+                self._store.copy_engagement_chunks(
+                    from_generation_id=carry_from_generation_id,
+                    to_generation_id=generation_id,
+                    engagement_ids=carry_engagement_ids,
+                )
+            stored_count = self._store.count(generation_id=generation_id)
+            if stored_count == 0:
+                raise ValueError("incremental generation produced zero chunks")
+            self._generations.mark_validated(generation_id, stored_count)
+            return {
+                "generation_id": generation_id,
+                "corpus_path": corpus_path,
+                "chunk_count": stored_count,
+                "namespace": self.namespace,
+                "embedding_model": self.settings.embedding_model,
+                "content_fingerprint": "incremental",
+            }
+        except Exception as exc:
+            self.fail_generation(generation_id, str(exc))
+            raise
+
     def activate_generation(self, staged: dict[str, Any]) -> dict[str, Any]:
         generation_id = str(staged["generation_id"])
         previous = self._generations.activate(generation_id, self.namespace)
