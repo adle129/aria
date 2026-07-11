@@ -16,6 +16,13 @@ def test_extract_text_from_sample_docx():
     assert "Chassis" in text
 
 
+def test_extract_rfq_text_from_sample_docx():
+    parser = RFQParser()
+    text = parser.extract_rfq_text(SAMPLE_RFQ)
+    assert "Mock Auto" in text
+    assert "Chassis" in text
+
+
 def test_extract_missing_file_raises():
     parser = RFQParser()
     with pytest.raises(FileNotFoundError):

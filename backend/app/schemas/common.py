@@ -11,6 +11,16 @@ class ApiResponse(BaseModel, Generic[T]):
     msg: str | None = None
 
 
+class DiskVolumeHealth(BaseModel):
+    volume: str
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+    usage_percent: float
+    warning: bool
+    write_protected: bool
+
+
 class HealthResponse(BaseModel):
     status: str = Field(..., examples=["ok"])
     version: str
@@ -22,3 +32,9 @@ class HealthResponse(BaseModel):
     ollama_model_ready: bool = False
     embedding_model_ready: bool = False
     ollama_error: str | None = None
+    kb_debug_enabled: bool = False
+    aria_ui_profile: str = "experience"
+    auth_enabled: bool = False
+    production_warnings: list[str] = Field(default_factory=list)
+    data_volume: DiskVolumeHealth
+    temp_volume: DiskVolumeHealth

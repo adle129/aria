@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiClient, LAST_TASK_ID_KEY } from "@/api/client";
+import { apiClient, clearStoredTaskId, LAST_TASK_ID_KEY } from "@/api/client";
 import type { TaskPayload, TaskSummary } from "@/types/task";
 
 export const TASK_CHANGED_EVENT = "aria-task-changed";
@@ -29,9 +29,14 @@ interface TaskContextValue {
   loadTask: (id?: string) => Promise<TaskPayload | null>;
   refreshRecentTasks: () => Promise<void>;
   syncFromPayload: (payload: TaskPayload) => void;
+  clearTask: () => void;
 }
 
 const TaskContext = createContext<TaskContextValue | null>(null);
+
+function isNotFoundError(err: unknown): boolean {
+  return (err as { response?: { status?: number } })?.response?.status === 404;
+}
 
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [taskId, setTaskIdState] = useState("");
@@ -39,12 +44,20 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [recentTasks, setRecentTasks] = useState<TaskSummary[]>([]);
 
+  const clearTask = useCallback(() => {
+    clearStoredTaskId();
+    setTaskIdState("");
+    setTask(null);
+  }, []);
+
   const refreshRecentTasks = useCallback(async () => {
     try {
       const resp = await apiClient.get<{ code: number; data: TaskSummary[] }>("/rfq/tasks", {
-        params: { limit: 20 },
+        // Keep every upload visible — same file_name can have multiple tasks.
+        params: { limit: 50, unique_file: false },
       });
-      setRecentTasks(resp.data.data || []);
+      const rows = resp.data.data || [];
+      setRecentTasks(rows);
     } catch {
       // optional UX
     }
@@ -56,18 +69,24 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setTaskIdState(id);
     setLoading(true);
     try {
-      const resp = await apiClient.get<{ code: number; data: TaskPayload }>(`/rfq/tasks/${id}`);
+      const resp = await apiClient.get<{ code: number; data: TaskPayload }>(`/rfq/tasks/${id}`, {
+        showError: true,
+      });
       const payload = resp.data.data;
       setTask(payload);
       notifyTaskChanged(id);
       return payload;
-    } catch {
-      setTask(null);
+    } catch (err) {
+      if (isNotFoundError(err)) {
+        clearTask();
+      } else {
+        setTask(null);
+      }
       return null;
     } finally {
       setLoading(false);
     }
-  }, [taskId]);
+  }, [clearTask, taskId]);
 
   const syncFromPayload = useCallback((payload: TaskPayload) => {
     setTask(payload);
@@ -91,10 +110,17 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       void (async () => {
         setLoading(true);
         try {
-          const resp = await apiClient.get<{ code: number; data: TaskPayload }>(`/rfq/tasks/${stored}`);
+          const resp = await apiClient.get<{ code: number; data: TaskPayload }>(
+            `/rfq/tasks/${stored}`,
+            { silentError: true },
+          );
           setTask(resp.data.data);
-        } catch {
-          setTask(null);
+        } catch (err) {
+          if (isNotFoundError(err)) {
+            clearTask();
+          } else {
+            setTask(null);
+          }
         } finally {
           setLoading(false);
         }
@@ -125,8 +151,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       loadTask,
       refreshRecentTasks,
       syncFromPayload,
+      clearTask,
     }),
-    [taskId, task, loading, recentTasks, setTaskId, loadTask, refreshRecentTasks, syncFromPayload],
+    [taskId, task, loading, recentTasks, setTaskId, loadTask, refreshRecentTasks, syncFromPayload, clearTask],
   );
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;

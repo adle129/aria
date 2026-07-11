@@ -1,8 +1,7 @@
 # ARIA 智能应用平台 — 部署方案
 
 **首期应用：** ARIA 报价助手  
-**版本：** v1.3  
-**日期：** 2026-06-22
+**版本：** v1.5 · 2026-07-10
 
 ---
 
@@ -92,6 +91,19 @@
 | 适用模型 | 7B/14B | **32B Q4** ★ | 32B 全精度 / 多卡并行 |
 | 预算参考 | 2–4 万 | **6–10 万** | 20 万+ |
 
+### 2.1.1 客户容量建议（问卷 2026-07-07）
+
+| 问卷项 | 客户答案 | 部署建议 |
+|--------|----------|----------|
+| 使用人数 | 10–20 人 | **推荐版**（10–15 并发浏览） |
+| 忙时同时干活 | 3–5 人 | 单 `aria-worker` + `OLLAMA_MAX_CONCURRENT=1` |
+| 集中使用 | 很少错开 | 不必多 worker 副本 |
+| 排队容忍 | 可等几分钟 | SLA：5 人连排 **≤10 分钟** |
+
+**环境变量（生产 `.env` 须含）：** `JWT_SECRET`、`AUTH_ENABLED=true`、`DISK_WARNING_PERCENT=80`、`DISK_WRITE_PROTECT_PERCENT=90`、`DISK_MIN_FREE_BYTES=268435456`、`UPLOAD_MAX_ARCHIVE_BYTES=104857600`、`UPLOAD_MAX_ENTRIES=500`、`UPLOAD_MAX_SINGLE_FILE_BYTES=52428800`、`UPLOAD_MAX_EXPANDED_BYTES=524288000`、`UPLOAD_MAX_COMPRESSION_RATIO=100`、`UPLOAD_STREAM_CHUNK_BYTES=1048576`、`OLLAMA_MAX_CONCURRENT=1`、`OLLAMA_GLOBAL_SCHEDULING_ENABLED=true`、`OLLAMA_LEASE_TTL_SECONDS=30`、`OLLAMA_LEASE_HEARTBEAT_SECONDS=10`、`TASK_JOB_AVG_SECONDS=120`、`TASK_MAX_QUEUE_SIZE=20`、`TASK_JOB_STALE_SECONDS=900`
+
+**首次部署：** 运行 `deploy/scripts/create_admin.py` 创建 `kb_admin`；IT 预置工程师账号（10–20 个）。
+
 ### 2.2 推荐版详细配置
 
 ```
@@ -121,6 +133,13 @@ UPS：     在线式 2 KVA
 | `/data/aria/postgres` | 1–20 GB | PostgreSQL 数据目录 |
 | `/data/aria/backups` | 按保留策略 | 每日备份（保留建议 ≥30 天） |
 | `/opt/aria/deploy` | &lt; 5 GB | 镜像包、compose、`.env`（系统盘） |
+
+**容量保护：**
+
+- `${ARIA_DATA_ROOT}/app/.staging` 与正式知识库必须位于同一数据盘，便于校验后 atomic rename；禁止用容器 overlay `/tmp` 承载大 ZIP。
+- health 暴露数据盘总量/剩余量/使用率；默认 80% 告警、90% 写保护（阈值可配置）。
+- 写保护只拒绝上传、索引和新生成文件；已有检索、任务查看和下载继续提供服务。
+- 备份与业务数据若共用同一盘，备份前须预检空间并先清理过期批次；生产建议将 `BACKUP_ROOT` 放到独立盘/NAS。
 
 ### 2.4 模型选型与扩展规划
 
@@ -164,6 +183,8 @@ Embedding（知识库向量，与主 LLM 独立）：
 | **16 GB+** | **14B**（Demo 舒适区） |
 | **24 GB（RTX 4090）★** | **14B 全速 / 32B Q4**（推荐采购档位） |
 | 40 GB+（A100） | 32B 全精度；远期多模型并存 |
+
+**单卡运行边界：** 4090 ×1 满足当前 R1 的排队型基线，不代表 Qwen 长任务与全量 KB embedding 可自由并行。生产须执行全局优先级：交互检索 > RFQ > KB 增量 > KB 全量；全量默认非高峰。客户若要求索引期间 3–5 个长任务仍保持空闲时延迟，应增加 GPU 或独立 embedding 节点。
 
 **口诀：** 有 4090 → Demo 用 14B，稳定后升 32B；无 GPU → 先 Mock，硬件到位再开真实 LLM。
 
@@ -270,8 +291,8 @@ MOCK_LLM=false
 ```json
 {
   "registry-mirrors": [
-    "https://docker.m.daocloud.io",
-    "https://docker.1ms.run"
+    "https://docker.1ms.run",
+    "https://docker.m.daocloud.io"
   ],
   "ipv6": false
 }
@@ -280,8 +301,10 @@ MOCK_LLM=false
 完整示例见 [docker-desktop-engine.example.json](docker-desktop-engine.example.json)。配置后使用项目根目录标准命令：
 
 ```bash
-docker compose up --build
+docker compose up -d --build --pull=never
 ```
+
+**镜像源与 AUTH 常见故障**（DaoCloud EOF、`AUTH_ENABLED` 被 Shell 覆盖、登录不跳转）见 [README.md](../README.md#docker-常见问题与方案) 归档条目。
 
 后端 `pip install` 若出现哈希校验失败，执行 `docker compose build --no-cache backend`；Phase 0 可用 `docker-compose.dev.yml` 跳过 AI 大包以缩短构建时间。详见 [README.md](../README.md)。
 
@@ -446,10 +469,9 @@ docker-compose up --build
 # 将历史文档放入数据盘知识库目录
 rsync -avz ./knowledge_base/ /data/aria/app/knowledge_base/
 
-# 批量导入（容器内路径仍为 /app/data/knowledge_base）
+# R1-KH 目标：通过知识库页面/API 创建 kb_index job，观察进度与导入报告
+# 过渡代码仍可使用以下命令，但它是同步全量重建，只允许非高峰执行
 docker exec aria-backend python scripts/ingest_documents.py
-
-# 增量更新：Phase 2 提供 incremental_update；Demo 可重复执行 ingest
 ```
 
 ### 5.5 版本更新
@@ -558,8 +580,11 @@ bash /opt/aria/deploy/scripts/backup.sh
 备份内容：
 
 - `pg_dump` → `${ARIA_DATA_ROOT}/backups/YYYYMMDD/aria_db.sql`
-- `rsync`：`app/` 下 `uploads`、`outputs`、`knowledge_base`、`templates` + `postgres/`（含 pgvector）
+- `rsync`：`app/` 下 `uploads`、`outputs`、`knowledge_base`、`templates`、`config`、`feedback`，以及 `manpower_baselines.json`、`pgvector_index_state.json`
+- PostgreSQL（含 pgvector）以 `pg_dump` 为逻辑备份；不在运行中直接 rsync PostgreSQL 数据目录
 - 默认保留 30 天（环境变量 `RETENTION_DAYS`）
+
+备份脚本须在写入前检查目标盘空间；恢复演练必须验证 Top-3、文档清单和 baselines，不只检查容器能启动。
 
 ### 9.2 恢复（同机）
 
@@ -601,6 +626,9 @@ bash deploy/scripts/start.sh
 | 防火墙 | 仅 80/443 + SSH |
 | 密码 | `.env` 强密码，不入 Git |
 | HTTPS | 生产建议内网 CA 证书 |
+| 登录 | 生产 `AUTH_ENABLED=true`；JWT 签发于 `JWT_SECRET`（`openssl rand -hex 32`） |
+| 角色 | `kb_admin` 与 `quote_engineer` 两角色；账号由 IT 预置，不开放自助注册 |
+| 密码 | 初始密码由 IT 分发；首次登录后建议修改；密码 hash 存 PostgreSQL（bcrypt） |
 | 日志 | 不记录 RFQ 全文到外部 |
 
 ---

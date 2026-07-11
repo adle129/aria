@@ -16,7 +16,10 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import MilestoneStepScaffold from "@/components/MilestoneStepScaffold";
 import { useTaskContext } from "@/context/TaskContext";
+import { useUiProfile } from "@/hooks/useUiProfile";
+import { showsMilestoneScaffold } from "@/lib/uiProfile";
 import type { SolutionDraftSection, TaskPayload } from "@/types/task";
 
 const { Paragraph, Title, Text } = Typography;
@@ -30,6 +33,7 @@ export default function ProposalPage() {
 }
 
 function ProposalPageContent() {
+  const { profile } = useUiProfile();
   const searchParams = useSearchParams();
   const { taskId, task, loading, loadTask, setTaskId, syncFromPayload } = useTaskContext();
   const [generating, setGenerating] = useState(false);
@@ -41,6 +45,10 @@ function ProposalPageContent() {
       void loadTask(fromUrl);
     }
   }, [searchParams, loadTask, setTaskId]);
+
+  if (showsMilestoneScaffold(profile, "proposal")) {
+    return <MilestoneStepScaffold step="proposal" />;
+  }
 
   const sections = task?.solution_draft?.sections || [];
   const canGenerate = task?.processing_status === "completed";

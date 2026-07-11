@@ -1,8 +1,8 @@
 # M3 · 人力报价 Excel 生成规格
 
-**版本：** v1.0 · 2026-06-29（Plan v3.5）  
-**状态：** 文档规格 · **暂不开发**  
-**关联：** [客户版 §二/§九](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [template-mapping §1](template-mapping.md) · [api-design §2.3 baselines](api-design.md)
+**版本：** v1.1 · 2026-07-06（Plan v3.5 + baselines 三层交付对齐）  
+**状态：** 文档规格 · **Layer 2 暂不开发** · Layer 1 见 R1-K04  
+**关联：** [客户版 §二/§九](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [template-mapping §1](template-mapping.md) · [api-design §2.3 baselines](api-design.md) · **[manpower-baselines-spec.md](manpower-baselines-spec.md)**
 
 ---
 
@@ -43,7 +43,10 @@
 }
 ```
 
-**可选向量：** 岗位描述 chunk + `metadata.function` — 检索实验室用，**非 M3 主路径**。
+**可选向量：** 岗位描述 chunk + `metadata.function` — 检索实验室用，**非 M3 主路径**。  
+**Phase 2 推荐：** Engagement **摘要**向量（非 Excel 逐行）；见 [manpower-baselines-spec.md §5](manpower-baselines-spec.md) · **R1-P2-01**。
+
+**当前代码：** Debug 预览解析 ✓ · `manpower_baselines.json` ✗ · `/quote` 仍 `MOCK_MANPOWER_BASELINES`。
 
 ---
 
@@ -142,3 +145,4 @@ RFQ 解析 → Top-3 RFQ
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | v1.0 | 2026-06-29 | Plan v3.5 §12.12 落文档 |
+| v1.1 | 2026-07-06 | 对齐 manpower-baselines-spec；Layer 1/2/3；Demo Mock 缺口说明 |

@@ -1,0 +1,19 @@
+你是 EDAG 车辆工程报价专家。以下 RFQ 片段为【项目概况 / §三总体要求】，请提取基础信息。
+
+## 要求
+1. 只输出 JSON，不要 Markdown，不要其他文字
+2. 不确定填 "未知" 或空数组，禁止编造
+3. functions_in_scope 只含文档明确提及的领域：PM、BIW、Chassis、CAE、EE、GI、Interior、Test validation 等
+
+## 输出 JSON Schema（仅此 pass 的字段）
+{
+  "project_name": "string",
+  "customer": "string",
+  "platform_type": "string",
+  "functions_in_scope": ["PM", "Chassis"],
+  "timeline_months": 20,
+  "special_requirements": ["string"]
+}
+
+## RFQ 片段
+{rfq_text}

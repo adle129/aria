@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate customer-facing Word document pack (v3.5)."""
+"""Generate customer-facing Word document pack from Markdown (preferred).
+
+Default: reads customer .md sources via customer_md_to_docx.py.
+Legacy hardcoded builders remain for reference (--legacy-hardcoded).
+"""
 
 from __future__ import annotations
 
@@ -27,8 +31,9 @@ MAIN_PLAIN_OUT = DOCS / "ARIA 报价助手-正式版交付方案与报价（客�
 APPENDIX_OUT = DOCS / "附录-模块能力与验收配合说明.docx"
 R1_OUT = DOCS / "R1-知识库验收与检索评测说明.docx"
 ROADMAP_OUT = DOCS / "ARIA 平台-知识库演进路线（客户版）.docx"
+VISION_OUT = DOCS / "ARIA 平台扩展愿景（客户版）.docx"
 
-DOC_DATE = "2026-06-29"
+DOC_DATE = "2026-07-07"
 
 
 def build_main_proposal() -> Path:
@@ -41,8 +46,8 @@ def build_main_proposal() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG Engineering and Design (Shanghai) Co., Ltd.）"),
-            ("版本", "v3.7"),
-            ("日期", "2026-07-02"),
+            ("版本", "v3.8"),
+            ("日期", "2026-07-07"),
             ("报价有效期", "自本文件日期起 60 个自然日"),
         ],
     )
@@ -157,7 +162,7 @@ def build_main_proposal() -> Path:
             ["Proposal", "可选配对"],
         ],
     )
-    add_para(doc, "R1 含：单套/小批量 Web 上传（≤5 套/次）、/knowledge 验收台；不含运营级上传门户、Hybrid/Rerank、细粒度权限。")
+    add_para(doc, "R1 含：单套/小批量 Web 上传（≤5 套/次）、/knowledge 验收台、本地账号登录 + 两角色 + RFQ 任务隔离；不含运营级上传门户、Hybrid/Rerank、SSO/AD、部门级 ACL。")
 
     doc.add_heading("3.3 入库方式", level=2)
     add_para(doc, "IT/管理员：${ARIA_DATA_ROOT}/app/knowledge_base/<engagement_id>/ + manifest.json + 批量导入。")
@@ -223,7 +228,7 @@ def build_main_proposal() -> Path:
     doc.add_heading("八、不在本期范围", level=1)
     add_para(
         doc,
-        "财务助手、OA 集成、细粒度权限、M5 历史 Proposal RAG / AI 四段式正文、OCR、硬件、年度运维代实施。",
+        "财务助手、OA 集成、SSO/AD、部门级 ACL（R1 已含基础两角色登录 + 任务隔离）、M5 历史 Proposal RAG / AI 四段式正文、OCR、硬件、年度运维代实施。",
     )
 
     doc.add_heading("九、报价与付款", level=1)
@@ -345,7 +350,7 @@ def build_main_proposal() -> Path:
             ["开发方项目负责人", "", "", ""],
         ],
     )
-    add_para(doc, "版本 v3.7 · R1 8 周 / 总 20 周 · 正式权利义务以合同为准。", size=9)
+    add_para(doc, "版本 v3.8 · R1 8 周 / 总 20 周 · 正式权利义务以合同为准。", size=9)
 
     MAIN_OUT.parent.mkdir(parents=True, exist_ok=True)
     doc.save(MAIN_OUT)
@@ -353,9 +358,9 @@ def build_main_proposal() -> Path:
 
 
 def build_main_proposal_plain() -> Path:
-    """Customer-friendly proposal (business language, v1.3)."""
+    """Customer-friendly proposal (business language, v1.6)."""
     doc = new_document()
-    plain_date = "2026-07-02"
+    plain_date = "2026-07-07"
 
     add_para(doc, "ARIA 智能应用平台", size=18, bold=True, center=True, space_after=4)
     add_para(
@@ -371,7 +376,7 @@ def build_main_proposal_plain() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG Engineering and Design (Shanghai) Co., Ltd.）"),
-            ("版本", "v1.3（业务评审版）"),
+            ("版本", "v1.6（业务评审版）"),
             ("日期", plain_date),
             ("报价有效期", "自本文件日期起 60 个自然日"),
         ],
@@ -379,7 +384,7 @@ def build_main_proposal_plain() -> Path:
 
     add_para(
         doc,
-        "技术版（合同附件）：ARIA-报价助手-正式版交付方案与报价（客户版）.md v3.7",
+        "技术版（合同附件）：ARIA-报价助手-正式版交付方案与报价（客户版）.md v3.8",
         size=9,
         italic=True,
     )
@@ -388,7 +393,7 @@ def build_main_proposal_plain() -> Path:
     add_bullets(
         doc,
         [
-            "本文性质：面向报价业务负责人与工程师的预估算方案；正式权利义务以合同及技术版 v3.7 为准。",
+            "本文性质：面向报价业务负责人与工程师的预估算方案；正式权利义务以合同及技术版 v3.8 为准。",
             "一句话：在贵司内网建立「历史项目资料库 + 本地 AI」，报价助手是首个应用；AI 出参考草稿，工程师审阅确认后定稿。",
             "验收细则与 IT 规格见文末附录 B。",
         ],
@@ -691,7 +696,7 @@ def build_main_proposal_plain() -> Path:
         [
             ["GPU 服务器、独立数据盘、内网/VPN 访问", "采购、安装、挂载", "提供配置建议清单"],
             ["本地大模型与运行环境", "按文档安装", "远程指导约 2 人日（含在第一期价款内）"],
-            ["历史资料放入指定目录", "按入库规范放置文件（100+ 推荐此方式）", "提供规范与首次导入支持"],
+            ["历史资料放入指定目录", "按入库规范在内网放置文件（大批量历史库推荐）", "提供规范与首次 import 远程联调支持"],
             ["单套/小批量补录", "可选：管理员在知识库页 Web 上传（≤5 套/次）", "上传校验与缺件提示"],
             ["指定 IT 对接人", "是", "—"],
         ],
@@ -1031,8 +1036,8 @@ def build_main_proposal_plain() -> Path:
     add_bullets(
         doc,
         [
-            "技术版主方案 v3.7",
-            "附录-模块能力与验收配合说明（客户版）v1.2",
+            "技术版主方案 v3.8",
+            "附录-模块能力与验收配合说明（客户版）v1.5",
             "R1-知识库验收与检索评测说明（客户版）",
             "customer-it-infrastructure.md",
             "平台知识库演进路线（客户版）",
@@ -1040,7 +1045,7 @@ def build_main_proposal_plain() -> Path:
     )
     add_para(
         doc,
-        "版本 v1.3 · 客户易懂版 · R1 8 周 / 总 20 周 · 与 v3.7 对齐 · 正式权利义务以合同为准。",
+        "版本 v1.6 · 客户易懂版 · R1 8 周 / 总 20 周 · 与 v3.8 对齐 · 正式权利义务以合同为准。",
         size=9,
         italic=True,
     )
@@ -1057,8 +1062,8 @@ def build_appendix() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG）"),
-            ("版本", "v1.3（业务语言版） · " + DOC_DATE),
-            ("关联", "客户易懂版 v1.3 · 技术版 v3.7"),
+            ("版本", "v1.6（业务语言版） · " + DOC_DATE),
+            ("关联", "客户易懂版 v1.6 · 技术版 v3.8"),
         ],
     )
     add_para(
@@ -1121,7 +1126,7 @@ def build_appendix() -> Path:
                 ),
                 (
                     "贵司需配合",
-                    "签约后 1 周内提供 3–5 套金标准；IT 环境最迟 R1 验收前；100+ 可 R1 后分批（目录或 Web 补录）",
+                    "签约后 1 周内提供 ≥3 套脱敏金标准；第 6 周前 ≥5 套；签约后 2 周内确认历史项目清点表；内网 bulk 第 5–8 周落盘",
                 ),
                 (
                     "验收签字要点",
@@ -1261,7 +1266,7 @@ def build_appendix() -> Path:
         ],
     )
 
-    add_para(doc, "版本 v1.3 · 业务语言版 · 供验收签字与配合使用", size=9, italic=True)
+    add_para(doc, "版本 v1.6 · 业务语言版 · 供验收签字与配合使用", size=9, italic=True)
 
     doc.save(APPENDIX_OUT)
     return APPENDIX_OUT
@@ -1274,8 +1279,8 @@ def build_r1_acceptance() -> Path:
         doc,
         [
             ("客户", "爱达克车辆设计（上海）有限公司（EDAG）"),
-            ("版本", "v1.2（业务语言版） · " + DOC_DATE),
-            ("关联", "客户易懂版 v1.3 · 附录 v1.3"),
+            ("版本", "v1.5（业务语言版） · " + DOC_DATE),
+            ("关联", "客户易懂版 v1.6 · 附录 v1.5"),
         ],
     )
     add_para(
@@ -1301,8 +1306,8 @@ def build_r1_acceptance() -> Path:
     )
     add_para(
         doc,
-        "与 100+ 历史项目的关系：R1 用 3–5 套金标准三件套验收；100+ 可 R1 后分批入库，"
-        "不必等 100+ 全部进库才签 R1。",
+        "与贵司现有历史项目库的关系：R1 用 ≥5 套金标准三件套逐套验收；内网 bulk 规模以清点表为准（约数十至百级）；"
+        "不要求每套三件套齐全；bulk 验收在第 7–8 周内网环境完成。",
         bold=True,
     )
 
@@ -1354,9 +1359,9 @@ def build_r1_acceptance() -> Path:
         ["方式", "适合谁", "怎么做"],
         [
             [
-                "A · IT 目录批量（100+ 推荐）",
-                "IT 大批量导入",
-                "按规范放入服务器指定目录 → 知识库网页点「更新知识库索引」",
+                "A · IT 目录批量（大批量历史库推荐）",
+                "IT 在内网大批量导入",
+                "按规范放入内网服务器指定目录 → 知识库网页点「更新知识库索引」",
             ],
             [
                 "B · 网页上传（单套/小批量）",
@@ -1496,7 +1501,7 @@ def build_r1_acceptance() -> Path:
         ],
     )
 
-    add_para(doc, "版本 v1.2 · 业务语言版 · 供 R1 验收签字使用", size=9, italic=True)
+    add_para(doc, "版本 v1.5 · 业务语言版 · 供 R1 验收签字使用", size=9, italic=True)
     doc.save(R1_OUT)
     return R1_OUT
 
@@ -1507,149 +1512,272 @@ def build_platform_roadmap() -> Path:
     add_meta_block(
         doc,
         [
-            ("版本", "v1.2 · " + DOC_DATE),
-            ("关联", "正式版交付方案 §七 · 反馈运营包附件"),
+            ("版本", "v1.4 · " + DOC_DATE),
+            ("关联", "客户易懂版 §8.3 · 平台扩展愿景 · 反馈运营包"),
         ],
     )
 
     doc.add_heading("1. 首期交付：知识库底座（R1）", level=1)
-    add_para(doc, "ARIA 在贵司内网建立的不仅是「报价工具」，而是 Engagement 企业知识库：")
+    add_para(
+        doc,
+        "ARIA 在贵司内网建立的不仅是「报价工具」，而是按完整历史项目打包管理的企业资料库：",
+    )
     add_table(
         doc,
-        ["能力", "R1 含", "说明"],
+        ["能力", "第一期含", "说明（业务语言）"],
         [
-            ["Engagement 项目包", "✓", "RFQ + Q_A + 报价 manifest 关联"],
-            ["分类型切块与索引", "✓", "RFQ 章节、Q_A 按行、报价结构化 baselines"],
-            ["向量检索", "✓", "Top-3 RFQ 对标；检索实验室"],
-            ["基线预览", "✓", "人天 baselines 与源 Excel 对照"],
-            ["IT 文件夹入库", "✓", "规范目录 + 批量导入（100+ 推荐）"],
-            ["Web 单套/小批量上传", "✓", "知识库页 ≤5 套/次；缺件提示"],
-            ["Web 运营级上传门户", "✗", "变更单"],
-            ["细粒度权限", "✗", "Phase 2+"],
-            ["引用反馈（网页点选）", "✗", "M6 后可选 L1；R1 用评测表"],
-            ["反馈运营闭环 L2", "✗", "变更单"],
+            ["历史项目包关联", "✓", "同一项目 RFQ、Q&A、报价绑在一起"],
+            ["分类型读取与建目录", "✓", "RFQ 按章节、Q&A 按行、报价读成人天数字"],
+            ["按意思找相似资料", "✓", "Top-3 对标；知识库页检索试用"],
+            ["人天对照预览", "✓", "报价 Excel 人天与源表人工核对"],
+            ["IT 文件夹批量入库", "✓", "内网放文件夹 + 网页更新检索目录（大批量推荐）"],
+            ["网页小批量上传", "✓", "知识库页一次 1～5 套；缺件有提示"],
+            ["两阶段入库配合", "✓", "前期脱敏样本联调；后期内网真实历史库 bulk 验收"],
+            ["清点表锁定范围", "✓", "签约后 2 周内填写计划套数与缺件（合同不写死总数）"],
+            ["网页拖拽整目录、断点续传", "✗", "后续可选增强 · 变更单"],
+            ["分角色权限", "✓", "R1 已含：工程师 / 资料库管理员两角色；SSO/部门 ACL → 后续可选"],
+            ["网页点「结果不准」反馈", "✗", "第一期用检索试搜记录表；后续可选"],
+            ["反馈运营看板", "✗", "后续可选 · 变更单"],
         ],
     )
-    add_para(doc, "数据位置：${ARIA_DATA_ROOT}/app/knowledge_base/ — 与业务库、向量库同盘，可备份迁移。")
+    add_para(
+        doc,
+        "与 R1 验收：≥5 套金标准三件套逐套验收；bulk 规模以清点表为准；缺件项目仍可入库，导入报告标明对后续功能影响。",
+        size=9,
+    )
+    add_para(doc, "资料存放：贵司内网数据盘历史项目文件夹，与数据库、备份同盘，可整体备份迁移。", size=9)
 
     doc.add_heading("2. 首期 vs 持续优化（客户必读）", level=1)
+    add_table(
+        doc,
+        ["层次", "第一期（¥18.3 万）已含", "第一期不含（需另议）"],
+        [
+            ["能用的底座", "≥5 金标准 + 内网历史库；Top-3；≥15 条试搜", "—"],
+            ["资料越多", "可引用历史更多；须更新索引", "不会因加文档就自动变准"],
+            ["发现引用不对", "检索评测表；改对比表/确认维度", "网页引用不准按钮（L1/L2）"],
+        ],
+    )
     add_para(
         doc,
-        "资料越多 → 可引用历史更全（须更新索引），不会因加文档自动变准或变快。"
-        "第一期：验收评测表 + 工程师审阅；持续优化飞轮见 Phase 2 反馈运营包。",
+        "第一期保证可检索、可验收、工程师可定稿；「越用越准」的产品化飞轮在 M6 后运营包（§4），"
+        "不是大模型点一下按钮就 overnight 变聪明。",
         bold=True,
+        size=9,
     )
 
-    doc.add_heading("3. 平台 vs 首期应用", level=1)
-    add_para(
+    doc.add_heading("3. 平台三层路线图（与首期合同的关系）", level=1)
+    add_table(
         doc,
-        "ARIA 平台（知识库 + 本地 LLM + RAG）→ 报价助手（首期应用）→ 财务助手等（规划，复用同一 KB）。",
+        ["阶段", "时间感", "客户主要得到什么", "是否在 ¥18.3 万内"],
+        [
+            ["首期合同 R1→M6", "签约后约 20 周", "知识库底座 + 报价助手五步（分期；R1 第 8 周可日常对标）", "是"],
+            ["知识库运营增强", "M6 稳定后", "大批量上传、反馈 L1/L2、定稿归档、检索升级等（§4）", "否 · 变更单"],
+            ["平台新应用与集成", "远期规划", "财务助手、OA/PLM、多语言 RFQ 等", "否 · 另立项"],
+        ],
     )
     add_para(
         doc,
-        "长期资产：历史项目资料一次入库、多应用消费；新应用挂载时不重搭 GPU、Chroma、PostgreSQL。",
+        "长期价值：历史资料入库一次、多环节共用；新应用不必重复建库。报价助手各期见客户易懂版 §五；"
+        "本文专注知识库如何长大与如何运营。平台应用远期图景见《ARIA 平台扩展愿景（客户版）》。",
+        size=9,
     )
 
     doc.add_heading("4. 第二期增强：您会得到什么（业务语言）", level=1)
     add_para(
         doc,
-        "下列能力不在首期 ¥18.3 万内；上线后可变更单/续费选购。不影响 R1 验收。",
+        "下列能力不在首期 ¥18.3 万合同内；M6 稳定后可变更单/续费选购。不影响第一期 R1 验收与付款。",
         bold=True,
     )
     add_table(
         doc,
-        ["", "第一期", "第二期增强（可选）"],
+        ["", "第一期（已规划交付）", "第二期增强（可选）"],
         [
-            ["历史资料进库", "IT 目录 + 点更新索引；网页 ≤5 套/次", "大批量拖拽上传、定稿一键归档进库"],
+            ["历史资料进库", "IT 目录 + 更新索引；网页 ≤5 套/次", "大批量拖拽上传、定稿一键归档进库"],
             ["检索不对怎么办", "评测表 + 工程师改对比表", "网页点选留记录 → 管理员季度复盘（L1/L2）"],
-            ["检索能力", "按意思 Top-3 + 筛选", "项目代号更准 + 相似组合查找（升级包）"],
-            ["谁主要用", "工程师 + IT", "+ 知识库管理员运营"],
+            ["检索能力", "按意思 Top-3 + 筛选", "项目代号更准 + 相似组合查找"],
+            ["谁主要用", "报价工程师 + IT", "+ 知识库管理员运营"],
         ],
     )
 
     phase2_items = [
-        (
-            "① 大批量上传门户",
-            "拖整个文件夹上传、断点续传；100+ 补库更省力。第一期：目录 + ≤5 套/次网页上传。",
-        ),
-        (
-            "② 引用反馈 L1",
-            "检索/相似项目不对可点选，系统记下来；不自动训练 AI。建议 M6 后可选。",
-        ),
-        (
-            "③ 引用反馈 L2",
-            "管理员看常错检索、季度与乙方改评测题/补资料/重建索引。L1 收集 + L2 复盘。",
-        ),
-        (
-            "④ 定稿一键进历史库",
-            "报价定稿后 RFQ/Q&A/Excel 归档为新历史项目，下次对标可搜到。首期不含。",
-        ),
-        (
-            "⑤ 检索运营看板",
-            "看哪些领域缺资料、常搜什么词，指导下一步补库。",
-        ),
-        (
-            "⑥ 资料过期提醒",
-            "过老 RFQ/报价提醒，避免误用过期条件。",
-        ),
-        (
-            "⑦ 检索升级包",
-            "项目代号更易精确命中，仍可按技术描述找相似。首期不含。",
-        ),
-        (
-            "⑧ 增量更新",
-            "只索引新增/改动文件，补几套资料不用整库重跑很久。",
-        ),
-        (
-            "⑨ 分角色权限",
-            "工程师检索使用；管理员才能上传/重建索引。首期不含。",
-        ),
+        ("① 大批量上传门户", "拖整个文件夹、断点续传；补历史库更省力。第一期：目录批量 + ≤5 套/次。"),
+        ("② 引用反馈 L1", "检索/相似项目不对可点选留痕；不训练 AI。建议 M6 后可选。"),
+        ("③ 引用反馈 L2", "管理员季度复盘、改评测题/补资料/重建索引。L1 收集 + L2 复盘。"),
+        ("④ 定稿一键进历史库", "定稿后 RFQ/Q&A/Excel 归档为新历史项目。首期不含。"),
+        ("⑤ 检索运营看板", "看缺哪些领域资料、常搜什么词，指导补库。"),
+        ("⑥ 资料过期提醒", "过老 RFQ/报价提醒，避免误用过期条件。"),
+        ("⑦ 检索升级包", "项目代号更易精确命中，仍可按技术描述找相似。首期不含。"),
+        ("⑧ 增量更新", "只索引新增/改动文件，补几套不用整库重跑很久。"),
+        ("⑨ 分角色权限", "R1 已含：工程师检索使用；管理员才能上传/重建索引。SSO/部门 ACL → 后续可选。"),
     ]
     for title, desc in phase2_items:
         doc.add_heading(title, level=2)
         add_para(doc, desc, size=9)
 
-    add_para(
-        doc,
-        "反馈 L1/L2 报价详见「引用反馈运营包（客户版）」附件。",
-        size=9,
-        italic=True,
-    )
+    add_para(doc, "反馈 L1/L2 报价详见「引用反馈运营包（客户版）」附件。", size=9, italic=True)
 
     doc.add_heading("5. 对 IT 的说明", level=1)
     add_bullets(
         doc,
         [
-            "首期：IT 按规范放置 Engagement 文件夹并触发导入；开发方提供模板与验收",
+            "R1：IT 目录批量或知识库页单套/小批量 Web 上传（≤5 套/次）；开发方提供模板与验收",
             "运维：备份 / 启停 / 重建索引脚本随 M6 移交",
-            "扩展：新 doc_type 或新应用通过 manifest + ingest 扩展，不破坏现有 Engagement 结构",
+            "扩展：新 doc_type 或新应用通过 manifest + ingest 扩展，不破坏现有项目包结构",
         ],
     )
-    add_para(doc, "版本 v1.2 · 首期边界 + 第二期业务语言说明 · 供客户版 §七 / §8.3 引用", size=9, italic=True)
+    add_para(
+        doc,
+        "版本 v1.4 · 首期边界 + M6 后知识库运营增强 · 供客户易懂版 §8.3 引用",
+        size=9,
+        italic=True,
+    )
 
     doc.save(ROADMAP_OUT)
     return ROADMAP_OUT
 
 
+def build_platform_vision() -> Path:
+    doc = new_document()
+    add_para(doc, "ARIA 平台扩展愿景（客户版）", size=16, bold=True, center=True, space_after=8)
+    add_meta_block(
+        doc,
+        [
+            ("客户", "爱达克车辆设计（上海）有限公司（EDAG）"),
+            ("版本", "v1.0 · " + DOC_DATE),
+            ("关联", "客户易懂版 · 知识库演进路线"),
+        ],
+    )
+    add_para(
+        doc,
+        "面向业务负责人与 IT 的一页纸远景说明：首期合同（¥18.3 万）之外，平台还可以怎样扩展。"
+        "不是合同附件，不含固定报价与承诺工期；具体范围须变更单或新项目书面确认。",
+        italic=True,
+    )
+
+    doc.add_heading("一句话", level=1)
+    add_para(
+        doc,
+        "首期合同先把「历史资料库 + 报价助手」在内网跑通；之后可在同一 GPU 与同一资料库上，"
+        "按需叠加知识库运营能力与新的业务应用（如财务助手），无需从零重搭基础设施。",
+        bold=True,
+    )
+
+    doc.add_heading("三层扩展图景", level=1)
+    add_table(
+        doc,
+        ["层次", "时间感", "您会得到什么", "与 ¥18.3 万合同"],
+        [
+            ["① 首期已签约", "签约后约 20 周（R1→M6）", "知识库底座 + 报价助手五步", "已含 · 分期验收"],
+            ["② 知识库运营增强", "M6 稳定后可选", "大批量上传、反馈 L1/L2、定稿归档、检索升级等", "不含 · 变更单/运维包"],
+            ["③ 平台新能力", "远期规划", "财务助手、OA/PLM、多语言 RFQ、SSO/AD 等", "不含 · 另立项"],
+        ],
+    )
+
+    doc.add_heading("① 首期合同已覆盖（不必另购）", level=1)
+    add_table(
+        doc,
+        ["业务价值", "里程碑", "签完能用到什么程度"],
+        [
+            ["历史项目入库与检索", "R1（第 8 周）", "内网历史库 + RFQ Top-3 技术对标（签完即用）"],
+            ["人力报价 Excel", "M3", "9 个功能模块 Sheet + 按当前 RFQ 日期重排"],
+            ["澄清问题 Q&A", "M4", "合并历史 Q&A、去重、按模板下载 Excel"],
+            ["技术方案 PPT", "M5", "34 页 Content Template 预填 + 缺口说明（正文工程师自写）"],
+            ["全链路 + 运维", "M6", "五步联调、培训、备份脚本移交、3 个月缺陷修复"],
+        ],
+    )
+
+    doc.add_heading("② 知识库运营增强（M6 后可选）", level=1)
+    add_para(
+        doc,
+        "当报价助手日常使用后，常见需求是：补历史资料更省力、检索问题有记录、管理员能复盘改进。"
+        "详见《平台知识库演进路线》§4 与《引用反馈运营包（客户版）》。"
+        "重要：这些增强不训练大模型；「变准」靠规范资料、索引与人工运营流程。",
+        size=9,
+    )
+
+    doc.add_heading("③ 平台远期规划（无工期承诺）", level=1)
+    add_table(
+        doc,
+        ["方向", "可能价值", "首期合同现状"],
+        [
+            ["ARIA 财务助手", "扩展风险系数、费率、汇总报价等财务 Sheet", "仅规划；不开发"],
+            ["企业系统集成", "与 OA、PLM/TC 等交换项目元数据", "不含"],
+            ["多语言 RFQ", "英文/中德双语解析与对标", "不含"],
+            ["扫描版 RFQ（OCR）", "纸质或扫描 PDF 直接识别", "不含"],
+            ["SSO/AD 与部门级 ACL", "企业统一账号、更细权限", "R1 已含基础两角色；更深集成 → 不含 · 另立项"],
+            ["7×24 代运维", "乙方驻场或值班运维", "不含；可选年度运维包另议"],
+        ],
+    )
+
+    doc.add_heading("对客户的三句定心丸", level=1)
+    add_bullets(
+        doc,
+        [
+            "首期 ¥18.3 万已覆盖报价主链路——不是「只买了一个知识库 Demo」。",
+            "知识库与报价助手是同一底座——第二至四期在同一历史库上加 Excel/Q&A/PPT，不重复建库。",
+            "远期扩展是加法，不是改合同——M6 后再谈运营包或新应用，不影响各期已签字的验收标准。",
+        ],
+    )
+
+    doc.add_heading("建议何时阅读本文", level=1)
+    add_table(
+        doc,
+        ["读者", "建议"],
+        [
+            ["签 R1 前", "可选读 §①，确认 20 周全貌"],
+            ["M6 后讨论续费", "重点读 §② + 知识库演进路线"],
+            ["管理层战略会", "全文；§③ 用于「三年图景」口头对齐"],
+        ],
+    )
+    add_para(
+        doc,
+        "版本 v1.0 · 远景说明 · 正式权利义务以合同及技术版 v3.8 为准",
+        size=9,
+        italic=True,
+    )
+
+    doc.save(VISION_OUT)
+    return VISION_OUT
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate customer Word document pack (v3.5)")
+    parser = argparse.ArgumentParser(description="Generate customer Word document pack from Markdown")
     parser.add_argument(
         "--only",
-        choices=["main", "plain", "appendix", "r1", "roadmap"],
+        choices=["main", "plain", "appendix", "r1", "roadmap", "vision", "onepager", "feedback"],
         help="Generate a single document",
+    )
+    parser.add_argument(
+        "--legacy-hardcoded",
+        action="store_true",
+        help="Use legacy hardcoded builders (deprecated)",
     )
     args = parser.parse_args()
 
+    if args.legacy_hardcoded:
+        _main_legacy(args.only)
+        return
+
+    from customer_md_to_docx import sync_customer_docx  # noqa: WPS433
+
+    for path in sync_customer_docx(only=args.only):
+        print(f"Wrote {path}")
+
+
+def _main_legacy(only: str | None) -> None:
     builders = {
         "main": build_main_proposal,
         "plain": build_main_proposal_plain,
         "appendix": build_appendix,
         "r1": build_r1_acceptance,
         "roadmap": build_platform_roadmap,
+        "vision": build_platform_vision,
     }
 
-    if args.only:
-        path = builders[args.only]()
+    if only:
+        if only not in builders:
+            raise SystemExit(f"No legacy builder for --only {only}")
+        path = builders[only]()
         print(f"Wrote {path}")
         return
 

@@ -98,3 +98,74 @@ def add_meta_block(doc, rows: list[tuple[str, str]]) -> None:
         table.rows[i].cells[0].text = k
         table.rows[i].cells[1].text = v
     doc.add_paragraph()
+
+
+def add_rich_para(
+    doc,
+    text: str,
+    *,
+    size: int = 10.5,
+    bold: bool = False,
+    italic: bool = False,
+    center: bool = False,
+    space_after: int = 6,
+    style: str | None = None,
+):
+    if style:
+        p = doc.add_paragraph(style=style)
+    else:
+        p = doc.add_paragraph()
+    if center:
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_after = Pt(space_after)
+    add_inline_runs(p, text, size=size, bold=bold, italic=italic)
+    return p
+
+
+def add_inline_runs(
+    paragraph,
+    text: str,
+    *,
+    size: int = 10.5,
+    bold: bool = False,
+    italic: bool = False,
+    mono: bool = False,
+) -> None:
+    import re
+
+    pattern = re.compile(
+        r"\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)"
+    )
+    pos = 0
+    for match in pattern.finditer(text):
+        if match.start() > pos:
+            run = paragraph.add_run(text[pos : match.start()])
+            set_run_font(run, size, bold)
+            run.italic = italic
+            if mono:
+                run.font.name = "Consolas"
+        chunk = match.group(0)
+        if chunk.startswith("**"):
+            run = paragraph.add_run(match.group(1))
+            set_run_font(run, size, True)
+        elif chunk.startswith("*"):
+            run = paragraph.add_run(match.group(2))
+            set_run_font(run, size, bold)
+            run.italic = True
+        elif chunk.startswith("`"):
+            run = paragraph.add_run(match.group(3))
+            set_run_font(run, size, bold)
+            run.font.name = "Consolas"
+            run._element.rPr.rFonts.set(qn("w:eastAsia"), "Consolas")
+        else:
+            label, _url = match.group(4), match.group(5)
+            run = paragraph.add_run(label)
+            set_run_font(run, size, bold)
+            run.italic = italic
+        pos = match.end()
+    if pos < len(text):
+        run = paragraph.add_run(text[pos:])
+        set_run_font(run, size, bold)
+        run.italic = italic
+        if mono:
+            run.font.name = "Consolas"

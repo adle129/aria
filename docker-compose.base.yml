@@ -1,0 +1,59 @@
+# Reference anchors for docker-compose.yml / .prod.yml / .cn.yml — copy when editing; not used via include.
+x-backend-environment: &backend-environment
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:14b}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+  EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
+  MOCK_LLM: ${MOCK_LLM:-true}
+  MOCK_RAG: ${MOCK_RAG:-true}
+  ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-dev}
+  KB_DEBUG_ENABLED: ${KB_DEBUG_ENABLED:-false}
+  DISK_WARNING_PERCENT: ${DISK_WARNING_PERCENT:-80}
+  DISK_WRITE_PROTECT_PERCENT: ${DISK_WRITE_PROTECT_PERCENT:-90}
+  DISK_MIN_FREE_BYTES: ${DISK_MIN_FREE_BYTES:-268435456}
+  UPLOAD_MAX_ARCHIVE_BYTES: ${UPLOAD_MAX_ARCHIVE_BYTES:-104857600}
+  UPLOAD_MAX_ENTRIES: ${UPLOAD_MAX_ENTRIES:-500}
+  UPLOAD_MAX_SINGLE_FILE_BYTES: ${UPLOAD_MAX_SINGLE_FILE_BYTES:-52428800}
+  UPLOAD_MAX_EXPANDED_BYTES: ${UPLOAD_MAX_EXPANDED_BYTES:-524288000}
+  UPLOAD_MAX_COMPRESSION_RATIO: ${UPLOAD_MAX_COMPRESSION_RATIO:-100}
+  UPLOAD_STREAM_CHUNK_BYTES: ${UPLOAD_STREAM_CHUNK_BYTES:-1048576}
+  OLLAMA_MAX_CONCURRENT: ${OLLAMA_MAX_CONCURRENT:-1}
+  OLLAMA_GLOBAL_SCHEDULING_ENABLED: ${OLLAMA_GLOBAL_SCHEDULING_ENABLED:-true}
+  OLLAMA_LEASE_TTL_SECONDS: ${OLLAMA_LEASE_TTL_SECONDS:-30}
+  OLLAMA_LEASE_HEARTBEAT_SECONDS: ${OLLAMA_LEASE_HEARTBEAT_SECONDS:-10}
+  OLLAMA_LEASE_QUERY_WAIT_TIMEOUT_SECONDS: ${OLLAMA_LEASE_QUERY_WAIT_TIMEOUT_SECONDS:-30}
+  OLLAMA_LEASE_WORKER_WAIT_TIMEOUT_SECONDS: ${OLLAMA_LEASE_WORKER_WAIT_TIMEOUT_SECONDS:-600}
+  TASK_WORKER_POLL_SECONDS: ${TASK_WORKER_POLL_SECONDS:-2}
+  TASK_JOB_AVG_SECONDS: ${TASK_JOB_AVG_SECONDS:-120}
+  RAG_SIMILARITY_THRESHOLD: ${RAG_SIMILARITY_THRESHOLD:-0.65}
+  PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+  CHROMA_PATH: ${CHROMA_PATH:-/app/data/chroma_db}
+  UPLOAD_PATH: ${UPLOAD_PATH:-/app/data/uploads}
+  OUTPUT_PATH: ${OUTPUT_PATH:-/app/data/outputs}
+  KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH:-/app/data/knowledge_base}
+  TEMPLATE_PATH: ${TEMPLATE_PATH:-/app/data/templates}
+  APP_VERSION: ${APP_VERSION:-1.0.0}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  AUTH_ENABLED: ${AUTH_ENABLED:-false}
+  JWT_SECRET: ${JWT_SECRET:-dev-secret-do-not-use-in-production}
+
+x-frontend-build-args: &frontend-build-args
+  NEXT_PUBLIC_API_BASE_URL: /api/v1
+  NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-dev}
+
+x-backend-healthcheck: &backend-healthcheck
+  test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)\""]
+  interval: 10s
+  timeout: 5s
+  retries: 6
+  start_period: 40s
+
+x-postgres-healthcheck: &postgres-healthcheck
+  test: ["CMD-SHELL", "pg_isready -U aria_admin -d aria_db"]
+  interval: 5s
+  timeout: 5s
+  retries: 5
+
+x-extra-hosts: &extra-hosts
+  extra_hosts:
+    - "host.docker.internal:host-gateway"

@@ -2,6 +2,8 @@ from pathlib import Path
 
 from docx import Document
 
+from app.services.ingest.rfq_document_loader import load_rfq_text
+
 
 class RFQParser:
     def extract_text_from_docx(self, file_path: str | Path) -> str:
@@ -13,6 +15,11 @@ class RFQParser:
         if not paragraphs:
             raise ValueError("文档内容为空")
         return "\n".join(paragraphs)
+
+    def extract_rfq_text(self, file_path: str | Path) -> str:
+        """Load RFQ text from .docx or legacy .doc (R1-F04-07)."""
+        text, _loader = load_rfq_text(Path(file_path))
+        return text
 
     def build_parse_prompt(self, rfq_text: str, prompt_root: Path) -> str:
         template_path = prompt_root / "rfq_parse.txt"

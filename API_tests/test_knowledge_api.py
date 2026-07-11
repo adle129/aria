@@ -38,6 +38,29 @@ def test_knowledge_search_empty_query_rejected(client):
     assert response.status_code == 422
 
 
+def test_knowledge_search_returns_503_when_ollama_lease_times_out(
+    client, monkeypatch
+):
+    from app.services.ollama_concurrency import OllamaLeaseTimeout
+    from app.services.rag_service import RAGService
+
+    def fail_busy(*_args, **_kwargs):
+        raise OllamaLeaseTimeout("internal holder detail")
+
+    monkeypatch.setattr(RAGService, "search_similar_projects", fail_busy)
+    response = client.post(
+        "/api/v1/knowledge/search",
+        json={"query": "chassis history", "top_k": 3},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "code": 503,
+        "msg": "本地模型资源繁忙，请稍后重试",
+    }
+    assert "holder" not in response.text
+
+
 def test_knowledge_search_function_filter(client):
     response = client.post(
         "/api/v1/knowledge/search",
@@ -51,11 +74,35 @@ def test_knowledge_search_function_filter(client):
 
 def test_knowledge_import(client):
     response = client.post("/api/v1/knowledge/import")
-    assert response.status_code == 200
+    assert response.status_code == 202
     data = response.json()["data"]
-    assert "new_documents" in data
-    assert "failed_files" in data
-    assert isinstance(data["failed_files"], list)
+    assert data["job_id"]
+    assert data["status"] == "completed"
+    assert data["reused"] is False
+
+
+def test_knowledge_import_returns_507_when_data_volume_is_protected(
+    client, monkeypatch
+):
+    from app.services.disk_guard_service import (
+        DiskCapacityError,
+        DiskGuardService,
+    )
+
+    def fail_capacity(*_args, **_kwargs):
+        raise DiskCapacityError(
+            volume="data",
+            required_bytes=100,
+            available_bytes=10,
+            usage_percent=95,
+        )
+
+    monkeypatch.setattr(DiskGuardService, "assert_writable", fail_capacity)
+    response = client.post("/api/v1/knowledge/import")
+
+    assert response.status_code == 507
+    assert response.json()["data"]["required_bytes"] == 100
+    assert "action" in response.json()["data"]
 
 
 def test_knowledge_documents(client):
@@ -81,30 +128,27 @@ def test_knowledge_search_doc_type_filter(client):
 
 
 def test_knowledge_mock_real_schema_parity(monkeypatch):
-    """Mock mode and Real (empty Chroma) return the same RAGHit field set."""
+    """Mock mode returns valid RAGHit field set; real mode delegates to index service."""
     mock_rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
-    real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
-
-    class FakeChroma:
-        def search(self, query: str, top_k: int = 5):
-            return []
-
-        def count(self):
-            return 0
-
-        def get_metadata(self, doc_id: str):
-            return None
-
-    monkeypatch.setattr(real_rag, "_get_chroma", lambda: FakeChroma())
 
     query = "MEB chassis"
     mock_hits = mock_rag.search_similar_projects(query, top_k=3)
-    real_hits = real_rag.search_similar_projects(query, top_k=3)
     assert len(mock_hits) >= 1
-    assert real_hits == []
     required_keys = {"content", "metadata", "similarity_score"}
     meta_keys = {"project_name", "source_doc", "doc_type"}
     for hit in mock_hits:
         assert required_keys <= set(hit.keys())
         assert meta_keys <= set((hit.get("metadata") or {}).keys())
+
+    # Real mode with empty index (mocked) returns empty list.
+    from app.services import knowledge_index_service
+
+    monkeypatch.setattr(
+        knowledge_index_service.KnowledgeIndexService,
+        "search",
+        lambda self, query, **kwargs: [],
+    )
+    real_rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
+    real_hits = real_rag.search_similar_projects(query, top_k=3)
+    assert real_hits == []
 

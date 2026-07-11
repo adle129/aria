@@ -1,0 +1,30 @@
+## Summary
+
+实现 F1.11 RFQ 分析协作取消，并优化侧栏任务筛选体验。
+
+- **Phase 1**（`queued` / `parsing`）：`POST /api/v1/rfq/tasks/{id}/cancel` 协作取消，终态 `cancelled`，清理部分产物；支持 `retry` 重新解析
+- **Phase 2**（`retrieving` / `generating`）：标 `cancelling` 软状态，在 LLM / RAG / embedding 安全边界回滚 `dimension_review`，保留维度勾选
+- **协作机制**：`TaskJob.cancel_requested_at` + `CooperativeCancelled`；LLM 流式 generate 并在取消时关闭 HTTP 连接释放 Ollama 租约；query embedding 支持 `cancel_check`；DB 轮询节流 0.5s
+- **前端**：解析进度条取消按钮 + 确认 Modal；`cancelling` / `cancelled` 轮询与 CTA；侧栏筛选项改为「失败 / 已取消」合并筛选
+- **文档**：`prod.md`、`api-design.md`、`dev-tasks`（R1-F11）、验收清单、测试计划、追溯矩阵
+
+## Commits
+
+1. `feat: RFQ 协作取消（流式 abort + embedding + 节流轮询）` — 后端 API/worker/LLM/embedding + 前端取消 UX + 产品文档
+2. `fix: 侧栏 RFQ 列表「失败 / 已取消」合并筛选` — `cancelled` 与 `failed` 共用筛选项，减少「全部」列表噪音
+
+## Test plan
+
+- [x] `unit_tests/test_rfq_analysis_cancel.py` — Phase 1/2 取消、回滚、节流、stale 恢复
+- [x] `unit_tests/test_llm_service_cancel.py` — 流式连接关闭、取消不重试
+- [x] `unit_tests/test_embedding_service_cancel.py` — embedding 批次边界取消
+- [x] `unit_tests/test_worker_service.py` — worker 捕获取消、stale cancelling 恢复
+- [x] `API_tests/test_rfq_cancel_api.py` — cancel API 契约
+- [x] `API_tests/test_task_lifecycle_api.py` — `cancelling` 纳入进行中集合
+- [x] Frontend vitest（`taskStatus` / `rfqWorkspace`）+ `npm run build`
+- [ ] 实机：解析中取消 → 数秒内进入 `cancelled`；确认维度后检索中取消 → 回滚 `dimension_review`
+- [ ] 侧栏：点「失败 / 已取消」仅显示 `failed` + `cancelled` 任务
+
+> 文档：`prod.md` §5.5 · `user-manual.md` §3.1/§4 · `dev-tasks` R1-F11 · `delivery-traceability.md`
+
+> 注：全量 `run_tests.ps1` 在本机可能因 `test_validation_corpus_template_meets_171_benchmark`（外部语料路径）失败，与本次改动无关；本 PR 相关测试均已通过。

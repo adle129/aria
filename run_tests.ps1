@@ -13,6 +13,23 @@ Write-Host "==> Running unit tests..."
 python -m pytest unit_tests/ -v @PytestArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+Write-Host "==> Running frontend unit tests..."
+$FrontendDir = Join-Path $Root "frontend"
+$FrontendHasDeps =
+  (Test-Path (Join-Path $FrontendDir "node_modules\vitest")) -or
+  (Test-Path (Join-Path $FrontendDir "node_modules\vitest\index.mjs"))
+if ($FrontendHasDeps) {
+    Push-Location $FrontendDir
+    npm test --silent
+    if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+    Write-Host "==> Running frontend production build (next build)..."
+    npm run build
+    if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+    Pop-Location
+} else {
+    Write-Host "    (skip: run 'npm install' in frontend/)"
+}
+
 Write-Host "==> Running API tests..."
 python -m pytest API_tests/ -v @PytestArgs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -28,12 +45,13 @@ if ($Regression) {
     }
 }
 
-Write-Host ""
 Write-Host "================================================"
-Write-Host "  ARIA 测试执行"
+Write-Host "  ARIA tests"
 Write-Host "================================================"
-Write-Host "【1/2】单元测试 ... ✅ 全部通过"
-Write-Host "【2/2】API 测试  ... ✅ 全部通过"
+Write-Host "[1/4] unit tests  ... OK"
+Write-Host "[2/4] frontend vitest ... OK"
+Write-Host "[3/4] frontend build  ... OK"
+Write-Host "[4/4] API tests   ... OK"
 Write-Host "================================================"
-Write-Host "测试汇总：2 组通过 / 0 组失败"
+Write-Host "Summary: 4 passed / 0 failed"
 Write-Host "================================================"

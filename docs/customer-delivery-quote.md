@@ -94,7 +94,7 @@
 
 | ID | 功能项 | 描述 | 客户反馈 |
 |----|--------|------|---------|
-| A-01 | RFQ 上传解析 | .docx + PDF 文本提取 | — |
+| A-01 | RFQ 上传解析 | **`.docx` + `.doc`**（LibreOffice 转 docx）；PDF 文本提取可选 | — |
 | A-02 | Function / 交付物 / 里程碑 | LLM 结构化 JSON + Schema 校验 | — |
 | A-03 | **技术维度清单** | LLM 输出维度列表 | **#5** |
 | A-04 | **维度清单确认** | 工程师增删改后确认，再生成矩阵 | **#5** |
@@ -106,7 +106,7 @@
 
 ### 2.8 知识库范围与 M3/M4/M5 消费（v3.5 · 架构分界）
 
-> **2026-07-02：** 里程碑与 AI 边界以 [prod.md v1.5](../prod.md) · [客户版 v3.7](ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [delivery-traceability.md](supplementary/delivery-traceability.md) 为准。下文部分表格仍为内部人日演算，**对外签约以 v3.7 固定价为准**。
+> **2026-07-07：** 里程碑与 AI 边界以 [prod.md v1.7](../prod.md) · [客户版 v3.8](ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [delivery-traceability.md](supplementary/delivery-traceability.md) v1.1 为准。下文部分表格仍为内部人日演算，**对外签约以 v3.8 固定价为准**。
 
 **R1 建 Engagement 三件套知识库：** RFQ + Q_A + 报价（**必达**）；历史 Proposal **可选**（配对归档，**不作 M5 生成输入**）。
 
@@ -195,7 +195,7 @@ R1: manifest → RFQ/Q_A行/quote baselines
 
 ### 2.7 明确不含
 
-财务助手 · OA 集成 · 细粒度权限 · 扫描 RFQ OCR · AI 生成架构图 · 实验/外部费用核算
+财务助手 · OA 集成 · **SSO/AD 与部门级 ACL**（R1 含基础 RBAC） · 扫描 RFQ OCR · AI 生成架构图 · 实验/外部费用核算
 
 ---
 
@@ -926,7 +926,7 @@ M6 验收增加：**客户 IT 在见证下完成一次备份恢复 + preflight �
 ## 8. 文档维护
 
 - 功能变更 → 更新 §2 并重新评估对应里程碑价格  
-- ~~客户书面确认 Q2/Q3~~ → **已完成 2026-07-04**（见 [customer-feedback-baseline.md](customer-feedback-baseline.md) v1.3）
+- ~~客户书面确认 Q2/Q3~~ → **已完成 2026-07-04**（见 [customer-feedback-baseline.md](customer-feedback-baseline.md) v1.5）
 - 实际开工后 → 每里程碑结束更新「实际人日」列供复盘  
 
 ---

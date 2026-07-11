@@ -20,7 +20,7 @@ def compute_artifacts_status(task: RFQTask) -> dict[str, bool]:
     excel_ready = bool(task.excel_path and Path(task.excel_path).exists())
     qa_excel_ready = bool(task.qa_excel_path and Path(task.qa_excel_path).exists())
     return {
-        "rfq_parsed": task.processing_status == "completed" and bool(task.rfq_modules),
+        "rfq_parsed": task.processing_status in {"dimension_review", "completed"} and bool(task.rfq_modules),
         "comparison_ready": bool(task.comparison_table),
         "proposal_ready": bool(task.solution_draft),
         "qa_ready": bool(task.qa_items),

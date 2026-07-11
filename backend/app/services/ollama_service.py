@@ -7,6 +7,11 @@ from typing import Any
 import httpx
 
 
+def ollama_http_client(timeout_seconds: float = 5.0) -> httpx.Client:
+    """HTTP client for local Ollama; bypasses system proxy (Windows localhost 502)."""
+    return httpx.Client(timeout=timeout_seconds, trust_env=False)
+
+
 def _model_installed(available: set[str], target: str) -> bool:
     if not target:
         return False
@@ -34,7 +39,7 @@ def probe_ollama(
     }
     url = base_url.rstrip("/")
     try:
-        with httpx.Client(timeout=timeout_seconds) as client:
+        with ollama_http_client(timeout_seconds) as client:
             response = client.get(f"{url}/api/tags")
             response.raise_for_status()
             payload = response.json()

@@ -1,0 +1,107 @@
+[
+  {
+    "query": "Who will do the physical benchmark? Does Customer will provide the benchmark report to 我司（DTS, Vehic",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "Packaging"
+  },
+  {
+    "query": "General tolerance, parts tolerance, mounting concept will provied by Customer? Customer 会提供通用公差，单件公差",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "GD&T"
+  },
+  {
+    "query": "如何定义数据管理的方式？数据传输方式？",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "Data Management"
+  },
+  {
+    "query": "谁负责设计变更，M2之前？M2之后？",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "Change Management"
+  },
+  {
+    "query": "对于骡子车，用什么样的Donar car做基础？",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "BE"
+  },
+  {
+    "query": "Confirm complete project development timing plan, incl. engineering developemnt, validation, supplie",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "ALL"
+  },
+  {
+    "query": "What's the support role requirement defined in RFQ \"3.1.6 项目主要责任分工 \"section including prototype buil",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "All"
+  },
+  {
+    "query": "SOR中提到的电子电器系统竞品对比具体要求是什么？哪些系统需要做竞品分析？",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "EE"
+  },
+  {
+    "query": "是否需要我司进行硬点分析调整；",
+    "expected_doc_types": [
+      "qa"
+    ],
+    "expected_area": "Chassis"
+  },
+  {
+    "query": "项目总体要求 整车工程设计",
+    "expected_doc_types": [
+      "rfq"
+    ],
+    "expected_source_doc": "RFQ"
+  },
+  {
+    "query": "输入条件 样车",
+    "expected_doc_types": [
+      "rfq"
+    ],
+    "min_score": 0.25
+  },
+  {
+    "query": "底盘系统开发 DMU校核",
+    "expected_doc_types": [
+      "rfq"
+    ],
+    "expected_source_doc": "RFQ"
+  },
+  {
+    "query": "CAE 结构耐久 NVH 仿真分析",
+    "expected_doc_types": [
+      "rfq"
+    ],
+    "expected_source_doc": "RFQ"
+  },
+  {
+    "query": "尺寸工程 DTS 定位策略",
+    "expected_doc_types": [
+      "rfq"
+    ],
+    "expected_source_doc": "RFQ"
+  },
+  {
+    "query": "4.2.1 整车总布置 交付物清单",
+    "expected_doc_types": [
+      "rfq"
+    ],
+    "expected_source_doc": "RFQ"
+  }
+]

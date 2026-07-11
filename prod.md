@@ -4,9 +4,8 @@
 
 **产品品牌：** ARIA（**A**ssisted **R**easoning & **I**ntelligence **A**pplications）  
 **中文名：** ARIA 智能应用平台  
-**版本：** v1.6  
-**日期：** 2026-07-04  
-**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 · 2026-07-04）  
+**版本：** v1.9 · 2026-07-10
+**状态：** Demo 已完成 · **正式版（R1/M3–M6）与客户 v3.7 对齐基线**（含 Q8 全维度对标、Q2/Q3 客户确认 2026-07-04；**使用场景问卷 SURVEY-01~06 确认 2026-07-07**；**F1.1 增补 `.doc` 上传 2026-07-07**；**F1.11 任务生命周期 2026-07-09**；**F1.11 协作取消 2026-07-11**）  
 **客户：** EDAG（爱达克）车辆工程服务  
 
 > 品牌与平台定位详见 [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md)。  
@@ -78,7 +77,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 ### 1.4 不在本期范围（报价助手 Demo）
 
 - 企业 OA 系统集成
-- 用户分级权限（本期 20–30 人 flat access）
+- SSO / AD 集成、部门级 ACL、任务共享委派（R1 已含 **基础两角色 RBAC + 任务归属**，见 §4.1.1）
 - **ARIA 财务助手**及财务核算（Phase 3 平台第二应用，见 §11）
 - 实验/外部费用 AI 核算（客户明确暂不纳入）
 - 平台级多 App 注册、通用资料问答 Chat（Phase 2+ 规划，Demo 不实现）
@@ -102,8 +101,8 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 
 | 角色 | 人数 | 主要操作 |
 |------|------|---------|
-| 报价工程师 | 20–30 | 上传 RFQ、审阅 AI 输出、编辑定稿、导出文件 |
-| 知识库管理员 | 1–2 | 导入历史文档、触发增量更新/Re-index |
+| 报价工程师 | **10–20**（问卷确认） | 登录后上传 RFQ、审阅 AI 输出、编辑定稿、导出文件；**仅可见本人任务** |
+| 知识库管理员（`kb_admin`） | 1–2 | 登录后导入历史文档、触发增量更新/Re-index；工程师 **不可** 执行写操作 |
 | 客户 IT | 1–2 | 服务器部署、Ollama 维护、版本升级 |
 
 ### 2.2 核心用户故事
@@ -148,7 +147,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 
 | ID | 功能 | Demo | 正式版（里程碑） | AI | 优先级 |
 |----|------|------|-----------------|-----|--------|
-| F1.1 | 上传 RFQ 文件 | .docx | .docx（R1）；+ PDF/PPT 可选 | — | P0 |
+| F1.1 | 上传 RFQ 文件 | .docx | **`.docx` + `.doc`（R1）**；+ PDF/PPT 可选 | — | P0 |
 | F1.2 | 自动解析 Function 工作模块 | ✓ | R1 | LLM | P0 |
 | F1.3 | 解析交付物清单、里程碑、§四 `development_scope` | ✓ | R1 | LLM | P0 |
 | F1.4 | 向量检索 **Top-3** 相似历史项目（不足 3 个时继续 + Warning） | ✓ | R1 | RAG | P0 |
@@ -157,7 +156,28 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | F1.6 | 标注来源引用与置信度 | ✓ | R1 | — | P0 |
 | F1.7 | 差异总结与报价参考概览 | ✓ | R1 | LLM | P1 |
 | F1.8 | RFQ 任务历史列表与切换回看 | ✓（框架） | R1 | — | P0 |
+| F1.11 | **任务生命周期管理**：失败重试、**协作取消**、归档、删除；队列满拒绝上传 | — | **R1** | — | P1 |
 | F1.9 | 相似项目展开（RAG 片段 + 来源） | ✓（框架） | R1 | RAG | P1 |
+
+#### 3.1.1a RFQ 上传格式（F1.1）
+
+R1 须同时支持客户历史 **`.docx`** 与旧版 **`.doc`** RFQ（验证语料含 `RFQ_模板.doc`）。
+
+| 格式 | R1 | 解析路径 |
+|------|-----|----------|
+| `.docx` | ✓ 必达 | `python-docx` 结构化读入（主路径） |
+| `.doc` | ✓ 必达 | Docker/生产：**LibreOffice headless** 转 `.docx` 后同路径解析；Windows 本地开发可选 **Word COM**（`pywin32`） |
+| PDF / PPT | 可选 | M6+ 或独立变更单；**不**作为 R1 上传门禁 |
+
+**约束：**
+
+- 单文件最大 **50MB**（与 [api-design.md](docs/supplementary/api-design.md) 一致）
+- 前端上传区须接受 `.docx` 与 `.doc`；非法扩展名返回 **400**（不 500）
+- `.doc` 转换失败时返回可读错误（如缺少 LibreOffice、文件损坏），提示另存为 `.docx` 或联系 IT
+- **内容门禁（R1+）：** 扩展名通过后入队；读入正文后若不像客户 RFQ/技术协议（无项目要求、交付物、里程碑等结构，或规则层零命中），任务标 **`failed`**，**不**进入 LLM 补全与维度匹配，避免内部计划/方案类 Word 误解析与幻觉
+- 知识库 **Engagement** 中 `doc_type=rfq` 的 RFQ 文档与上传接口格式一致（`.docx` / `.doc`）
+
+> 实现参考：`rfq_document_loader.py`（读入）· `rfq_document_guard.py`（类型/质量门禁）· `rfq_rules_extractor.py`（规则预抽）；上传 API 见 [dev-tasks.md R1-F04-07](docs/R1/dev-tasks.md)。
 
 #### 3.1.2 技术维度对比表（输出示例）
 
@@ -282,23 +302,26 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | ID | 功能 | Demo | R1 / 正式版 | AI |
 |----|------|------|-------------|-----|
 | F5.1 | 批量导入历史文档 | ✓ 文件夹 + 触发导入 | **R1** + 轻量 Web ≤5 套/次 | Rule |
-| F5.2 | 增量导入（跳过已入库） | 脚本说明 | M6 脚本；门户为可选 | Rule |
+| F5.2 | Engagement hash 增量导入（新增/修改/删除同步） | 脚本说明 | **R1**；未变化真实跳过 | Rule |
 | F5.3 | 知识库统计 | ✓ | R1 | — |
 | F5.4 | 手动检索测试（检索实验室） | ✓ | R1 | RAG |
-| F5.5 | Re-index 重建向量索引 | **脚本 only** | M6 脚本；UI 为可选 | — |
-| F5.6 | 反馈「引用不准确」 | — | **合同外** L1/L2（M6 后可选） | — |
+| F5.5 | 安全 Re-index（后台 job + staging generation） | **脚本 only** | **R1**；进度/失败清单；旧索引持续可用 | — |
+| F5.6 | 反馈「引用不准确」 | — | **合同外**（客户商用 L1/L2）；**乙方可选内部实现** R1-OPS | — |
 | F5.7 | 历史方案原子化入库 | — | 可选归档 | RAG |
 | F5.8 | 原子模块目录浏览 | Tab 占位 | 占位 | — |
 | F5.9 | RFQ Function 无历史参考警告 | ✓ Alert | R1 | — |
 | F5.10 | Engagement 项目包（manifest） | Demo 部分 | **R1** 必达 | Rule |
+| F5.11 | 导入批次与最小审计（触发人、时间、结果） | — | **R1** | — |
 
 **Demo 明确不做：** multipart upload、AI 预识别 preview、`knowledge_documents` 异步轮询、RFQ 独立历史参考侧栏。
 
 **RAG 架构原则：** `RAGService.search()` 单一出口；RFQ 对标与 `/knowledge/search` 共用契约；禁止双份 Mock 数据源（详见 rag-design.md §3）。
 
+**缺件口径：** 金标准验收三件套完整；生产允许银/铜级项目。只要 RFQ 可解析即可参与 R1 Top-3；缺 Q&A/报价必须在导入报告和项目状态中说明 M4/M3 自动化不可用。
+
 **支持文档类型：**
 
-- Word：RFQ、技术方案、SOW
+- Word：**RFQ**（`.docx`、**`.doc`**）、技术方案、SOW
 - Excel：历史报价、Q_A 清单
 - PDF：技术方案（M6 后 ingest 可选）
 
@@ -358,6 +381,20 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 | NF5 | Ollama 仅监听 localhost |
 | NF17 | **生产环境**应用与数据分离：业务数据与 PostgreSQL 存于独立数据盘 `${ARIA_DATA_ROOT}`（默认 `/data/aria`）；应用部署目录可重装（见 §4.2） |
 
+#### 4.1.1 访问控制（R1 · 客户问卷 2026-07-07 确认）
+
+| ID | 要求 |
+|----|------|
+| NF18 | 生产环境 **须登录**（本地账号 + JWT）；未登录 API 返回 401 |
+| NF19 | 两角色：`quote_engineer`（默认）、`kb_admin`；知识库 **写操作**（import / reindex / Engagement 上传）仅 `kb_admin` |
+| NF20 | RFQ 任务按 `owner_id` 隔离；工程师 **不可** 查看或修改他人任务（404 防枚举） |
+| NF21 | 历史 Engagement / 检索 **全平台共享**（工程师须检索历史项目）；隔离范围限于 **RFQ 工作区** |
+| NF22 | **不含** SSO/AD、部门级 ACL、任务委派；见 §11.3 运维包 |
+| NF23 | 知识库索引采用 **staging 构建 + 原子切换**；更新失败、服务重启或部分文档失败时，旧索引须继续可检索 |
+| NF24 | 管理员知识库写任务须 **服务端单飞**；模型资源优先级为交互检索 > RFQ 长任务 > KB 增量 > KB 全量重建 |
+| NF25 | 数据盘/tmp 空间不足须在写入前拦截；返回可操作的 **507**，不得破坏已有文件、索引或工程师只读能力 |
+| NF26 | Windows 浏览器上传到 Linux 服务器须支持中文/空格文件名、大小写差异和 `.doc`；服务端统一 Unicode 与相对路径，禁止平台路径穿越 |
+
 ### 4.2 部署画像与持久化存储
 
 生产与体验环境采用 **Deployment Profile**（不同 Compose，不混用）：
@@ -378,7 +415,7 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 /opt/aria/deploy/        → 应用交付包、compose、.env（系统盘，可重装）
 ```
 
-**原则：** 换机迁移时 **rsync `/data`** + 重装应用；向量与业务数据均在 PostgreSQL，**`pg_dump` 一次备份**。
+**原则：** ARIA 应用 **五容器**（postgres+pgvector、backend、**worker**、frontend、nginx）均经 Compose 启动；**Ollama 独立宿主机进程**（不进容器）。换机迁移时 **rsync `/data`** + 重装应用；向量与业务数据均在 PostgreSQL，**`pg_dump` 一次备份**。
 
 详细硬件、备份与迁移见 [deployment-guide.md](docs/deployment-guide.md)、[customer-it-infrastructure.md](docs/customer-it-infrastructure.md)。
 
@@ -399,8 +436,13 @@ EDAG 作为车辆工程服务提供商，业务涵盖整车/平台/车身/内外
 |------|----------|---------|
 | RFQ 解析 + 对标 P95 | < 5 分钟 (14B+GPU) | < 3 分钟 (32B+4090) |
 | Excel 生成 | < 60 秒 | < 30 秒 |
-| 并发用户 | 1–3 人 | 10–15 人 |
+| 并发用户（浏览） | 1–3 人 | **10–15 人**（团队 10–20 人 · 问卷确认） |
+| RFQ 长任务排队 | — | 单 worker + `OLLAMA_MAX_CONCURRENT=1`；忙时 3–5 人连排 **≤10 分钟**（问卷可接受） |
+| RFQ 队列深度上限 | — | `task_max_queue_size` 默认 **20**；满时上传返回 **429**，提示稍后重试 |
 | RFQ 文件大小上限 | 50 MB | 50 MB |
+| KB 索引并行策略 | — | 单 GPU 下低优先级分批执行；RFQ/检索到达时可让路；全量重建默认非高峰 |
+| KB 索引可用性 | — | 构建期间继续读取上一稳定 generation；失败不得出现空库 |
+| 数据盘保护 | — | 80% warning；90% 禁止新增写入（阈值可配置）；已有查询与下载继续服务 |
 
 ### 4.5 可用性与维护
 
@@ -425,17 +467,20 @@ AI 输出均为**草稿**，工程师必须二次校验后方可定稿导出。
 **① 后台处理状态 `processing_status`（机器流水线）**
 
 ```
-pending → parsing → dimension_review → retrieving → generating → completed / failed
+pending → parsing → dimension_review → retrieving → generating → completed / failed / cancelled
+                              ↑______________________________|
+                         （Phase 2 取消回滚，保留维度勾选）
 ```
 
 | 状态 | 说明 |
 |------|------|
 | `pending` | 已创建，等待后台任务 |
-| `parsing` | 解析 docx + LLM 提取（最耗时） |
+| `parsing` | 解析 Word RFQ（`.docx` / `.doc`）+ LLM 提取（最耗时） |
 | `dimension_review` | **F1.10c：** 等待工程师 **基准库勾选复核**（~100 项匹配结果；确认页全表） |
 | `retrieving` | RAG 检索 Top-3 相似项目 |
 | `generating` | 按已确认 in_scope 维度生成对比矩阵 |
-| `completed` / `failed` | 分析结束 |
+| `cancelling` | **F1.11：** 用户已请求取消，worker/API 在 LLM/RAG **安全边界**协作退出（软状态，轮询可见） |
+| `completed` / `failed` / `cancelled` | 分析结束（`cancelled` 可 **重新解析**） |
 
 **② 人工审阅状态 `review_status`（API 字段名 `status`）**
 
@@ -468,7 +513,9 @@ draft → in_review → approved → exported
 - **中：** 1–2 个相似项目或相似度 70–85%
 - **低：** 无相似项目或相似度 < 70%，UI 标红提醒重点校验
 
-### 5.4 五步进度与 `artifacts_status`（Demo 框架）
+### 5.4 五步进度与 `artifacts_status`
+
+**R1 新增：** `GET /rfq/tasks` 与 `GET /rfq/tasks/{id}` **按当前登录用户 `owner_id` 过滤**；工程师不可见他人任务。
 
 `GET /rfq/tasks/{id}` 返回计算字段 `artifacts_status`：
 
@@ -490,6 +537,36 @@ draft → in_review → approved → exported
 | `/quote` | 建议 `comparison_ready` | 允许加载 task；Excel 生成仍须 review 确认 |
 
 > Stub API（`generate-proposal` / `generate-qa`）**不依赖** `MOCK_LLM` / `MOCK_RAG`，始终返回固定 Mock 结构，便于 UI 联调。
+
+### 5.5 任务生命周期管理（R1 · F1.11）
+
+工程师可对 **本人** 的历史 RFQ 任务进行维护，减轻侧栏列表堆积与失败重传成本。
+
+| 操作 | 说明 | 限制 |
+|------|------|------|
+| **取消分析** | 解析/检索/生成阶段可协作取消；`dimension_review` 无取消按钮（删除或重传） | Phase 1（`queued`/`parsing`）终态 `cancelled` 并清理部分产物；Phase 2（`retrieving`/`generating`）回滚 `dimension_review` 并保留维度勾选 |
+| **重新解析** | 失败或已取消任务（`processing_status=failed` 或 `cancelled`）无需重新上传，一键重入队列 | 原始 RFQ 文件须仍在磁盘；已归档任务不可重试 |
+| **归档** | 从默认任务列表隐藏（`archived=true`），可通过 `include_archived=true` 查看 | 进行中的任务（queued/parsing/retrieving/generating/**cancelling**）不可归档 |
+| **删除** | 硬删除任务记录，并清理上传文件与已生成 Excel/QA 附件 | 进行中任务（含 **cancelling**）不可删除 |
+
+**协作取消（R1 · 不杀 Ollama 进程）：**
+
+- 用户 `POST .../cancel` 后，Phase 1 通过 `TaskJob.cancel_requested_at` 通知 worker；Phase 2 将任务标 `cancelling`
+- worker/API 在解析批次、维度匹配、LLM 流式输出、query embedding 等边界检查取消标志；LLM 取消时 **关闭 HTTP 流** 以尽快释放 Ollama 租约
+- 取消检查对 DB **节流轮询**（约 0.5s），避免每个 token chunk 打库；当前 LLM 调用结束后队列方可处理下一任务（`OLLAMA_MAX_CONCURRENT=1`）
+- `cancelling` 超时（`task_job_cancel_stale_seconds`，默认 120s）由 worker 恢复为 Phase 2 的 `dimension_review` 或 Phase 1 的 `cancelled`
+
+**侧栏「最近 RFQ」筛选（R1 · F1.11）：**
+
+- 筛选项：**全部** / **进行中** / **已完成** / **失败 / 已取消**
+- **失败 / 已取消** 合并展示 `processing_status=failed` 与 `cancelled`（均可 **重新解析** 或归档/删除），避免取消测试后「全部」列表噪音过大
+- `cancelled` **不**归入「进行中」或「已完成」
+
+> **命名区分：** 本节 **任务归档** = 列表隐藏，**不**删除数据盘文件；**archive-to-knowledge**（§11.3 · 合同外）= 定稿项目写入 Engagement 知识库，二者独立。
+
+**队列保护：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）时，`POST /rfq/upload` 返回 **429**，响应含 `queue_depth` 与友好提示。
+
+**僵死任务恢复：** worker 轮询时检测 `running` 超过 `task_job_stale_seconds`（默认 900s）的作业，经 `mark_failed` 尊重 `max_attempts` 后自动重排队或标为 `failed`。
 
 ---
 
@@ -717,7 +794,7 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 
 #### 10.1.2 能力档（核心 AI 链路）
 
-- [ ] 上传 .docx RFQ，返回 Function 模块列表 + 交付物
+- [ ] 上传 **`.docx` 或 `.doc`** RFQ，返回 Function 模块列表 + 交付物
 - [ ] 展示 **Top-3** 相似项目技术维度对比表，含来源与置信度
 - [ ] 相似项目可展开查看摘要（Mock 或 RAG 片段）
 - [ ] 生成 Excel 初稿（Project info + Manpower + PM + Chassis）
@@ -741,10 +818,13 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 
 #### R1
 
-- [ ] 3–5 套 Engagement **三件套**入库；`manpower_baselines` 与源 Excel 可对照
+- [ ] **≥5 套** Engagement **金标准三件套**入库；`manpower_baselines` 与源 Excel 可对照  
+- [ ] **内网 bulk** 首次导入报告（清点表 O-02d 范围；默认 **≥90%** engagement 成功索引；银/铜缺件可入库）；库内 **≥15** indexed RFQ（推荐）
 - [ ] 检索评测 **≥15 条 query，≥12/15 Pass**（见 [R1 验收说明](docs/R1-知识库验收与检索评测说明（客户版）.md)）
 - [ ] **客户正式工作维度基准清单（~100 项）已导入**并完成 **3 份 RFQ** **基准维度勾选确认 + Top-3 对比矩阵**全流程（R1-β）
 - [ ] Top-3 语义检索 + 条件筛选；**不含** Hybrid/Rerank
+- [ ] 失败任务可 **重新解析**（无需重传）；任务可 **归档/删除**；队列满时上传 **429**
+- [ ] worker 僵死任务超时恢复（`task_job_stale_seconds`）且尊重 `max_attempts`
 - [ ] `/knowledge` 验收台：统计、检索实验室、触发导入、**Web ≤5 套/次**（或 IT 目录批量）
 
 #### M3
@@ -802,11 +882,16 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 | 增强项 | prod ID | 建议时机 |
 |--------|---------|---------|
 | 大批量 upload 门户（拖拽/断点续传） | F5.1 扩展 | M6 后 |
-| 引用反馈 L1 / L2 | F5.6 | M6 后 1 个月内可选 |
+| 引用反馈 L1 / L2（**对客户销售**） | F5.6 | M6 后可选 · feedback-ops-pack |
+| F5.6 L1 **内部运维增强** | F5.6 | **非合同** · [dev-tasks R1-OPS](docs/R1/dev-tasks.md) · 视进度可选 |
 | 定稿项目一键进历史库 | archive-to-knowledge | hypercare |
 | 检索运营看板、资料过期提醒 | — | 运维包 |
 | Hybrid / Rerank（项目代号更准） | — | 独立技术变更单 |
-| 增量索引 UI、细粒度权限 | F5.2 / F5.5 | 运维包 |
+| 增量索引 UI | F5.2 / F5.5 | 运维包 |
+| SSO / AD 集成、部门级 ACL、任务委派 | — | 运维包 |
+| 密码自助重置 UI、操作审计看板 | — | 运维包 |
+
+> **R1 已含（¥18.3 万内）：** 本地账号登录、两角色 RBAC、RFQ 任务归属隔离。上表为 **R1 之外** 的可选增强。
 
 ---
 
@@ -895,7 +980,7 @@ M3/M4/M5 顺序可在 R1 完成后调整；**上线前须全部完成**。详细
 - [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) — **正式版交付实施方案（内部）**
 - [docs/R1/README.md](docs/R1/README.md) — **R1 开发任务索引与 8 周节奏（内部）**
 - [platform-brand.md](docs/supplementary/platform-brand.md) — 品牌、平台 vs 应用
-- [客户版 v3.7](docs/ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.3](docs/ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md)
+- [客户版 v3.8](docs/ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.6](docs/ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md)
 - [R1 验收说明（客户版）](docs/R1-知识库验收与检索评测说明（客户版）.md) · [附录验收配合（客户版）](docs/附录-模块能力与验收配合说明（客户版）.md)
 - [平台知识库演进路线（客户版）](docs/平台知识库演进路线（客户版）.md) — 可选增强 §4
 - [m3 / m4 / m5 规格](docs/supplementary/m3-scope-match-spec.md) · [rag-design.md](docs/supplementary/rag-design.md) · [api-design.md](docs/supplementary/api-design.md) · [prompt-spec.md](docs/supplementary/prompt-spec.md)

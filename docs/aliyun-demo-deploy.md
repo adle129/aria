@@ -184,13 +184,13 @@ curl -s http://127.0.0.1:${ARIA_DEMO_HTTP_PORT:-8888}/api/v1/health | python3 -m
 
 | 现象 | 处理 |
 |------|------|
-| `docker.1ms.run` / `failed to resolve source metadata` | 基础镜像已改为 `docker.m.daocloud.io`；在 ECS 上执行下方「镜像拉取失败」补丁后重跑部署 |
+| `docker.1ms.run` / `failed to resolve source metadata` | 镜像源因网络而异；可试 `docker.m.daocloud.io` 或反向切换；见 [README § DaoCloud EOF](../../README.md#docker-常见问题与方案) |
 | `preflight` SSH 超时 | 安全组放行 22；确认 EIP；用 Workbench 方式 B |
 | Workbench 上传 `INTERNAL_SERVER_ERROR` | 多为覆盖失败：ECS 上 `rm -f /tmp/aria-deploy.tar.gz` 后重传；传后用 `tar -tzf ... \| grep deploy-stamp` 验证 |
 | 打开仍是 8D / 其他站点 | 80/8080 常被占用；设 `ARIA_DEMO_HTTP_PORT=8888` 并放行安全组 |
 | 健康检查超时 | `docker compose -f docker-compose.aliyun-demo.yml logs` |
 | 502 / 空白页 | 首次构建约 3–8 分钟，等 frontend `next build` 完成 |
-| 上传 RFQ 失败 | 仅支持 `.docx`；Nginx `client_max_body_size 50M` |
+| 上传 RFQ 失败 | 仅支持 **`.docx` / `.doc`**；Nginx `client_max_body_size 50M` |
 | 内存不足 OOM | 确认 `INSTALL_AI=false`（`docker-compose.aliyun-demo.yml` 已配置） |
 
 ### 界面仍是旧版（仍显示 samples/rfq/ 路径）

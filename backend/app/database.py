@@ -31,10 +31,37 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    from app.models import project, rfq_task  # noqa: F401
+    from app.models.engagement import Engagement
+    from app.models.knowledge_index_generation import KnowledgeIndexGeneration, KnowledgeIndexState
+    from app.models.ollama_resource_lease import OllamaResourceLease
+    from app.models.project import Project
+    from app.models.rfq_task import RFQTask
+    from app.models.task_job import TaskJob
+    from app.models.user import User
 
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Project.__table__,
+            User.__table__,
+            RFQTask.__table__,
+            TaskJob.__table__,
+            Engagement.__table__,
+            KnowledgeIndexGeneration.__table__,
+            KnowledgeIndexState.__table__,
+            OllamaResourceLease.__table__,
+        ],
+    )
     _ensure_rfq_task_columns()
+    _ensure_pgvector()
+
+
+def _ensure_pgvector() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    from app.services.pgvector_store import PgVectorStore
+
+    PgVectorStore.ensure_schema()
 
 
 def _ensure_rfq_task_columns() -> None:
@@ -55,6 +82,11 @@ def _ensure_rfq_task_columns() -> None:
         additions.append(f"qa_items {col_type}")
     if "qa_excel_path" not in existing:
         additions.append("qa_excel_path VARCHAR")
+    if "owner_id" not in existing:
+        additions.append("owner_id VARCHAR")
+    if "dimension_draft" not in existing:
+        col_type = "JSON" if dialect == "postgresql" else "JSON"
+        additions.append(f"dimension_draft {col_type}")
     if not additions:
         return
     with engine.begin() as conn:

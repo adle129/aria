@@ -18,12 +18,20 @@ alwaysApply: true
 | `unit_tests/` | `services/` 业务逻辑、schemas、工具函数 |
 | `API_tests/` | FastAPI 路由契约（TestClient + Mock Service） |
 | `regression/` | 固定 RFQ 样本 + 期望 JSON（`./run_tests.sh --regression`） |
+| `frontend/` | Vitest（`src/**/*.test.ts`）+ **`npm run build`**（Next.js 全量 TS 检查，与 Docker 一致） |
+| `integration_tests/` | R1-KH：真实 PostgreSQL + 可控 Fake Ollama；事务、锁、故障注入 |
+
+## 前端提交习惯
+
+- **改 `.tsx` / `.ts`（`frontend/src`）后**：本地须能过 `npm run build`（类型错误 Vitest 可能拦不住）
+- **提交前**：跑 `.\run_tests.ps1` / `./run_tests.sh`（已含 vitest + build），不必单独再 build 一次；若只改了前端、未跑全量门禁，至少执行 `cd frontend && npm run build`
 
 ## 每个功能必须满足的测试
 
 1. **Service 层：** `unit_tests/test_<module>.py` — 正常路径 + 至少 1 个异常/降级路径
-2. **API 层：** `API_tests/test_<module>_api.py` — 200 成功 + 400/404/422 等契约错误
+2. **API 层：** `API_tests/test_<module>_api.py` — 200/202 成功 + 400/404/409/422/429/507/503 等契约错误
 3. **Mock 边界：** 非法 LLM JSON、空文件、任务不存在等不可导致 500（除非契约明确要求）
+4. **R1-KH：** 原子 generation、single-flight、取消/重启、ENOSPC/507、Zip Bomb、Windows ZIP、跨进程 Ollama 闸
 
 ## 提交前必须执行的命令
 
@@ -39,7 +47,9 @@ $env:PYTHONPATH="<项目根>/backend"
 ./run_tests.sh --regression
 ```
 
-**全部通过后方可 `git commit`。** 若有失败，先修复再提交，禁止 `--no-verify` 跳过 hooks。
+**全部通过后方可 `git commit`。** 门禁含前端 **`next build`**（与 Docker 镜像构建同路径）；若有失败，先修复再提交，禁止 `--no-verify` 跳过 hooks。
+
+**详细策略：** [docs/supplementary/test-plan.md](docs/supplementary/test-plan.md) · **R1 检索评测**（≥15 query，≥12/15 Pass）：[docs/R1-知识库验收与检索评测说明（客户版）.md](docs/R1-知识库验收与检索评测说明（客户版）.md)
 
 ## 功能完成定义（DoD）
 
@@ -48,6 +58,7 @@ $env:PYTHONPATH="<项目根>/backend"
 - [ ] Service + unit test 已完成
 - [ ] API + API test 已完成
 - [ ] 前端（若涉及）TaskContextBar、loading/error/确认流已实现
-- [ ] `run_tests.sh` / `run_tests.ps1` 全绿
+- [ ] `run_tests.sh` / `run_tests.ps1` 全绿（含前端 vitest + **`npm run build`**）
 - [ ] 回归集通过（若改动解析/RAG/Prompt/Excel 生成）
+- [ ] R1-KH 改动通过 PostgreSQL/Fake Ollama 集成测试；4090 性能报告按任务 Gate 归档
 - [ ] 未提交 `.env`、密钥、客户脱敏文件

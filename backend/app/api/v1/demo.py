@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 
+from app.api.deps import block_r1_undelivered_milestone
 from app.config import Settings, get_settings
 from app.schemas.common import ApiResponse
 from app.schemas.demo import DemoRfqSampleItem, DemoRfqSampleListResponse
 from app.services.demo_sample_service import list_demo_rfq_samples, resolve_demo_rfq_file
 
-router = APIRouter(prefix="/demo", tags=["demo"])
+router = APIRouter(prefix="/demo", tags=["demo"], dependencies=[Depends(block_r1_undelivered_milestone)])
 
 
 @router.get("/rfq-samples", response_model=ApiResponse[DemoRfqSampleListResponse])
