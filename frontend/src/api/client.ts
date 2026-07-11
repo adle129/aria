@@ -116,6 +116,8 @@ apiClient.interceptors.response.use(
 export interface HealthData {
   status: string;
   version: string;
+  deploy_sha?: string;
+  packaged_at?: string | null;
   model: string;
   embedding_model: string;
   mock_llm: boolean;

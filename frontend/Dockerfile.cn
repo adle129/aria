@@ -10,6 +10,11 @@ ARG NEXT_PUBLIC_API_BASE_URL=/api/v1
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ARG NEXT_PUBLIC_ARIA_UI_PROFILE=experience
 ENV NEXT_PUBLIC_ARIA_UI_PROFILE=$NEXT_PUBLIC_ARIA_UI_PROFILE
+# Bust Next build cache when deploy stamp changes (code-only updates stay fast via deps cache)
+ARG NEXT_PUBLIC_DEPLOY_SHA=unknown
+ENV NEXT_PUBLIC_DEPLOY_SHA=$NEXT_PUBLIC_DEPLOY_SHA
+ARG PACKAGED_AT=
+ENV PACKAGED_AT=$PACKAGED_AT
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
@@ -19,6 +24,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_API_BASE_URL=/api/v1
 ENV NEXT_PUBLIC_ARIA_UI_PROFILE=experience
+ARG NEXT_PUBLIC_DEPLOY_SHA=unknown
+ENV NEXT_PUBLIC_DEPLOY_SHA=$NEXT_PUBLIC_DEPLOY_SHA
+ARG PACKAGED_AT=
+ENV PACKAGED_AT=$PACKAGED_AT
+RUN printf '%s\n' "${NEXT_PUBLIC_DEPLOY_SHA}" > /app/DEPLOY_SHA \
+    && printf 'deploy_sha=%s\npackaged_at=%s\n' "${NEXT_PUBLIC_DEPLOY_SHA}" "${PACKAGED_AT}" > /app/DEPLOY_STAMP.txt
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

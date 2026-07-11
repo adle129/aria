@@ -46,6 +46,8 @@ x-backend-environment: &backend-environment
 x-frontend-build-args: &frontend-build-args
   NEXT_PUBLIC_API_BASE_URL: /api/v1
   NEXT_PUBLIC_ARIA_UI_PROFILE: ${ARIA_UI_PROFILE:-r1}
+  NEXT_PUBLIC_DEPLOY_SHA: ${DEPLOY_SHA:-unknown}
+  PACKAGED_AT: ${PACKAGED_AT:-}
 
 services:
   postgres:
@@ -74,6 +76,8 @@ services:
         INSTALL_AI: "true"
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-mirrors.aliyun.com}
+        DEPLOY_SHA: ${DEPLOY_SHA:-unknown}
+        PACKAGED_AT: ${PACKAGED_AT:-}
     container_name: aria-backend
     environment:
       <<: *backend-environment
@@ -105,6 +109,8 @@ services:
         INSTALL_AI: "true"
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
         PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-mirrors.aliyun.com}
+        DEPLOY_SHA: ${DEPLOY_SHA:-unknown}
+        PACKAGED_AT: ${PACKAGED_AT:-}
     container_name: aria-worker
     command: ["python", "-m", "app.worker"]
     environment:

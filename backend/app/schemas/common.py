@@ -24,6 +24,8 @@ class DiskVolumeHealth(BaseModel):
 class HealthResponse(BaseModel):
     status: str = Field(..., examples=["ok"])
     version: str
+    deploy_sha: str = "unknown"
+    packaged_at: str | None = None
     model: str
     embedding_model: str
     mock_llm: bool = False

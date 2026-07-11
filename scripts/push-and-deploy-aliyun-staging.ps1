@@ -58,11 +58,11 @@ ssh @SshOpts $Target "tar -xzf /tmp/aria-staging.tar.gz -C $RemoteDir && rm -f /
 $skipEnv = if ($SkipModelPull) { "SKIP_MODEL_PULL=true" } else { "SKIP_MODEL_PULL=false" }
 Write-Host "==> Running deploy-aliyun-staging.sh on remote host..."
 Write-Host "    (first run may take 20–60 min: model pull + docker build)"
-ssh @SshOpts $Target "chmod +x $RemoteDir/scripts/deploy-aliyun-staging.sh $RemoteDir/deploy/scripts/start.sh && ARIA_ROOT=$RemoteDir $skipEnv bash $RemoteDir/scripts/deploy-aliyun-staging.sh"
+ssh @SshOpts $Target "chmod +x $RemoteDir/scripts/deploy-aliyun-staging.sh $RemoteDir/scripts/verify-staging-deploy.sh $RemoteDir/deploy/scripts/start.sh && ARIA_ROOT=$RemoteDir $skipEnv bash $RemoteDir/scripts/deploy-aliyun-staging.sh"
 
 Write-Host ""
 Write-Host "==> Done. Verify:" -ForegroundColor Green
 Write-Host "  Browser:  http://${TargetHost}/"
-Write-Host "  Health:   http://${TargetHost}/api/v1/health"
+Write-Host "  Health:   http://${TargetHost}/api/v1/health  (check deploy_sha)"
+Write-Host "  Remote:   ssh ... 'cd $RemoteDir && bash scripts/verify-staging-deploy.sh'"
 Write-Host "  Docs:     docs/aliyun-staging-deploy.md"
-Write-Host "  Admin:    ssh then docker exec aria-backend python scripts/create_admin.py ..."

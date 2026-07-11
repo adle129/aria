@@ -147,6 +147,8 @@ GET /api/v1/health
 {
   "status": "ok",
   "version": "1.0.0",
+  "deploy_sha": "a1b2c3d-2026-07-11T12:00:00Z",
+  "packaged_at": "2026-07-11T12:00:00Z",
   "model": "qwen2.5:14b",
   "embedding_model": "nomic-embed-text",
   "mock_llm": true,
@@ -176,6 +178,8 @@ GET /api/v1/health
   "production_warnings": []
 }
 ```
+
+`deploy_sha` / `packaged_at` 来自镜像构建参数（`DEPLOY_SHA` / `PACKAGED_AT`），用于核对「解包代码」与「运行中镜像」是否一致；staging 部署后由 `scripts/verify-staging-deploy.sh` 校验。
 
 `used_percent >= 80` 加入 warning；达到可配置写保护阈值时 `write_protected=true`。磁盘 warning 不得把健康接口本身变成 500。
 

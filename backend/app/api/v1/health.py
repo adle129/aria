@@ -21,6 +21,8 @@ def health_check() -> HealthResponse:
     return HealthResponse(
         status="ok",
         version=settings.app_version,
+        deploy_sha=(settings.deploy_sha or "unknown").strip() or "unknown",
+        packaged_at=(settings.packaged_at or "").strip() or None,
         model=settings.ollama_model,
         embedding_model=settings.embedding_model,
         mock_llm=settings.mock_llm,

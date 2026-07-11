@@ -13,8 +13,10 @@
 | `docker-compose.aliyun-staging.yml` | 生产拓扑 + 国内镜像；`MOCK_*=false`；`qwen2.5:32b` |
 | `docker-compose.offline.yml` | 预打标离线镜像，禁止 build |
 | `.env.aliyun-staging.example` | AUTH、SEED 账号、Ollama、数据盘路径 |
-| `scripts/deploy-aliyun-staging.sh` | ECS 一键：Ollama、seed 数据/用户、compose up |
-| `scripts/package-aliyun-staging.ps1` / `push-and-deploy-aliyun-staging.ps1` | Windows 打包推送 |
+| `scripts/deploy-aliyun-staging.sh` | ECS 一键：Ollama、seed、**DEPLOY_SHA 增量 build**、compose up、**verify** |
+| `scripts/verify-staging-deploy.sh` | 对账 stamp ↔ `/health.deploy_sha` ↔ 镜像内关键文件 |
+| `scripts/package-aliyun-staging.ps1` / `push-and-deploy-aliyun-staging.ps1` | Windows 打包（含 `deploy_sha`）推送 |
+| `backend/Dockerfile.cn` / `frontend/Dockerfile.cn` | 阿里云 apt；`ARG DEPLOY_SHA` 在 COPY app 前失效缓存 |
 | `scripts/package-offline-delivery.sh` / `install-offline-delivery.sh` | 客户内网离线包 |
 | `scripts/seed-runtime-data.sh` | templates + `dimension_baseline.v1.json` → 数据盘 |
 | `scripts/seed-staging-users.sh` + `backend/scripts/seed_default_users.py` | 默认 `admin` / `engineer` |
@@ -47,14 +49,16 @@
 
 ## 3. Staging 联调已固化问题
 
-见 [aliyun-staging-deploy.md §6–7](../aliyun-staging-deploy.md)：CRLF、Docker 权限、Ollama 离线安装与 `OLLAMA_HOST`、Hub/DaoCloud、baseline seed、默认账号、文档索引态、维度过目 ack 等。
+见 [aliyun-staging-deploy.md §4 / §6](../aliyun-staging-deploy.md)：CRLF、Docker 权限、Ollama、Hub/DaoCloud、postgres 属主、baseline seed、**版本对账（DEPLOY_SHA）**、文档索引态等。
+
+**版本更新硬约束：** 解包 ≠ 镜像更新；日常禁止 `--no-cache`；禁止依赖 `docker cp` 热修。
 
 ---
 
 ## 4. 测试
 
 - unit：`test_task_job_service`（timing / requeue）、`test_task_job_repository`（`get_latest_by_ref`）、`test_seed_default_users`
-- API：`test_task_queue_api`（status/detail 含 `queue_wait_ms` / `run_ms`）
+- API：`test_health`（含 `deploy_sha` / `packaged_at`）、`test_task_queue_api`（status/detail 含 `queue_wait_ms` / `run_ms`）
 - 前端：`formatDuration.test.ts`
 
 提交前：`.\run_tests.ps1`（含 vitest + `next build`）。

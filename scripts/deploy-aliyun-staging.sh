@@ -52,9 +52,14 @@ echo "==> Creating data directories..."
 sudo mkdir -p "$DATA_ROOT"/app/{uploads,outputs,knowledge_base,templates,config,feedback}
 sudo mkdir -p "$DATA_ROOT"/postgres "$DATA_ROOT"/backups
 sudo mkdir -p "$OLLAMA_MODELS_DIR" /opt/aria
-# App data + code: deploy user. Models dir: ollama service user ONLY.
-sudo chown -R "$(id -u):$(id -g)" /data/aria /opt/aria 2>/dev/null || \
-  sudo chown -R "$USER:$USER" /data/aria /opt/aria
+# App data + code: deploy user. Never chown postgres/ — image runs as uid 999.
+# Models dir: ollama service user ONLY.
+sudo chown -R "$(id -u):$(id -g)" "$DATA_ROOT"/app "$DATA_ROOT"/backups /opt/aria 2>/dev/null || \
+  sudo chown -R "$USER:$USER" "$DATA_ROOT"/app "$DATA_ROOT"/backups /opt/aria
+if [[ -d "$DATA_ROOT/postgres" ]]; then
+  # Official postgres/pgvector image uses uid/gid 999
+  sudo chown -R 999:999 "$DATA_ROOT/postgres" || true
+fi
 
 # --- Docker ---
 if ! command -v docker >/dev/null 2>&1; then
@@ -211,7 +216,7 @@ if ! command -v ollama >/dev/null 2>&1 && [[ ! -x /usr/local/bin/ollama ]]; then
     if ! curl -fsSL https://ollama.com/install.sh | sh; then
       echo "ERROR: cannot install Ollama from network." >&2
       echo "  Manual: scp ollama-linux-amd64.tar.zst to /tmp/ then re-run this script." >&2
-      echo "  See docs/aliyun-staging-deploy.md § Ollama offline install" >&2
+      echo "  See docs/aliyun-staging-deploy.md · Ollama offline install" >&2
       exit 1
     fi
   fi
@@ -245,12 +250,32 @@ else
   echo "==> SKIP_MODEL_PULL=true — not pulling models"
 fi
 
-echo "==> Deploy stamp:"
-if [ -f deploy-stamp.txt ]; then
-  cat deploy-stamp.txt
-else
-  echo "    (no deploy-stamp.txt — optional)"
+# --- deploy stamp -> build args (invalidates app layers; keeps apt/pip cache) ---
+# Do NOT use --no-cache for routine updates (LibreOffice apt is slow on Debian mirrors).
+if [[ ! -f deploy-stamp.txt ]]; then
+  PACKAGED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  DEPLOY_SHA="local-${PACKAGED_AT}"
+  printf 'deploy_sha=%s\ngit_sha=nogit\npackaged_at=%s\nprofile=aliyun-staging\ncompose=docker-compose.aliyun-staging.yml\n' \
+    "$DEPLOY_SHA" "$PACKAGED_AT" > deploy-stamp.txt
+  echo "==> Wrote deploy-stamp.txt (no package stamp found): deploy_sha=$DEPLOY_SHA"
 fi
+
+echo "==> Deploy stamp:"
+cat deploy-stamp.txt
+
+while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%$'\r'}"
+  [[ -z "$line" || "$line" =~ ^# ]] && continue
+  if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+    export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+  fi
+done < deploy-stamp.txt
+
+export DEPLOY_SHA="${deploy_sha:-${DEPLOY_SHA:-unknown}}"
+export PACKAGED_AT="${packaged_at:-${PACKAGED_AT:-}}"
+export NEXT_PUBLIC_DEPLOY_SHA="$DEPLOY_SHA"
+echo "==> Building with DEPLOY_SHA=$DEPLOY_SHA (incremental; apt/pip layers reused)"
+echo "    Tip: never use docker compose build --no-cache unless apt packages themselves must refresh."
 
 if [ ! -f "$COMPOSE_FILE" ]; then
   echo "ERROR: compose file not found: $COMPOSE_FILE" >&2
@@ -276,10 +301,15 @@ pull_tag docker.m.daocloud.io/library/python:3.11-slim python:3.11-slim
 pull_tag docker.m.daocloud.io/library/node:20-alpine node:20-alpine
 pull_tag docker.m.daocloud.io/pgvector/pgvector:pg16 pgvector/pgvector:pg16 || true
 
+# Explicit rebuild so DEPLOY_SHA change is always applied before up
+echo "==> docker compose build (backend worker frontend)..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend worker frontend
+
 echo "==> Starting ARIA (production start.sh + staging compose)..."
 export COMPOSE_FILE
 export ENV_FILE
 export ARIA_ROOT
+# start.sh may rebuild again; env DEPLOY_SHA/PACKAGED_AT already exported for compose interpolation
 bash "$ARIA_ROOT/deploy/scripts/start.sh"
 
 echo "==> Seeding default admin + engineer accounts..."
@@ -287,11 +317,15 @@ bash "$ARIA_ROOT/scripts/seed-staging-users.sh" || {
   echo "WARN: user seed failed — run: bash scripts/seed-staging-users.sh" >&2
 }
 
+echo "==> Post-deploy verification..."
+bash "$ARIA_ROOT/scripts/verify-staging-deploy.sh"
+
 PUBLIC_IP=$(curl -sf --max-time 2 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/null || true)
 echo ""
 echo "================================================"
 echo " Deploy complete — ARIA R1 staging (Aliyun)"
 echo " Mode: MOCK_LLM=false, MOCK_RAG=false, ARIA_UI_PROFILE=r1"
+echo " deploy_sha: ${DEPLOY_SHA}"
 echo " Model: ${OLLAMA_MODEL} + ${EMBEDDING_MODEL}"
 if [ -n "$PUBLIC_IP" ]; then
   echo " URL:  http://${PUBLIC_IP}/"
@@ -303,5 +337,6 @@ echo " Default logins (staging):"
 echo "   admin     / ${SEED_ADMIN_PASSWORD:-admin123}      (kb_admin)"
 echo "   engineer  / ${SEED_ENGINEER_PASSWORD:-engineer123} (quote_engineer)"
 echo " Health: curl -s http://127.0.0.1/api/v1/health | python3 -m json.tool"
+echo " Verify: bash scripts/verify-staging-deploy.sh"
 echo " Offline pack: bash scripts/package-offline-delivery.sh"
 echo "================================================"

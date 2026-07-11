@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_version: str = "1.0.0"
+    # Baked at image build (DEPLOY_SHA); used to verify staging/prod rollouts
+    deploy_sha: str = "unknown"
+    packaged_at: str = ""
     log_level: str = "INFO"
 
     database_url: str = "postgresql://aria_admin:localdev123@localhost:5432/aria_db"

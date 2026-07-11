@@ -70,7 +70,7 @@ bash scripts/deploy-aliyun-staging.sh
 
 ## 4. 验收与默认账号
 
-部署结束自动执行 `scripts/seed-staging-users.sh`：
+部署结束自动执行 `scripts/seed-staging-users.sh`，并以 `scripts/verify-staging-deploy.sh` 核对版本。
 
 | 用户名 | 默认密码 | 角色 |
 |--------|----------|------|
@@ -80,12 +80,22 @@ bash scripts/deploy-aliyun-staging.sh
 `.env` 可用 `SEED_ADMIN_PASSWORD` / `SEED_ENGINEER_PASSWORD` 覆盖。
 
 ```bash
+cat deploy-stamp.txt
 curl -s http://127.0.0.1/api/v1/health | python3 -m json.tool
+# health.deploy_sha 必须等于 stamp 的 deploy_sha
+bash scripts/verify-staging-deploy.sh
 docker ps
 bash scripts/seed-staging-users.sh   # 幂等补种
 ```
 
 浏览器：`http://<公网IP>/` — 用上表账号登录。
+
+### 版本更新（防「解包了但仍是旧镜像」）
+
+1. 本机 `package-aliyun-staging.ps1` 写入带 `deploy_sha`（git short + 打包时间）的 `deploy-stamp.txt`
+2. ECS 解包后 `deploy-aliyun-staging.sh` **导出 `DEPLOY_SHA`/`PACKAGED_AT`**，**增量** `docker compose build`（**不要**日常 `--no-cache`，否则 LibreOffice 走 apt 极慢）
+3. `DEPLOY_SHA` 写在 `COPY app` **之前**，保证代码层不会被错误 CACHED；镜像内 `/app/DEPLOY_SHA` + `/health.deploy_sha` 可对账
+4. **禁止**把 `docker cp` 热修当正式更新（`compose up` recreate 会丢）
 
 ---
 
@@ -111,12 +121,16 @@ COMPOSE_FILE=docker-compose.aliyun-staging.yml bash deploy/scripts/stop.sh
 | Ollama install.sh 慢/403 | GitHub | 离线 tar.zst + `tar -I zstd` |
 | ollama models permission denied | `/data/ollama` 被 chown 成 ecs-user | 目录只归 `ollama` 用户 |
 | Hub 超时（pgvector/python/node） | 直连 Docker Hub | DaoCloud + 部署前预拉 base |
+| 知识库/上传 500 · `Permission denied` on `pg_filenode.map` | 部署脚本把 `/data/aria/postgres` chown 成 ecs-user | **勿**对 postgres 目录 chown 给部署用户；应为 `999:999`。修复：`sudo chown -R 999:999 /data/aria/postgres && docker compose ... restart postgres backend worker` |
 | `scripts/create_admin.py` 不存在 | 镜像未 COPY scripts | Dockerfile 已 COPY；seed 支持 docker cp 回退 |
 | `No module named 'app'` | `/tmp` 跑脚本无 PYTHONPATH | seed/`create_admin` 自动注入 path |
 | 首次无账号 | 需手工 create_admin | **自动 seed admin + engineer** |
 | RFQ `dimension baseline not found` | 数据盘缺 `app/config/dimension_baseline.v1.json` | `seed-runtime-data.sh` + 镜像 entrypoint 自动 seed |
 | 容器内 LLM 未连接 | Ollama 只绑 `127.0.0.1` | staging 脚本默认 `OLLAMA_HOST=0.0.0.0:11434`（安全组勿开 11434） |
 | 项目「已索引」但文档清单「待索引」 | `source_doc` 路径别名不一致 / 报价不进向量 | `list_documents` 按 engagement 别名匹配；报价对照 baselines |
+| 解包/部署后仍是旧行为 | 只更新了 `/opt/aria`，镜像未按新 SHA rebuild；或 `docker cp` 被 recreate 冲掉 | `DEPLOY_SHA` bake + `verify-staging-deploy.sh`；日常增量 build，勿 `--no-cache` |
+| `compose up frontend` 后 backend 回退 | recreate 拉回旧镜像，热修丢失 | 以 stamp rebuild 为准；verify 失败即退出 |
+| 全量 `--no-cache` 极慢 | LibreOffice 走 `deb.debian.org` | `Dockerfile.cn` 改阿里云 apt；例行更新只靠 `DEPLOY_SHA` 失效 app 层 |
 | 维度「已过目」仍挡确认 | 系统预勾选的 `needs_review` 未写入 ack | 展开模块即确认已勾选待确认项；状态列显示待确认/已确认 |
 | scp 要 password | pem 权限过宽 | `icacls` 收紧 |
 | Workbench 传不了大文件 | 单文件限制 | scp / 分片 / OSS |
