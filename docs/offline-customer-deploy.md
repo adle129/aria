@@ -134,4 +134,4 @@ sudo INSTALL_ROOT=/opt/aria-offline-test \
 - 离线包 **不含** 客户历史知识库原文；入库在客户内网另做。
 - 升级版本：在新 staging 重打离线包 → 客户机 `stop` → 换包 `install`（注意备份 `/data/aria`）。
 
-**关联：** [aliyun-staging-deploy.md](aliyun-staging-deploy.md) · [deployment-guide.md](deployment-guide.md) §4.4 / §9
+**关联：** [aliyun-staging-deploy.md](aliyun-staging-deploy.md) · [deployment-guide.md](deployment-guide.md) §4.4 / §9 · [feat-r1-aliyun-staging-summary.md](R1/feat-r1-aliyun-staging-summary.md)

@@ -502,8 +502,8 @@ class RFQAnalysisService:
             err[:500],
         )
 
-    def get_task_payload(self, task: RFQTask) -> dict[str, Any]:
-        return {
+    def get_task_payload(self, task: RFQTask, db: Session | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "task_id": task.id,
             "file_name": task.file_name,
             "processing_status": task.processing_status,
@@ -524,6 +524,18 @@ class RFQAnalysisService:
             "created_at": to_api_utc_iso(task.created_at),
             "updated_at": to_api_utc_iso(task.updated_at),
         }
+        job = None
+        if db is not None:
+            repo = TaskJobRepository(db)
+            job = repo.get_active_by_ref(
+                TaskJobService.JOB_RFQ_ANALYSIS,
+                task.id,
+            ) or repo.get_latest_by_ref(
+                TaskJobService.JOB_RFQ_ANALYSIS,
+                task.id,
+            )
+        payload.update(TaskJobService.timing_payload(job))
+        return payload
 
     def recover_orphaned_confirm_phase(self, db: Session, task: RFQTask) -> RFQTask:
         """If confirm-dimensions or cancel was interrupted mid-flight, roll back safely."""
@@ -593,8 +605,14 @@ class RFQAnalysisService:
         if db is not None:
             task = self.recover_orphaned_confirm_phase(db, task)
         job = None
+        timing_job = None
         if db is not None:
-            job = TaskJobRepository(db).get_active_by_ref(
+            repo = TaskJobRepository(db)
+            job = repo.get_active_by_ref(
+                TaskJobService.JOB_RFQ_ANALYSIS,
+                task.id,
+            )
+            timing_job = job or repo.get_latest_by_ref(
                 TaskJobService.JOB_RFQ_ANALYSIS,
                 task.id,
             )
@@ -606,6 +624,7 @@ class RFQAnalysisService:
         }
         if db is not None:
             payload.update(self.job_service.get_queue_info(db, job))
+        payload.update(TaskJobService.timing_payload(timing_job))
         return payload
 
     def update_task_review(

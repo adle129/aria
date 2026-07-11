@@ -32,6 +32,18 @@ class TaskJobRepository:
         )
         return self.db.scalar(stmt)
 
+    def get_latest_by_ref(self, job_type: str, ref_id: str) -> TaskJob | None:
+        stmt = (
+            select(TaskJob)
+            .where(
+                TaskJob.job_type == job_type,
+                TaskJob.ref_id == ref_id,
+            )
+            .order_by(TaskJob.created_at.desc())
+            .limit(1)
+        )
+        return self.db.scalar(stmt)
+
     def get_active_by_single_flight(self, job_type: str, key: str) -> TaskJob | None:
         stmt = (
             select(TaskJob)

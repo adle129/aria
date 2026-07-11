@@ -25,6 +25,7 @@
 | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | **知识库 Debug UI**（**仅 DEV** · 切块/评测内部工具） |
 | [customer-dependencies.md](customer-dependencies.md) | 客户/IT 配合项 O-01～O-05（PM 跟踪） |
 | [acceptance-checklist.md](acceptance-checklist.md) | R1 验收勾选项（对齐 prod §10.2） |
+| [feat-r1-aliyun-staging-summary.md](feat-r1-aliyun-staging-summary.md) | **阿里云 staging / 离线包 / RFQ 时长可观测** 分支变更摘要 |
 | [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) | **R1「签完即用」** 内部共识（金标准 ≥5 + bulk 档位） |
 | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) | **客户历史项目库 bulk 导入** 工作量 · 试点 · 验收档位 A/B/C |
 | [r1-customer-one-pager.md](r1-customer-one-pager.md) | **客户一页纸**「R1 您将得到什么」 |

@@ -15,6 +15,9 @@ case "$PROFILE" in
   prod|production|r1)
     SRC="$ROOT/.env.production.example"
     ;;
+  aliyun-staging|staging)
+    SRC="$ROOT/.env.aliyun-staging.example"
+    ;;
   *)
     if [[ -f "$ROOT/.env.docker.example" ]]; then
       SRC="$ROOT/.env.docker.example"
@@ -33,4 +36,7 @@ cp "$SRC" "$ENV_FILE"
 echo "Created $ENV_FILE from $(basename "$SRC")"
 if [[ "$PROFILE" == "prod" || "$PROFILE" == "production" || "$PROFILE" == "r1" ]]; then
   echo "WARN: Edit POSTGRES_PASSWORD and OLLAMA_* in .env before customer go-live."
+fi
+if [[ "$PROFILE" == "aliyun-staging" || "$PROFILE" == "staging" ]]; then
+  echo "WARN: Replace change_me_* placeholders (or run scripts/deploy-aliyun-staging.sh)."
 fi

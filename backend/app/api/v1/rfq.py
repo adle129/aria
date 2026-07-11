@@ -136,7 +136,7 @@ def get_task(
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     task = analysis_service.recover_orphaned_confirm_phase(db, task)
-    return {"code": 200, "data": analysis_service.get_task_payload(task)}
+    return {"code": 200, "data": analysis_service.get_task_payload(task, db)}
 
 
 @router.get("/tasks/{task_id}/status")
@@ -185,7 +185,7 @@ def update_task(
         dimension_draft=body.dimension_draft,
         confirmed=body.confirmed,
     )
-    return {"code": 200, "data": analysis_service.get_task_payload(updated)}
+    return {"code": 200, "data": analysis_service.get_task_payload(updated, db)}
 
 
 @router.post("/tasks/{task_id}/confirm-dimensions")
@@ -222,7 +222,7 @@ def confirm_dimensions(
                 "msg": task.status_message or "确认维度后生成对比矩阵失败",
             },
         )
-    payload = analysis_service.get_task_payload(updated)
+    payload = analysis_service.get_task_payload(updated, db)
     return {
         "code": 200,
         "data": {
@@ -268,7 +268,7 @@ def generate_proposal(
         result = artifact_service.generate_proposal_stub(db, task)
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
-    payload = analysis_service.get_task_payload(task)
+    payload = analysis_service.get_task_payload(task, db)
     return {"code": 200, "data": {**result, "task": payload}}
 
 
@@ -286,7 +286,7 @@ def generate_qa(
         result = artifact_service.generate_qa_stub(db, task)
     except ValueError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
-    payload = analysis_service.get_task_payload(task)
+    payload = analysis_service.get_task_payload(task, db)
     return {"code": 200, "data": {**result, "task": payload}}
 
 

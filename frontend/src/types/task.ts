@@ -108,6 +108,13 @@ export interface TaskPayload {
   error_msg?: string;
   created_at?: string;
   updated_at?: string;
+  /** Queue wait ms (excludes parse); from task_jobs */
+  queue_wait_ms?: number | null;
+  /** Pure parse/run ms (excludes queue); from task_jobs */
+  run_ms?: number | null;
+  queued_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
 }
 
 export interface ManpowerBreakdownItem {

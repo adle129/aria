@@ -104,7 +104,11 @@ def test_process_one_completes_kb_index_job(db_session, monkeypatch):
 
     assert processed is not None
     assert processed.status == "completed"
-    assert processed.result_summary == {"new_chunks": 42}
+    assert processed.result_summary is not None
+    assert processed.result_summary.get("new_chunks") == 42
+    timing = processed.result_summary.get("timing") or {}
+    assert "queue_wait_ms" in timing
+    assert "run_ms" in timing
 
 
 def test_process_one_cancels_kb_index_at_safe_boundary(db_session, monkeypatch):

@@ -142,4 +142,4 @@ ARIA_DATA_ROOT=/data/aria bash scripts/seed-runtime-data.sh
 
 ---
 
-**关联：** [offline-customer-deploy.md](offline-customer-deploy.md) · [deployment-guide.md](deployment-guide.md) · [customer-it-infrastructure.md](customer-it-infrastructure.md)
+**关联：** [offline-customer-deploy.md](offline-customer-deploy.md) · [deployment-guide.md](deployment-guide.md) · [customer-it-infrastructure.md](customer-it-infrastructure.md) · [feat-r1-aliyun-staging-summary.md](R1/feat-r1-aliyun-staging-summary.md)

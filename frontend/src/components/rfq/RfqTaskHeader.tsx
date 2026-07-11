@@ -4,9 +4,19 @@ import { CopyOutlined, UploadOutlined } from "@ant-design/icons";
 import { Button, Space, Typography, message } from "antd";
 import RfqStatusTag from "@/components/rfq/RfqStatusTag";
 import { copyToClipboard, formatTaskShortId } from "@/lib/clipboard";
+import { formatTaskTimingLine } from "@/lib/formatDuration";
 import type { TaskPayload } from "@/types/task";
 
 const { Title, Text } = Typography;
+
+const SHOW_TIMING_STATUSES = new Set([
+  "dimension_review",
+  "completed",
+  "failed",
+  "cancelled",
+  "retrieving",
+  "generating",
+]);
 
 interface RfqTaskHeaderProps {
   task: TaskPayload;
@@ -21,6 +31,12 @@ export default function RfqTaskHeader({ task, onUploadNew }: RfqTaskHeaderProps)
   const months = mods?.timeline_months != null ? `${mods.timeline_months} 个月` : "";
   const subtitle = [project, customer, platform, months].filter(Boolean).join(" · ");
   const shortId = formatTaskShortId(task.task_id);
+  const timingLine = SHOW_TIMING_STATUSES.has(task.processing_status)
+    ? formatTaskTimingLine({
+        queueWaitMs: task.queue_wait_ms,
+        runMs: task.run_ms,
+      })
+    : null;
 
   const handleCopyTaskId = () => {
     void copyToClipboard(task.task_id)
@@ -52,6 +68,15 @@ export default function RfqTaskHeader({ task, onUploadNew }: RfqTaskHeaderProps)
           <Text type="secondary" style={{ fontSize: 13, lineHeight: 1.5, display: "block" }}>
             {subtitle || "项目与客户信息解析后将显示于此"}
           </Text>
+          {timingLine ? (
+            <Text
+              type="secondary"
+              style={{ fontSize: 12, display: "block", marginTop: 4 }}
+              data-testid="rfq-task-timing"
+            >
+              {timingLine}
+            </Text>
+          ) : null}
           <Button
             type="link"
             size="small"

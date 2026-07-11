@@ -335,7 +335,7 @@ GET /api/v1/rfq/tasks/{task_id}
 }
 ```
 
-> **字段说明：** `status` = 人工审阅状态 `review_status`；`processing_status` = 后台流水线状态。`solution_draft` / `qa_items` Demo 由 Stub 生成写入。`artifacts_status` 计算规则与页面解锁见 [prod.md §5.4](../../prod.md)。进度轮询见 `/tasks/{id}/status`。
+> **字段说明：** `status` = 人工审阅状态 `review_status`；`processing_status` = 后台流水线状态。`solution_draft` / `qa_items` Demo 由 Stub 生成写入。`artifacts_status` 计算规则与页面解锁见 [prod.md §5.4](../../prod.md)。进度轮询见 `/tasks/{id}/status`。任务详情与 status 均可能附带 `queue_wait_ms` / `run_ms` / `queued_at` / `started_at` / `finished_at`（来自最新 `rfq_analysis` job；口径见 §3）。
 
 #### 更新任务（编辑/确认）
 
@@ -995,7 +995,12 @@ GET /api/v1/rfq/tasks/{task_id}/status
   "progress": 60,
   "message": "正在生成技术维度对比表...",
   "queue_position": 2,
-  "estimated_wait_seconds": 120
+  "estimated_wait_seconds": 120,
+  "queue_wait_ms": 45000,
+  "run_ms": 82000,
+  "queued_at": "2026-07-11T11:00:00Z",
+  "started_at": "2026-07-11T11:00:45Z",
+  "finished_at": "2026-07-11T11:02:07Z"
 }
 ```
 
@@ -1003,6 +1008,11 @@ GET /api/v1/rfq/tasks/{task_id}/status
 |------|------|-----|------|
 | `queue_position` | — | ✓ | 排队序号（1=即将执行）；无排队时为 null |
 | `estimated_wait_seconds` | — | TBD | 预计等待秒数，依赖客户并发场景确认后写入 SLA |
+| `queue_wait_ms` | — | ✓ | 排队等待毫秒：`started_at - queued_at`；仍在 queued 时为 `now - queued_at` |
+| `run_ms` | — | ✓ | 纯解析毫秒（不含排队）：`finished_at - started_at`；running 时为 `now - started_at`；未开始为 null |
+| `queued_at` / `started_at` / `finished_at` | — | ✓ | ISO-8601 UTC；来自 `task_jobs` |
+
+> 时长仅覆盖 worker `rfq_analysis`（上传 → `dimension_review`）。确认维度后的 retrieving/generating 为 HTTP 内联，不计入 `run_ms`。
 
 Phase 2 可选 WebSocket/SSE 推送进度。
 

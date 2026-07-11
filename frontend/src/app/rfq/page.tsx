@@ -44,6 +44,11 @@ interface TaskStatusPayload {
   message: string;
   queue_position?: number | null;
   estimated_wait_seconds?: number | null;
+  queue_wait_ms?: number | null;
+  run_ms?: number | null;
+  queued_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
 }
 
 const POLL_INTERVAL_MS = 500;
@@ -110,6 +115,8 @@ export default function RfqPage() {
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [estimatedWaitSeconds, setEstimatedWaitSeconds] = useState<number | null>(null);
+  const [queueWaitMs, setQueueWaitMs] = useState<number | null>(null);
+  const [runMs, setRunMs] = useState<number | null>(null);
   const [useRealLlm, setUseRealLlm] = useState<boolean | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [demoSamples, setDemoSamples] = useState<
@@ -173,6 +180,8 @@ export default function RfqPage() {
     setAnalysisMessage("");
     setQueuePosition(null);
     setEstimatedWaitSeconds(null);
+    setQueueWaitMs(null);
+    setRunMs(null);
     setUploading(false);
     setRestoring(false);
     setTaskSwitching(false);
@@ -195,6 +204,8 @@ export default function RfqPage() {
         setAnalysisMessage("等待处理...");
         setQueuePosition(null);
         setEstimatedWaitSeconds(null);
+        setQueueWaitMs(null);
+        setRunMs(null);
       }
       let lastStatus = "";
       let lastProgress = -1;
@@ -203,6 +214,8 @@ export default function RfqPage() {
         setAnalysisProgress(status.progress ?? 0);
         setQueuePosition(status.queue_position ?? null);
         setEstimatedWaitSeconds(status.estimated_wait_seconds ?? null);
+        setQueueWaitMs(status.queue_wait_ms ?? null);
+        setRunMs(status.run_ms ?? null);
         setAnalysisMessage(status.message || PROCESSING_STATUS_LABELS[status.status] || "正在分析...");
         setTask((prev) =>
           prev && prev.task_id === taskId
@@ -210,6 +223,11 @@ export default function RfqPage() {
                 ...prev,
                 processing_status: status.status,
                 status_message: status.message,
+                queue_wait_ms: status.queue_wait_ms,
+                run_ms: status.run_ms,
+                queued_at: status.queued_at,
+                started_at: status.started_at,
+                finished_at: status.finished_at,
               }
             : prev,
         );
@@ -376,6 +394,8 @@ export default function RfqPage() {
         );
         setQueuePosition(status.queue_position ?? null);
         setEstimatedWaitSeconds(status.estimated_wait_seconds ?? null);
+        setQueueWaitMs(status.queue_wait_ms ?? null);
+        setRunMs(status.run_ms ?? null);
         setActivePollTaskId(id);
         setStalledPolling(false);
         setUploading(true);
@@ -494,12 +514,19 @@ export default function RfqPage() {
       const status = resp.data.data;
       setAnalysisProgress(status.progress ?? 0);
       setAnalysisMessage(status.message || PROCESSING_STATUS_LABELS[status.status] || "");
+      setQueueWaitMs(status.queue_wait_ms ?? null);
+      setRunMs(status.run_ms ?? null);
       setTask((prev) =>
         prev
           ? {
               ...prev,
               processing_status: status.status,
               status_message: status.message,
+              queue_wait_ms: status.queue_wait_ms,
+              run_ms: status.run_ms,
+              queued_at: status.queued_at,
+              started_at: status.started_at,
+              finished_at: status.finished_at,
             }
           : prev,
       );
@@ -772,6 +799,8 @@ export default function RfqPage() {
           processingStatus={task?.processing_status ?? "pending"}
           queuePosition={queuePosition}
           estimatedWaitSeconds={estimatedWaitSeconds}
+          queueWaitMs={queueWaitMs}
+          runMs={runMs}
           useRealLlm={useRealLlm}
           stalled={stalledPolling}
           cancelling={cancellingAnalysis || task?.processing_status === "cancelling"}

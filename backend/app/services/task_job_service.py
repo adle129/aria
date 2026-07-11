@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.models.task_job import TaskJob
 from app.repositories.task_job_repository import TaskJobRepository
+from app.utils.datetime_utils import to_api_utc_iso
 
 
 class TaskJobService:
@@ -49,6 +50,58 @@ class TaskJobService:
         )
         return repo.create(job)
 
+    @staticmethod
+    def _aware(dt: datetime | None) -> datetime | None:
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    @classmethod
+    def timing_payload(
+        cls,
+        job: TaskJob | None,
+        *,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        empty: dict[str, Any] = {
+            "queue_wait_ms": None,
+            "run_ms": None,
+            "queued_at": None,
+            "started_at": None,
+            "finished_at": None,
+        }
+        if job is None:
+            return empty
+
+        now = now or datetime.now(timezone.utc)
+        queued = cls._aware(job.queued_at)
+        started = cls._aware(job.started_at)
+        finished = cls._aware(job.finished_at)
+
+        queue_wait_ms: int | None = None
+        if queued is not None:
+            if started is not None:
+                queue_wait_ms = max(0, int((started - queued).total_seconds() * 1000))
+            elif job.status == "queued":
+                queue_wait_ms = max(0, int((now - queued).total_seconds() * 1000))
+            elif finished is not None:
+                queue_wait_ms = max(0, int((finished - queued).total_seconds() * 1000))
+
+        run_ms: int | None = None
+        if started is not None:
+            end_run = finished if finished is not None else now
+            run_ms = max(0, int((end_run - started).total_seconds() * 1000))
+
+        return {
+            "queue_wait_ms": queue_wait_ms,
+            "run_ms": run_ms,
+            "queued_at": to_api_utc_iso(queued),
+            "started_at": to_api_utc_iso(started),
+            "finished_at": to_api_utc_iso(finished),
+        }
+
     def mark_completed(
         self,
         db: Session,
@@ -62,9 +115,15 @@ class TaskJobService:
         job.progress_current = job.progress_total
         job.heartbeat_at = now
         job.finished_at = now
-        job.result_summary = result_summary
         job.error_message = None
         job.updated_at = now
+        summary = dict(result_summary or {})
+        timing = self.timing_payload(job, now=now)
+        summary["timing"] = {
+            "queue_wait_ms": timing["queue_wait_ms"],
+            "run_ms": timing["run_ms"],
+        }
+        job.result_summary = summary
         return repo.update(job)
 
     def update_progress(
@@ -105,15 +164,17 @@ class TaskJobService:
         repo = TaskJobRepository(db)
         now = datetime.now(timezone.utc)
         job.error_message = error[:2000]
-        job.finished_at = now
         job.updated_at = now
         if job.attempts >= job.max_attempts:
             job.status = "failed"
+            job.finished_at = now
         else:
             job.status = "queued"
             job.worker_id = None
             job.started_at = None
             job.heartbeat_at = None
+            job.finished_at = None
+            job.queued_at = now
         return repo.update(job)
 
     def get_queue_info(self, db: Session, job: TaskJob | None) -> dict[str, int | None]:

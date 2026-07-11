@@ -99,7 +99,7 @@ Excel 人力报价 **不经过** 主大模型；RFQ 解析、Q&A 去重/分类�
 | 单任务耗时（32B Q4 + 4090） | 约 **1–3 min** / 次 |
 | 排队 SLA | 前面 N 人排队时，预计等待 ≈ **N × 2 min**；5 人连排 **≤10 min**（O-07 已关闭） |
 | LLM 并发 | `OLLAMA_MAX_CONCURRENT=1`；**单 worker 副本** |
-| 软件机制 | PostgreSQL 任务队列 + worker + 前端排队位置/ETA；队列深度上限 `TASK_MAX_QUEUE_SIZE=20`（满时 429）；僵死作业 `TASK_JOB_STALE_SECONDS=900` 自动恢复 |
+| 软件机制 | PostgreSQL 任务队列 + worker + 前端排队位置/ETA；**实际排队时长 `queue_wait_ms` 与纯解析时长 `run_ms`** 在 status/任务详情与 RFQ 页可见（便于区分排队 vs 模型耗时）；队列深度上限 `TASK_MAX_QUEUE_SIZE=20`（满时 429）；僵死作业 `TASK_JOB_STALE_SECONDS=900` 自动恢复 |
 | 硬件 | **推荐版**（32 核 / 128G / RTX 4090） |
 
 **单 GPU 说明：** RTX 4090 ×1 是 R1 推荐档，按“单任务执行 + 软件排队”设计。工程师交互检索与 RFQ 长任务优先，知识库增量/全量索引低优先级分批执行；全量重建默认安排在非高峰。若要求知识库全量索引与多位工程师长任务物理并行且延迟不增加，需要增加 GPU 或独立 Embedding 节点。

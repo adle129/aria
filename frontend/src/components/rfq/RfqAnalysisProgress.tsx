@@ -2,6 +2,7 @@
 
 import { CheckCircleFilled, LoadingOutlined } from "@ant-design/icons";
 import { Button, Modal, Progress, Typography } from "antd";
+import { formatTaskTimingLine } from "@/lib/formatDuration";
 
 const { Text, Title } = Typography;
 
@@ -56,6 +57,17 @@ export function formatQueueWaitHint(opts: {
     return "本地模型分析中，通常需要 1–3 分钟，请稍候";
   }
   return "正在处理，请稍候";
+}
+
+export function formatLiveTimingHint(opts: {
+  queueWaitMs?: number | null;
+  runMs?: number | null;
+}): string | null {
+  return formatTaskTimingLine({
+    queueWaitMs: opts.queueWaitMs,
+    runMs: opts.runMs,
+    live: true,
+  });
 }
 
 export function resolveProcessingStepIndex(processingStatus: string, progress: number): number {
@@ -129,6 +141,8 @@ interface RfqAnalysisProgressProps {
   processingStatus: string;
   queuePosition?: number | null;
   estimatedWaitSeconds?: number | null;
+  queueWaitMs?: number | null;
+  runMs?: number | null;
   useRealLlm?: boolean | null;
   stalled?: boolean;
   onResumePolling?: () => void;
@@ -144,6 +158,8 @@ export default function RfqAnalysisProgress({
   processingStatus,
   queuePosition,
   estimatedWaitSeconds,
+  queueWaitMs,
+  runMs,
   useRealLlm,
   stalled,
   onResumePolling,
@@ -157,6 +173,7 @@ export default function RfqAnalysisProgress({
     stalled,
     useRealLlm,
   });
+  const timingHint = formatLiveTimingHint({ queueWaitMs, runMs });
 
   const stepVisuals = resolveProcessingStepVisuals(processingStatus, progress, queuePosition);
   const showQueueBadge =
@@ -196,7 +213,7 @@ export default function RfqAnalysisProgress({
           aria-live="polite"
           style={{
             display: "inline-block",
-            marginBottom: 16,
+            marginBottom: 8,
             padding: "6px 14px",
             borderRadius: 4,
             background: "#FFF7E6",
@@ -209,9 +226,20 @@ export default function RfqAnalysisProgress({
           {waitHint}
         </div>
       ) : (
-        <Text type="secondary" style={{ display: "block", marginBottom: 28, fontSize: 13 }}>
+        <Text type="secondary" style={{ display: "block", marginBottom: 8, fontSize: 13 }}>
           {waitHint}
         </Text>
+      )}
+      {timingHint ? (
+        <Text
+          type="secondary"
+          style={{ display: "block", marginBottom: 28, fontSize: 12 }}
+          data-testid="rfq-live-timing"
+        >
+          {timingHint}
+        </Text>
+      ) : (
+        <div style={{ marginBottom: 20 }} />
       )}
       <Progress
         percent={progress}
@@ -221,7 +249,7 @@ export default function RfqAnalysisProgress({
         showInfo
         style={{
           maxWidth: 360,
-          margin: showQueueBadge ? "0 auto 28px" : "0 auto 28px",
+          margin: "0 auto 28px",
         }}
       />
       <div

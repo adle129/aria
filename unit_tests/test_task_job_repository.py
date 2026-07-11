@@ -83,3 +83,18 @@ def test_reset_stale_running(db_session):
     assert reset == 1
     reloaded = repo.get_by_id(stale.id)
     assert reloaded.status == "queued"
+
+
+def test_get_latest_by_ref_includes_completed(db_session):
+    repo = TaskJobRepository(db_session)
+    t0 = datetime.now(timezone.utc)
+    older = _job("task-1", status="completed", queued_at=t0)
+    older.finished_at = t0
+    repo.create(older)
+    newer = _job("task-1", status="failed", queued_at=t0 + timedelta(seconds=5))
+    newer.created_at = t0 + timedelta(seconds=5)
+    repo.create(newer)
+    latest = repo.get_latest_by_ref("rfq_analysis", "task-1")
+    assert latest is not None
+    assert latest.id == newer.id
+    assert latest.status == "failed"

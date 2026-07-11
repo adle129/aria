@@ -1,6 +1,6 @@
 # Ensure project .env exists (bootstrap from example).
 param(
-    [ValidateSet("dev", "prod", "production", "r1")]
+    [ValidateSet("dev", "prod", "production", "r1", "aliyun-staging", "staging")]
     [string]$Profile = "dev"
 )
 
@@ -14,6 +14,7 @@ if (Test-Path $EnvFile) {
 
 $Src = switch ($Profile) {
     { $_ -in "prod", "production", "r1" } { Join-Path $Root ".env.production.example" }
+    { $_ -in "aliyun-staging", "staging" } { Join-Path $Root ".env.aliyun-staging.example" }
     default {
         $docker = Join-Path $Root ".env.docker.example"
         if (Test-Path $docker) { $docker } else { Join-Path $Root ".env.example" }
@@ -29,4 +30,7 @@ Copy-Item $Src $EnvFile
 Write-Host "Created .env from $(Split-Path $Src -Leaf)"
 if ($Profile -in "prod", "production", "r1") {
     Write-Warning "Edit POSTGRES_PASSWORD and OLLAMA_* in .env before customer go-live."
+}
+if ($Profile -in "aliyun-staging", "staging") {
+    Write-Warning "Replace change_me_* placeholders (or run scripts/deploy-aliyun-staging.sh)."
 }

@@ -5,6 +5,13 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path and (_ROOT / "app").is_dir():
+    sys.path.insert(0, str(_ROOT))
+elif "/app" not in sys.path and Path("/app/app").is_dir():
+    sys.path.insert(0, "/app")
 
 from app.config import get_settings
 from app.database import SessionLocal, init_db

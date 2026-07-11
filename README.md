@@ -43,6 +43,24 @@ bash scripts/deploy-aliyun-demo.sh
 
 Windows 推送：`.\scripts\push-and-deploy-aliyun.ps1 -TargetHost <公网IP> -User root -KeyPath <密钥>`
 
+### 阿里云 R1 预验证（GPU · 模拟客户生产）
+
+```powershell
+# Windows：打包并推送到 GPU ECS（默认用户 ecs-user）
+.\scripts\push-and-deploy-aliyun-staging.ps1 `
+  -TargetHost <公网IP> -KeyPath <密钥.pem> -User ecs-user
+```
+
+```bash
+# ECS 上（数据盘已挂载 /data，nvidia-smi 正常）
+bash scripts/deploy-aliyun-staging.sh
+```
+
+- Compose：`docker-compose.aliyun-staging.yml`（pgvector + worker + `qwen2.5:32b`，`MOCK_*=false`）
+- 文档：[docs/aliyun-staging-deploy.md](docs/aliyun-staging-deploy.md)
+- **客户内网离线包：** staging 验通后 `bash scripts/package-offline-delivery.sh` → 见 [docs/offline-customer-deploy.md](docs/offline-customer-deploy.md)
+- **本分支变更摘要：** [docs/R1/feat-r1-aliyun-staging-summary.md](docs/R1/feat-r1-aliyun-staging-summary.md)
+
 ### 生产部署（内网 GPU + 独立数据盘）
 
 ```bash

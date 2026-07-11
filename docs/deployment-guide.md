@@ -64,7 +64,11 @@
 |---------|--------------|--------|------|
 | **dev** | `docker-compose.yml` | 否（`./backend/data`） | 本地开发、CI、`run_tests` |
 | **experience** | `docker-compose.aliyun-demo.yml` | 否 | 4C8G 远程 UI Mock |
+| **staging** | `docker-compose.aliyun-staging.yml` | **是**（`/data/aria`） | 阿里云 GPU 预验证（模拟生产，`MOCK_*=false`） |
+| **offline** | `docker-compose.offline.yml` | **是** | 客户内网离线安装（禁止 build） |
 | **production** | `docker-compose.prod.yml` | **是**（`/data/aria`） | 内网 GPU 生产 |
+
+> Staging / 离线步骤：[aliyun-staging-deploy.md](aliyun-staging-deploy.md) · [offline-customer-deploy.md](offline-customer-deploy.md) · 变更摘要 [R1/feat-r1-aliyun-staging-summary.md](R1/feat-r1-aliyun-staging-summary.md)
 
 **设计原则：**
 
