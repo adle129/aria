@@ -22,22 +22,7 @@ import { InfoCircleOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
-import EngagementInventoryPanel from "@/components/EngagementInventoryPanel";
-import EngagementUploadPanel from "@/components/EngagementUploadPanel";
-import KbCapacityAlert from "@/components/KbCapacityAlert";
-import KnowledgeImportHistoryPanel from "@/components/KnowledgeImportHistoryPanel";
-import KnowledgeIndexJobPanel from "@/components/KnowledgeIndexJobPanel";
-import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
-import { useAuth } from "@/context/AuthContext";
-import { useUiProfile } from "@/hooks/useUiProfile";
-import {
-  getKnowledgePageVisibility,
-  knowledgeCoverageHint,
-  knowledgeDocumentsEmptyText,
-  knowledgePageIntro,
-  knowledgeSearchHint,
-} from "@/lib/knowledgePageVisibility";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -49,18 +34,12 @@ const DOC_TYPE_OPTIONS = [
   { value: "summary", label: "方案 / 摘要" },
 ];
 
-const DOC_TYPE_QUOTING_HINT_DEMO: Record<string, string> = {
+/** Quoting-stage hint for indexed documents (tooltip only). */
+const DOC_TYPE_QUOTING_HINT: Record<string, string> = {
   rfq: "RFQ 分析 · 对标参考",
   summary: "RFQ 分析 · 方案摘要",
   qa: "QA 清单 · Phase 2",
   quote_manpower: "人力报价 · Phase 2",
-};
-
-const DOC_TYPE_QUOTING_HINT_R1: Record<string, string> = {
-  rfq: "RFQ 分析 · 对标参考",
-  summary: "RFQ 分析 · 方案摘要",
-  qa: "RFQ 分析 · Q_A 检索参考",
-  quote_manpower: "人天基线 · 规则解析",
 };
 
 interface KnowledgeStats {
@@ -90,6 +69,14 @@ interface RAGHitRow {
     doc_type?: string;
     functions?: string[];
   };
+}
+
+interface ImportResult {
+  new_documents: number;
+  new_chunks: number;
+  skipped: number;
+  failed_files: Array<{ path: string; error: string }>;
+  last_import_at?: string;
 }
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -123,16 +110,6 @@ function formatBytes(n?: number): string {
 }
 
 export default function KnowledgePage() {
-  const { authEnabled, isKbAdmin } = useAuth();
-  const { health, showDemoChrome, isFormalDelivery } = useUiProfile();
-  const docTypeQuotingHint = showDemoChrome ? DOC_TYPE_QUOTING_HINT_DEMO : DOC_TYPE_QUOTING_HINT_R1;
-  const visibility = getKnowledgePageVisibility({
-    authEnabled,
-    isKbAdmin,
-    isFormalDelivery,
-  });
-  const { canWriteKb } = visibility;
-  const writeProtected = health?.data_volume?.write_protected === true;
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [results, setResults] = useState<RAGHitRow[]>([]);
@@ -143,12 +120,9 @@ export default function KnowledgePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [docsLoading, setDocsLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [lastImport, setLastImport] = useState<ImportResult | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
-  const [activeTab, setActiveTab] = useState("docs");
-  const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
-  const [insufficientEvidence, setInsufficientEvidence] = useState<boolean | null>(null);
-  const [importHistoryRefresh, setImportHistoryRefresh] = useState(0);
-  const [indexStartSignal, setIndexStartSignal] = useState(0);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -176,30 +150,15 @@ export default function KnowledgePage() {
     }
   }, []);
 
-  const handleIndexCompleted = useCallback(async () => {
-    setWizardStep(2);
-    setImportHistoryRefresh((value) => value + 1);
-    await Promise.all([loadStats(), loadDocuments()]);
-  }, [loadDocuments, loadStats]);
-
   useEffect(() => {
     void loadStats();
     void loadDocuments();
   }, [loadStats, loadDocuments]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const q = params.get("q");
+    const q = new URLSearchParams(window.location.search).get("q");
     if (q) {
       setQuery(decodeURIComponent(q));
-    }
-    const tab = params.get("tab");
-    if (tab) {
-      setActiveTab(tab);
-    }
-    const engagementId = params.get("engagement_id");
-    if (engagementId) {
-      setBaselinesEngagementId(engagementId);
     }
   }, []);
 
@@ -216,10 +175,7 @@ export default function KnowledgePage() {
     }
     setSearchLoading(true);
     try {
-      const resp = await apiClient.post<{
-        code: number;
-        data: { results: RAGHitRow[]; insufficient_evidence?: boolean };
-      }>(
+      const resp = await apiClient.post<{ code: number; data: { results: RAGHitRow[] } }>(
         "/knowledge/search",
         {
           query: query.trim(),
@@ -229,7 +185,6 @@ export default function KnowledgePage() {
         },
       );
       setResults(resp.data.data.results);
-      setInsufficientEvidence(resp.data.data.insufficient_evidence ?? null);
       setWizardStep(3);
       if (resp.data.data.results.length === 0) {
         message.info("未找到匹配结果，可调整关键词或先更新知识库索引");
@@ -238,6 +193,31 @@ export default function KnowledgePage() {
       message.error("检索失败");
     } finally {
       setSearchLoading(false);
+    }
+  };
+
+  const runImport = async () => {
+    setImportLoading(true);
+    try {
+      const resp = await apiClient.post<{ code: number; data: ImportResult }>("/knowledge/import");
+      const data = resp.data.data;
+      setLastImport(data);
+      const failedCount = data.failed_files?.length ?? 0;
+      if (failedCount > 0) {
+        message.warning(
+          `索引完成：新增 ${data.new_documents} 篇，跳过 ${data.skipped} 篇，失败 ${failedCount} 篇`,
+        );
+      } else {
+        message.success(
+          `索引更新完成：新增 ${data.new_documents} 篇文档，${data.new_chunks} 个可检索片段，跳过 ${data.skipped} 篇`,
+        );
+      }
+      setWizardStep(2);
+      await Promise.all([loadStats(), loadDocuments()]);
+    } catch {
+      message.error("索引更新失败");
+    } finally {
+      setImportLoading(false);
     }
   };
 
@@ -255,11 +235,14 @@ export default function KnowledgePage() {
         </Title>
         <Tag color="blue">平台能力</Tag>
       </Space>
-      <Paragraph type="secondary">{knowledgePageIntro(canWriteKb)}</Paragraph>
+      <Paragraph type="secondary">
+        历史项目 RFQ、方案、报价等工程资料 · 平台共享检索底座。报价工程师日常在「RFQ
+        分析」查看对标结果即可；本页供管理员入库、索引与检索验证。
+      </Paragraph>
 
-      <PlatformKnowledgeExplainer canWriteKb={canWriteKb} />
+      <PlatformKnowledgeExplainer />
 
-      {stats?.mock_rag && showDemoChrome && (
+      {stats?.mock_rag && (
         <Alert
           type="warning"
           showIcon
@@ -273,92 +256,64 @@ export default function KnowledgePage() {
         />
       )}
 
-      {stats?.mock_rag && isFormalDelivery && visibility.showOpsMockRagAlert && (
+      <DemoModuleCapability module="knowledge" />
+
+      <Card title="入库与验证向导" style={{ marginBottom: 16 }} size="small">
+        <Steps
+          size="small"
+          current={wizardStep}
+          items={[
+            {
+              title: "准备项目资料",
+              description: "目录落盘或 Web 上传",
+            },
+            {
+              title: "更新索引",
+              description: "扫描并写入向量库",
+            },
+            {
+              title: "查看清单",
+              description: `${indexedCount}/${documents.length} 已索引`,
+            },
+            {
+              title: "检索验证",
+              description: "确认能命中预期资料",
+            },
+          ]}
+        />
+        <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 8 }}>
+          <Text strong>R1 入库方式：</Text>
+          <Text strong>（A）</Text> IT 将项目包放入服务器{" "}
+          <Text code>knowledge_base/&lt;项目名&gt;/</Text>
+          （100+ 推荐）→ 点击「更新知识库索引」；
+          <Text strong>（B）</Text> 本页「上传项目包」— 单套 ZIP/多文件，或一次最多{" "}
+          <Text strong>5 套</Text> → 查看缺件提示 → 更新索引。
+        </Paragraph>
+        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
+        </Paragraph>
+      </Card>
+
+      {lastImport && (lastImport.failed_files?.length ?? 0) > 0 && (
         <Alert
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
-          message="生产环境不应启用 Mock RAG，请检查部署配置（MOCK_RAG=false）。"
+          message={`${lastImport.failed_files.length} 个文件索引失败`}
+          description={
+            <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+              {lastImport.failed_files.map((f) => (
+                <li key={f.path}>
+                  <Text code>{f.path}</Text> — {f.error}
+                </li>
+              ))}
+            </ul>
+          }
         />
-      )}
-
-      <DemoModuleCapability module="knowledge" />
-
-      {visibility.showIngestWizard && (
-        <Card title="入库与验证向导" style={{ marginBottom: 16 }} size="small">
-          <Steps
-            size="small"
-            current={wizardStep}
-            items={[
-              {
-                title: "准备项目资料",
-                description: "目录落盘或 Web 上传",
-              },
-              {
-                title: "更新索引",
-                description: "扫描并写入向量库",
-              },
-              {
-                title: "查看清单",
-                description: `${indexedCount}/${documents.length} 已索引`,
-              },
-              {
-                title: "检索验证",
-                description: "确认能命中预期资料",
-              },
-            ]}
-          />
-          <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 8 }}>
-            <Text strong>R1 入库方式：</Text>
-            <Text strong>（A）</Text> IT 将项目包放入服务器{" "}
-            <Text code>knowledge_base/&lt;项目名&gt;/</Text>
-            （100+ 推荐）→ 点击「更新知识库索引」；
-            <Text strong>（B）</Text> 本页「上传项目包」— 单套 ZIP/多文件，或一次最多{" "}
-            <Text strong>5 套</Text> → 查看缺件提示 → 更新索引。
-          </Paragraph>
-          <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
-          </Paragraph>
-        </Card>
-      )}
-
-      {visibility.showCapacityAlert && <KbCapacityAlert volume={health?.data_volume} />}
-
-      {visibility.showUpload && (
-        <EngagementUploadPanel
-          writeProtected={writeProtected}
-          onUploaded={() => {
-            setWizardStep(1);
-            void loadDocuments();
-          }}
-          onRequestIndex={() => {
-            setWizardStep(1);
-            setIndexStartSignal((n) => n + 1);
-          }}
-        />
-      )}
-
-      {visibility.showIndexJob && (
-        <KnowledgeIndexJobPanel
-          onCompleted={handleIndexCompleted}
-          writeProtected={writeProtected}
-          startSignal={indexStartSignal}
-        />
-      )}
-
-      {visibility.showImportAudit && (
-        <Card title="导入审计" style={{ marginBottom: 16 }}>
-          <KnowledgeImportHistoryPanel refreshToken={importHistoryRefresh} />
-        </Card>
-      )}
-
-      {visibility.showEngagementInventory && (
-        <EngagementInventoryPanel refreshToken={importHistoryRefresh} />
       )}
 
       <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
+        defaultActiveKey="docs"
         items={[
           {
             key: "docs",
@@ -369,6 +324,13 @@ export default function KnowledgePage() {
                   <Space wrap style={{ marginBottom: 16 }}>
                     <Button onClick={() => void loadStats()} loading={statsLoading}>
                       刷新统计
+                    </Button>
+                    <Button
+                      type="primary"
+                      loading={importLoading}
+                      onClick={() => void runImport()}
+                    >
+                      更新知识库索引
                     </Button>
                     <Button onClick={() => void loadDocuments()} loading={docsLoading}>
                       刷新文档清单
@@ -419,7 +381,7 @@ export default function KnowledgePage() {
                             />
                           </Text>
                           <Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 12 }}>
-                            {knowledgeCoverageHint(canWriteKb)}
+                            覆盖偏低的领域，建议在 RFQ 对标时重点人工补充依据，或优先补充该类历史项目资料。
                           </Paragraph>
                           <div style={{ maxWidth: 480 }}>
                             {coverageEntries.map(([fn, rate]) => (
@@ -429,7 +391,7 @@ export default function KnowledgePage() {
                                     <Text>{fn}</Text>
                                     {rate < 0.4 && (
                                       <Tag color="orange" style={{ margin: 0 }}>
-                                        {canWriteKb ? "建议补充资料" : "覆盖偏低"}
+                                        建议补充资料
                                       </Tag>
                                     )}
                                   </Space>
@@ -458,10 +420,8 @@ export default function KnowledgePage() {
                     dataSource={documents}
                     pagination={{ pageSize: 8, hideOnSinglePage: true }}
                     locale={{
-                      emptyText: knowledgeDocumentsEmptyText({
-                        canWriteKb,
-                        showDemoChrome,
-                      }),
+                      emptyText:
+                        "暂无文档；Demo 请将 .docx 放入 knowledge_base/<项目名>/（Phase 2 支持项目包上传）",
                     }}
                     columns={[
                       { title: "路径", dataIndex: "path", ellipsis: true },
@@ -473,7 +433,7 @@ export default function KnowledgePage() {
                         render: (v: string, row: KnowledgeDocument) => {
                           const label = DOC_TYPE_OPTIONS.find((o) => o.value === v)?.label || v;
                           const hint =
-                            row.status === "indexed" ? docTypeQuotingHint[v] : undefined;
+                            row.status === "indexed" ? DOC_TYPE_QUOTING_HINT[v] : undefined;
                           return hint ? (
                             <Tooltip title={`报价环节参考：${hint}`}>
                               <span>{label}</span>
@@ -497,7 +457,6 @@ export default function KnowledgePage() {
                           const cfg = STATUS_TAG[v] || { color: "default", label: v };
                           const tag = <Tag color={cfg.color}>{cfg.label}</Tag>;
                           if (
-                            showDemoChrome &&
                             v === "failed" &&
                             (row.doc_type === "quote_manpower" || row.path.endsWith(".xlsx"))
                           ) {
@@ -522,7 +481,7 @@ export default function KnowledgePage() {
 
                 <Card title="历史资料检索" style={{ marginBottom: 16 }}>
                   <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                    {knowledgeSearchHint(canWriteKb)}
+                    RFQ 分析页中的「相似历史项目」由相同检索逻辑产生，可在此验证关键词能否命中预期资料。
                   </Paragraph>
                   <Space wrap style={{ marginBottom: 16 }}>
                     <Input
@@ -560,16 +519,6 @@ export default function KnowledgePage() {
                       检索
                     </Button>
                   </Space>
-
-                  {insufficientEvidence === true && (
-                    <Alert
-                      type="warning"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message="检索依据不足"
-                      description="最高相似度低于阈值，RFQ 对标时系统将提示人工补充历史资料或核对结论。"
-                    />
-                  )}
 
                   <Table
                     rowKey={(_, i) => String(i)}
@@ -617,44 +566,35 @@ export default function KnowledgePage() {
             ),
           },
           {
-            key: "baselines",
-            label: "人天基线",
-            children: <ManpowerBaselinesPanel engagementId={baselinesEngagementId} />,
+            key: "modules",
+            label: "原子模块（Phase 2）",
+            children: (
+              <Card>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="正式版功能预览"
+                  description="将支持按工程领域浏览历史方案的原子模块。Demo 阶段仅展示占位说明，下列示例数据不代表贵司真实资料。"
+                />
+                <Table
+                  style={{ marginTop: 16 }}
+                  rowKey="key"
+                  size="small"
+                  pagination={false}
+                  dataSource={[
+                    { key: "Chassis-Suspension-FEA", function: "Chassis", name: "悬架布置与载荷" },
+                    { key: "Chassis-Steering-Layout", function: "Chassis", name: "转向系统布置" },
+                    { key: "PM-Project-Control", function: "PM", name: "项目计划与控制" },
+                  ]}
+                  columns={[
+                    { title: "模块标识", dataIndex: "key" },
+                    { title: "工程领域", dataIndex: "function", width: 100 },
+                    { title: "名称", dataIndex: "name" },
+                  ]}
+                />
+              </Card>
+            ),
           },
-          ...(showDemoChrome
-            ? [
-                {
-                  key: "modules",
-                  label: "原子模块（Phase 2）",
-                  children: (
-                    <Card>
-                      <Alert
-                        type="info"
-                        showIcon
-                        message="正式版功能预览"
-                        description="将支持按工程领域浏览历史方案的原子模块。Demo 阶段仅展示占位说明，下列示例数据不代表贵司真实资料。"
-                      />
-                      <Table
-                        style={{ marginTop: 16 }}
-                        rowKey="key"
-                        size="small"
-                        pagination={false}
-                        dataSource={[
-                          { key: "Chassis-Suspension-FEA", function: "Chassis", name: "悬架布置与载荷" },
-                          { key: "Chassis-Steering-Layout", function: "Chassis", name: "转向系统布置" },
-                          { key: "PM-Project-Control", function: "PM", name: "项目计划与控制" },
-                        ]}
-                        columns={[
-                          { title: "模块标识", dataIndex: "key" },
-                          { title: "工程领域", dataIndex: "function", width: 100 },
-                          { title: "名称", dataIndex: "name" },
-                        ]}
-                      />
-                    </Card>
-                  ),
-                },
-              ]
-            : []),
         ]}
       />
     </div>

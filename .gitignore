@@ -17,8 +17,6 @@ out/
 backend/data/uploads/*
 backend/data/outputs/*
 backend/data/chroma_db/*
-backend/data/validation_reports/*
-backend/data/app/feedback/*
 !backend/data/**/.gitkeep
 
 *.xlsx
@@ -30,8 +28,3 @@ backend/data/app/feedback/*
 Thumbs.db
 aria-deploy.tar.gz
 deploy-stamp.txt
-
-.tmp_*
-debug-*.log
-*.tsbuildinfo
-backend/data/pgvector_index_state.json

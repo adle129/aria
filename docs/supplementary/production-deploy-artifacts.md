@@ -1,7 +1,6 @@
 # 生产部署工程文件规格
 
-**版本：** v1.1 · 2026-07-07
-**状态：** 部分实现 · `docker-compose.prod.yml` 当前 **缺少 `worker` 服务**（与本文 YAML 不一致），需补齐；见 [docs-gate 跟踪] 与 `track-a-infra` 任务  
+**状态：** 已实现（见仓库 `docker-compose.prod.yml` 与 `deploy/scripts/`）  
 **关联：** [deployment-guide.md](../deployment-guide.md) · [customer-it-infrastructure.md](../customer-it-infrastructure.md)
 
 仓库应包含以下文件（若尚未存在，按本节创建）：

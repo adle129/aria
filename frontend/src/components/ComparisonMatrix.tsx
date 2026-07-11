@@ -3,8 +3,6 @@
 import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { Input, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import Link from "next/link";
-import { buildBaselinesKnowledgeHref } from "@/lib/rfqBaselinesLink";
 
 export interface MatrixHistoryCell {
   project_name?: string;
@@ -23,7 +21,6 @@ export interface MatrixRow {
 interface ComparisonMatrixProps {
   matrixRows: MatrixRow[];
   projectNames: string[];
-  projectBaselinesEngagementIds?: (string | null)[];
   editable?: boolean;
   onNewProjectChange?: (dimension: string, value: string) => void;
 }
@@ -37,7 +34,6 @@ function MatchIcon({ match }: { match?: boolean | null }) {
 export function ComparisonMatrix({
   matrixRows,
   projectNames,
-  projectBaselinesEngagementIds,
   editable = false,
   onNewProjectChange,
 }: ComparisonMatrixProps) {
@@ -66,25 +62,11 @@ export function ComparisonMatrix({
         );
       },
     },
-    ...projectNames.map((name, index) => {
-      const engagementId = projectBaselinesEngagementIds?.[index] ?? null;
-      return {
+    ...projectNames.map((name, index) => ({
       title: (
-        <div style={{ lineHeight: 1.35 }}>
-          <Tooltip title={name}>
-            <span>{name.length > 18 ? `${name.slice(0, 18)}…` : name}</span>
-          </Tooltip>
-          {engagementId ? (
-            <div style={{ marginTop: 2 }}>
-              <Link
-                href={buildBaselinesKnowledgeHref(engagementId)}
-                style={{ fontSize: 11, fontWeight: 500 }}
-              >
-                人天基线
-              </Link>
-            </div>
-          ) : null}
-        </div>
+        <Tooltip title={name}>
+          <span>{name.length > 18 ? `${name.slice(0, 18)}…` : name}</span>
+        </Tooltip>
       ),
       key: `history_${index}`,
       width: 160,
@@ -104,8 +86,7 @@ export function ComparisonMatrix({
           </span>
         );
       },
-    };
-    }),
+    })),
   ];
 
   return (

@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -46,69 +46,12 @@ class KnowledgeDocumentsResponse(BaseModel):
     documents: list[KnowledgeDocumentItem]
 
 
-class EngagementCompletenessData(BaseModel):
-    tier: Literal["gold", "silver", "copper"]
-    indexable: bool
-    missing: list[str] = Field(default_factory=list)
-    automation_impacts: list[str] = Field(default_factory=list)
-
-
-class EngagementUploadPackResult(EngagementCompletenessData):
-    engagement_id: str
-    project_name: str | None = None
-    status: Literal["stored"]
-    stored: bool
-    path: str
-    files: list[str] = Field(default_factory=list)
-    errors: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class EngagementImportResult(EngagementCompletenessData):
-    engagement_id: str
-    status: Literal["indexed", "failed"]
-    error: str | None = None
-
-
 class KnowledgeImportResponse(BaseModel):
     new_documents: int
     new_chunks: int
     skipped: int
     failed_files: list[dict[str, str]] = Field(default_factory=list)
     last_import_at: str | None = None
-    engagements: list[EngagementImportResult] = Field(default_factory=list)
-
-
-class KnowledgeImportBatchItem(BaseModel):
-    import_id: str
-    job_id: str | None = None
-    triggered_by: str | None = None
-    batch_id: str | None = None
-    mode: str
-    status: str
-    generation_id: str | None = None
-    new_documents: int = 0
-    new_chunks: int = 0
-    skipped: int = 0
-    failed_count: int = 0
-    failed_files: list[dict[str, str]] = Field(default_factory=list)
-    engagements: list[dict[str, Any]] = Field(default_factory=list)
-    error_message: str | None = None
-    started_at: str | None = None
-    finished_at: str | None = None
-    created_at: str | None = None
-
-
-class EngagementAuditItem(BaseModel):
-    engagement_id: str
-    project_name: str
-    tier: str | None = None
-    index_status: str
-    content_hash: str | None = None
-    uploaded_at: str | None = None
-    uploaded_by: str | None = None
-    last_indexed_at: str | None = None
-    last_error: str | None = None
-    folder_path: str
 
 
 class KnowledgeStatsResponse(BaseModel):
@@ -116,6 +59,5 @@ class KnowledgeStatsResponse(BaseModel):
     total_chunks: int
     total_projects: int
     last_import_at: str | None = None
-    active_generation: str | None = None
     function_coverage: dict[str, float] = Field(default_factory=dict)
     mock_rag: bool | None = None

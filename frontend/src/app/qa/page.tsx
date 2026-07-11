@@ -17,10 +17,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { apiClient, buildApiUrl } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
-import MilestoneStepScaffold from "@/components/MilestoneStepScaffold";
 import { useTaskContext } from "@/context/TaskContext";
-import { useUiProfile } from "@/hooks/useUiProfile";
-import { showsMilestoneScaffold } from "@/lib/uiProfile";
 import type { QAItem, TaskPayload } from "@/types/task";
 
 const { Paragraph, Title } = Typography;
@@ -44,7 +41,6 @@ export default function QAPage() {
 }
 
 function QAPageContent() {
-  const { profile } = useUiProfile();
   const searchParams = useSearchParams();
   const { taskId, task, loading, loadTask, setTaskId, syncFromPayload } = useTaskContext();
   const [generating, setGenerating] = useState(false);
@@ -56,10 +52,6 @@ function QAPageContent() {
       void loadTask(fromUrl);
     }
   }, [searchParams, loadTask, setTaskId]);
-
-  if (showsMilestoneScaffold(profile, "qa")) {
-    return <MilestoneStepScaffold step="qa" />;
-  }
 
   const items = task?.qa_items || [];
   const rfqReady = task?.processing_status === "completed";

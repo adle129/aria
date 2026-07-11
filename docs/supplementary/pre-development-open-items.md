@@ -1,6 +1,6 @@
 # 开发前开放项与待确认登记
 
-**版本：** v1.2 · 2026-07-10
+**版本：** v1.0 · 2026-07-04  
 **受众：** PM、开发、验收负责人（**内部 · 不对客户披露**）  
 **用途：** 正式版 **写代码 / 开里程碑 / 合并 PR 前** 必读；确保待确认信息不遗漏。  
 **维护：** PM + 开发 Lead；状态变更时同步来源文档。
@@ -28,7 +28,7 @@
 | 里程碑 | 可开工 / 可验收条件（摘要） | 仍缺则 |
 |--------|---------------------------|--------|
 | **R1 编码启动** | 已读 [formal-delivery-strategy.md](formal-delivery-strategy.md) · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)；计划从 Demo 壳 + `release/r1` 演进；**不强制**客户 ~100 项基准清单（R1-α 可用内部 seed） | — |
-| **R1 客户验收签字** | O-01～O-05 及 **O-02a/c/d** 关闭；**R1-KH Phase A/B** 完成；内网 **≥15** indexed RFQ（推荐）；3 份 RFQ 基准勾选 + 矩阵；≥12/15 检索评测 | **不可签字** |
+| **R1 客户验收签字** | O-01～O-05 关闭；3 份 RFQ 基准勾选 + 矩阵；≥12/15 检索评测 | **不可签字** |
 | **M3** | O-08、O-09 关闭；ScopeMatch + 9 Function Excel | 顺延 |
 | **M4** | Q3 已确认（仅生成/下载 Excel） | — |
 | **M5** | O-10、O-11 关闭；34 页 PPT 预填验收 | 顺延 |
@@ -53,13 +53,6 @@
 | Q8 | **全维度对比矩阵**需求（基准库 + 勾选 + `—` 展示） | 2026-07-04 反馈 | F1.10a–d；**清单见 O-01** |
 | D1–D7 | Demo 复用壳、非生产逻辑；R1 仅 RFQ+知识库；等 | 2026-07-04 | formal-delivery-strategy |
 | UI-01 | 确认页展示 **全量基准行**；矩阵页 **仅 in_scope 行** | 2026-07-04 | rfq-dimension-baseline-spec §5 |
-| **SURVEY-01** | 使用人数 **10–20 人** | **2026-07-07** | prod §2.1 · deployment-guide §2.1 |
-| **SURVEY-02** | 忙时 **3–5 人** 同时在系统里干活 | **2026-07-07** | O-06 · I-01 |
-| **SURVEY-03** | 很少集中同时用（大家错开） | **2026-07-07** | I-01 维持 1 并发 |
-| **SURVEY-04** | 排队等待 **可接受**（几分钟） | **2026-07-07** | O-07 · user-manual §3.1 |
-| **SURVEY-05** | **须** 每人只看到自己的 RFQ 项目 | **2026-07-07** | R1-AUTH · prod NF18–NF20 |
-| **SURVEY-06** | **须** 分角色登录（工程师 / 资料库管理员） | **2026-07-07** | R1-AUTH · prod NF19 |
-| **D8** | R1 含 Auth MVP（登录 + 两角色 + 任务隔离）；不含 SSO | **2026-07-07** | formal-delivery-strategy §2 |
 
 ---
 
@@ -68,13 +61,12 @@
 | ID | 项 | 责任 | 建议截止 | 阻塞 | 状态 | 来源 |
 |----|-----|------|----------|------|------|------|
 | **O-01** | **工作维度基准清单（~100 项，Excel）** | 客户 | R1 第 7–8 周前 | **R1 验收** | 待客户提供 | Q8 · [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md) |
-| **O-02a** | **≥5 套 Engagement 金标准三件套**（脱敏 RFQ+Q_A+填好数报价） | 客户 | 1 周内 ≥3 套；第 6 周前 ≥5 套 | **R1 验收 §4.1** · **P1** | 待客户提供 | [R1 验收说明 §4.1](../R1-知识库验收与检索评测说明（客户版）.md) |
-| **O-02b** | **10–20 套结构试点**（脱敏，**可缺件**） | 客户 | 签约前或 **第 1 周** | 档位决策 · **P1** | 待客户提供 | [bulk-import-workload-assessment.md](../R1/bulk-import-workload-assessment.md) §5 |
-| **O-02c** | **内网 bulk 首次导入**（贵司现有历史项目库；IT 目录 + 导入报告；档位 A ≥90%） | 客户 IT + 乙方 | 第 5–8 周 import；**第 7–8 周内网验收** · **P2** | **R1 验收 §4.1b** | 待客户提供 | bulk-import §4 |
-| **O-02d** | **《历史项目清点表》**（计划入库数 N、三件套齐全率、缺件说明） | 双方 | **签约后 2 周内** | bulk 验收范围 | 待双方确认 | [customer-dependencies.md](../R1/customer-dependencies.md) |
+| **O-02** | **3–5 套 Engagement 金标准三件套**（脱敏 RFQ+Q_A+报价） | 客户 | 启动前定计划；第 7–8 周验收 | **R1 验收** | 待客户提供 | customer-feedback §7 · [R1 验收说明 §4.1](../R1-知识库验收与检索评测说明（客户版）.md) |
 | **O-03** | **≥15 条检索评测题集**（期望命中项目/文档） | 双方 | R1 **第 4 周前**共同确认 | **R1 验收** | 待双方确认 | R1 验收说明 §4.4 |
 | **O-04** | **3 份代表性 RFQ**（基准勾选 + 对比矩阵验收） | 客户 | R1 第 7–8 周 | **R1 验收** | 待客户提供 | R1 验收说明 §4.3 |
 | **O-05** | **M0：GPU / 独立数据盘 / Ollama / Docker** | 客户 IT | R1 验收前（可与 R1 开发并行） | **R1 验收** | 待客户提供 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) |
+| **O-06** | **高峰同时提交 RFQ 长任务人数**（团队 20–30 人中实际并发） | 客户 | 并行确认 | 不阻塞 R1 架构；**阻塞 SLA 文案** | 待客户提供 | customer-it §6.1 |
+| **O-07** | **排队 SLA 数字**（第 N 位预计等待分钟） | 双方 | O-06 确认后 | 不阻塞开发；**阻塞 user-manual 定稿** | 待双方确认 | [user-manual.md](../user-manual.md) · api-design |
 | **O-08** | **报价 Excel 模板书面签收** | 客户 | M3 启动前 | **M3** | 待客户提供 | implementation-plan D9 |
 | **O-09** | **M3：≥3 RFQ 的 best_match 历史项目书面确认** | 客户 | M3 验收 | **M3** | 待客户提供 | implementation-plan · prod §10.2 M3 |
 | **O-10** | **Content Template 34 页 PPT 模板签收** | 客户 | M5 启动前 | **M5** | 待客户提供 | customer-feedback §7 |
@@ -94,23 +86,13 @@
 
 | ID | 项 | 建议默认 | 何时定 | 状态 | 来源 |
 |----|-----|----------|--------|------|------|
-| **I-01** | `OLLAMA_MAX_CONCURRENT`（1 或 2） | **`1`** | O-06 确认后 | **已关闭** · 2026-07-07 | dev-context · api-design |
-| **I-02** | 吞吐方案：32B 排队 / 降 14B / 多卡 | **32B + 排队** | O-06 后 | **已关闭** · 2026-07-07 | 容量架构讨论 |
+| **I-01** | `OLLAMA_MAX_CONCURRENT`（1 或 2） | **`1`** | O-06 确认后 | 内部待定 | dev-context · api-design |
+| **I-02** | 吞吐方案：32B 排队 / 降 14B / 多卡 | **32B + 排队** | O-06 后 | 内部待定 | 容量架构讨论 |
 | **I-03** | R1-α 内部 seed 基准条数 | **20–30 项** | R1 编码启动 | 内部待定 | rfq-dimension-baseline-spec §5 |
-| **I-04** | Git 分支 `release/r1` 是否已创建 | 已创建（本地）；push 待网络 | 正式开工前 | **已关闭** | formal-delivery-strategy §9 |
-| **I-05** | `.cursor/rules` 与 pgvector / 无 LangChain 口径同步 | 已同步 v1.0 · 2026-07-04 | R1 前 | **已关闭** | formal-delivery-strategy §9 · aria-r1-delivery.mdc |
+| **I-04** | Git 分支 `release/r1` 是否已创建 | 待创建 | 正式开工前 | 内部待定 | formal-delivery-strategy §9 |
+| **I-05** | `.cursor/rules` 与 pgvector / 无 LangChain 口径同步 | 待排期 | R1 前 | 内部待定 | formal-delivery-strategy §9.2 |
 | **I-06** | R1 验收彩排脚本（15–20 min，仅 RFQ+知识库） | 待编写 | R1 第 6 周前 | 内部待定 | formal-delivery-strategy §9.2 |
 | **I-07** | R1 检索评测 JSON 快照 / 自动化程度 | 手工表为主 | R1 第 4 周 | 内部待定 | test-plan §7 |
-| **I-08** | **F5.6 引用反馈 L1**（一键反馈 + CSV 导出） | **内部运维增强 · 可选做**；**不进客户合同** | R1～M6 视进度 | 内部待定 | dev-tasks **R1-OPS** · 2026-07-06 决策 |
-| **I-09** | **`JWT_SECRET` 生成策略** | 部署时 `openssl rand -hex 32`；写入 `.env.production` | R1-AUTH 开工前 | **已关闭** · 2026-07-07 | api-design §0 · deployment-guide |
-| **I-10** | KB 索引一致性 | staging generation + 原子切换；失败保留旧索引 | 2026-07-10 Review | **已关闭** | rag-design §6.1 · R1-KH03 |
-| **I-11** | 单 GPU 资源优先级 | 交互检索 > RFQ > KB 增量 > KB 全量；全量非高峰 | 2026-07-10 Review | **已关闭** | rag-design §6.1 · R1-KH04 |
-| **I-12** | 数据盘保护阈值 | 80% warning、90% 写保护，均可配置；既有读服务继续 | 2026-07-10 Review | **已关闭** | api-design §2.1/§2.3 · R1-KH05 |
-| **I-13** | 铜级 Engagement | 缺 Q&A/报价可落盘；有可解析 RFQ 即可参与 R1 Top-3，报告注明 M3/M4 影响 | 2026-07-10 Review | **已关闭** | R1 验收说明 · rag-design §11.4.1 · R1-KH01 |
-
-> **I-10～I-13 的“已关闭”仅表示设计决策已定，不表示代码已完成。** 实施状态以 [dev-tasks R1-KH00–KH13](../R1/dev-tasks.md) 为准；KH00 ADR 与 Phase A/B 仍是 R1-β Gate。
-
-**I-08 说明：** 便于乙方 R1 末～M6 联调期收集 Top-3/检索问题；客户验收仍用试搜表 + 例会。若实施，**不**写入 [acceptance-checklist.md](../R1/acceptance-checklist.md) 与客户彩排。
 
 ---
 
@@ -131,22 +113,16 @@
 | F1.10c 勾选复核 UI（`DimensionBaselineReview`） | rfq-dimension-baseline-spec §6 |
 | F1.10d `confirm-dimensions` + 矩阵（仅 in_scope） | prompt-spec §3 · api-design |
 | Engagement manifest + Web ≤5 套/次 | rag-design §11.4.1 |
-| `manpower_baselines` ingest + `GET /knowledge/baselines` | [manpower-baselines-spec.md](manpower-baselines-spec.md) · rag-design §11.3 |
-| `/knowledge` 基线预览 Tab + Top-3 联动 | manpower-baselines-spec §3.5 · dev-tasks R1-K08b/c |
+| `manpower_baselines` ingest + `GET /knowledge/baselines` | rag-design |
 | `insufficient_evidence` 拒答（禁止 Mock 欺骗） | rag-design |
 | `ARIA_UI_PROFILE=r1` | formal-delivery-strategy §5.2 |
 | RFQ Word 表格解析 | prod F1.x |
-| **Auth MVP**（users 表 · JWT · owner 隔离 · kb_admin 写守卫） | api-design §0 · R1-AUTH01–07 |
-| **KB 生产稳定性加固**（原子 generation、任务化、资源优先级、磁盘/ZIP/跨 OS、审计与备份） | rag-design §6.1 · [dev-tasks R1-KH](../R1/dev-tasks.md) |
-
-
-**可选 · 非合同（I-08）：** F5.6 引用反馈 L1 — [dev-tasks R1-OPS](../R1/dev-tasks.md)；**不**绑里程碑验收。
 
 ### 5.2 M3 / M4 / M5 / M6
 
 | 里程碑 | 主要未实现项 |
 |--------|-------------|
-| M3 | ScopeMatchService · 9 Function Excel · `quote_fill_report` · 接 Layer 1 baselines JSON | [manpower-baselines-spec.md §4](manpower-baselines-spec.md) |
+| M3 | ScopeMatchService · 9 Function Excel · `quote_fill_report` |
 | M4 | Q_A Area 合并 · dedupe · 8 列导出（无 Web 编辑） |
 | M5 | 34 页 PPT 预填 · `proposal_fill_report` |
 | M6 | Profile=`full` 联调 · 培训 · 运维脚本 · 体验优化 |
@@ -166,7 +142,7 @@
 | Demo 现状 | 正式版须替换 |
 |-----------|-------------|
 | Chroma 嵌入式 | pgvector |
-| `BackgroundTasks` | PG worker + Auth JWT |
+| `BackgroundTasks` | PG worker |
 | RFQ 无 `dimension_review` | F1.10a–d 全流程 |
 | Mock RAG 兜底 | 拒答门控 |
 | proposal/qa Stub | M4/M5 真实实现 |
@@ -180,8 +156,6 @@
 | Q2 五步顺序 | 2026-07-04 | 符合习惯，锁定 Demo 顺序 |
 | Q3 QA 交付方式 | 2026-07-04 | 仅生成/下载 Excel |
 | Phase 1 Demo 合同 / 框架档验收 | 2026-06 | Demo 已完成；`main` 冻结 |
-| **O-06** 高峰 RFQ 并发 | **2026-07-07** | 问卷 **3–5 人**；`OLLAMA_MAX_CONCURRENT=1` |
-| **O-07** 排队 SLA | **2026-07-07** | 单份 ~1–3 min；5 人连排 **≤10 min**；见 user-manual §3.1 |
 
 *后续关闭 O-xx / I-xx 时：将 §3/§4 中该行标为 **已关闭** 并在此追加一行。*
 
@@ -205,7 +179,7 @@
 | [formal-delivery-strategy.md](formal-delivery-strategy.md) | 分支 · Profile · R1 范围 |
 | [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) | Q8 / F1.10a–d |
 | [delivery-traceability.md](delivery-traceability.md) | 能力 ↔ API ↔ 验收 |
-| [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) | O-02a/c/d + O-03～O-05 验收细则 |
+| [R1 验收说明（客户版）](../R1-知识库验收与检索评测说明（客户版）.md) | O-02～O-05 验收细则 |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | O-05、O-06 |
 | [implementation-plan.md](../implementation-plan.md) | WBS · 依赖 D1–D11 |
 

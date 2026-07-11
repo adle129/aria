@@ -1,7 +1,7 @@
 # ARIA 平台 · 知识库 / RAG 设计说明
 
 **层级：** ARIA 平台共享能力（非报价应用私有）  
-**版本：** v1.5 · 2026-07-10
+**版本：** v1.4 · 2026-07-04  
 **状态：** Demo P0 已实施（Chroma 嵌入式为 **过渡实现**）· **R1 目标：pgvector + Ollama Embedding** · 代码 Gate 未开  
 **关联：** [platform-brand.md](platform-brand.md) · [prod.md §3.5–§3.6](../../prod.md) · [delivery-traceability.md](delivery-traceability.md) · [api-design.md §2.3](api-design.md)
 
@@ -240,51 +240,9 @@ API 契约见 [api-design.md §2.3.4](api-design.md)。
 | 切块 | 1 docx = 1 chunk | RFQ **按章节**；Q_A **按行**；报价 **Sheet→baselines**（不进向量） |
 | metadata | project_name / source_doc / doc_type | §3.1 全量 + **locator** + engagement_id |
 | engagement | 文件夹名当 project | **manifest.json** + `engagements` 表 |
-| embedding | Chroma 默认 ONNX | **Ollama `nomic-embed-text`** → 写入 pgvector；**批量 `/api/embed`**（Ollama ≥0.3）+ 超长截断（≈2400 字符） |
-| pgvector 写入 | 逐条 insert | **分批 upsert**（200 条/批，`ON CONFLICT`） |
+| embedding | Chroma 默认 ONNX | **Ollama `nomic-embed-text`** → 写入 pgvector |
 | 增量 | 文件 hash skip（部分） | 同左 + import 批次表 |
 | LangChain | requirements 声明未使用 | **移除** |
-
-### 6.1 生产稳定性与资源隔离（R1-KH）
-
-> 任务与优先级见 [dev-tasks R1-KH](../R1/dev-tasks.md)。以下属于 R1 生产硬化，不等同于运营级 upload 门户。
-
-**索引 generation：**
-
-```
-active_generation（工程师持续读取）
-        │
-        ├─ kb_index job → staging_generation
-        │                  ├─ 解析 / 分批 embedding / 校验
-        │                  └─ 成功后原子切 active pointer
-        └─ 任一步失败 → 删除 staging，active 不变
-```
-
-- `knowledge_chunks` 主键为 **`(generation_id, chunk_id)`**；`knowledge_index_state` 按 logical namespace 保存 active/previous pointer，允许 active/staging 同时保存相同业务 chunk。
-- 禁止 `clear production → embed → insert`；服务重启、Ollama/DB/磁盘失败时旧 generation 必须可读。
-- **KH03 已实现：** legacy chunks 迁移为 `legacy-<namespace hash>` generation；staging 完整写入并校验 count 后，单事务切换 pointer；保留 active + previous，GC 失败不回滚 active。
-- `kb_index` 进入 PostgreSQL job 队列；同一生产 namespace 只允许 1 个写任务。重复点击返回当前 job，不重复执行。
-- 模型优先级：**交互 query embedding > RFQ 解析/生成 > KB 增量 > KB 全量重建**。KB 按小批释放全局租约并可安全取消；暂停/恢复仅在 checkpoint 语义和恢复测试通过后启用。
-- **KH04 已实现：** `ollama_resource_leases` 保存 queued/acquired/released/expired 状态，短事务 advisory lock 串行化授予；调用期间 heartbeat 续租、崩溃后 TTL 回收。进程内 Semaphore 仅作防御性限制，不作为生产并发真相。
-
-**增量与删除：**
-
-- Engagement 计算稳定 `content_hash`；未变化计入 `skipped`，新增/修改仅替换该 engagement chunks。
-- 文件/目录删除产生 tombstone，同批删除对应向量、baselines 和状态记录，禁止幽灵数据。
-- Embedding 模型或 chunk schema 变化时显式触发全量 generation，不复用旧 hash。
-
-**磁盘与 staging：**
-
-- **KH06 已实现：** Web 上传以 1MB chunk 流式写 `${ARIA_DATA_ROOT}/app/.staging/{request_id}`；校验完成后 atomic rename 至 `knowledge_base/`，所有失败路径清理 staging。
-- **KH05 已实现：** 同时检查数据盘与临时盘；80% 告警、90% 写保护（可配置），所需空间加保留量不足或 ENOSPC 返回结构化 507，既有检索/下载不受影响。
-- ZIP 默认限制 100MB、500 条目、500MB 解压总量、50MB 单文件与 100 倍压缩比；拒绝绝对路径、`..`、盘符/UNC、反斜杠逃逸、链接/设备条目及损坏/加密包。
-
-**Windows 客户端 → Linux 服务器：**
-
-- 浏览器上传与 Office 二进制格式本身跨平台；服务器内部路径统一为 UTF-8 NFC + POSIX 相对路径。
-- 文件角色识别大小写不敏感；保留 `original_filename`，内部存储名不得直接信任客户端路径。
-- R1 明确支持 `.docx` / `.doc`（Linux LibreOffice）；历史 Excel 默认 `.xlsx`。`.xls` 若未实现转换，不得在 UI 宣称支持。
-- 回归集须覆盖中文、空格、大小写、长文件名、Windows ZIP、manifest 反斜杠和 legacy `.doc`。
 
 ---
 
@@ -365,7 +323,7 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 | 资料 | R1 必达 | M3/M4/M5 主路径 |
 |------|--------|----------------|
 | RFQ | ✓ 切块 + 向量 | Top-3 相似 RFQ；§四 `development_scope[]` metadata |
-| Q_A | 金标准须有；铜级可缺失；存在时 **按行 1 chunk** | M4：**读全表** Area 合并（非向量主路径）；缺失则 M4 不可用 |
+| Q_A | ✓ **按行 1 chunk** | M4：**读全表** Area 合并（非向量主路径） |
 | 报价 | ✓ **Sheet 结构化** baselines | M3：**ScopeMatch + 抽取 + 时间轴重映射** |
 | Proposal | 可选 | **不作 M5 生成**；manifest 配对归档 |
 
@@ -377,24 +335,12 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 
 ### 11.3 manpower_baselines（R1 硬交付）
 
-> **完整规格：** [manpower-baselines-spec.md](manpower-baselines-spec.md)（2026-07-06 定稿）
-
 | 项 | 决策 |
 |----|------|
 | 存储 | `${ARIA_DATA_ROOT}/app/manpower_baselines.json` |
 | 写入 | 与 import 同批；原子 rename |
 | 读取 | `GET /knowledge/baselines`；M3 替换 `MOCK_MANPOWER_BASELINES` |
 | 验收 | `/knowledge` **基线预览** Tab + 数字对照表签字 |
-| **向量** | **报价 Excel 不进 pgvector 主路径**；客户「查历史人力」= baselines 结构化查询 + RFQ Top-3 联动 |
-| Phase 2 可选 | Engagement **摘要** chunk（`quote_summary`）；见 manpower-baselines-spec §5 · dev-tasks R1-P2-01 |
-
-**客户场景映射：**
-
-| 诉求 | R1/M3 路径 |
-|------|------------|
-| 类似需求人天参考 | RFQ Top-3 → 展示对应 engagement baselines |
-| 浏览历史项目各 Function 人天 | `GET /knowledge/baselines` + 基线预览 Tab |
-| 生成新报价 Excel | M3：ScopeMatch + baselines 抽取 + **当前 RFQ** 时间轴 remap |
 
 ### 11.4 `/knowledge` 验收台（R1  reposition）
 
@@ -409,19 +355,17 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 | **小批量** | ✓ | 同一操作内 **≤5 套** 项目包（逐套 ZIP 或多组文件）；上传后展示 **成功/失败/缺件** 清单 |
 | **缺件提示** | ✓ | 缺 Q&A 或报价时 **仍可入库**（银/铜），UI 标明 **哪些自动流程不可用** |
 | **上传后索引** | ✓ | 上传完成可 **一键触发** 本次包的 import（或并入「更新知识库索引」） |
-| **大批量历史库** | 仍推荐 | **内网 IT 目录落盘 + 触发全量索引**；不以浏览器一次传数十套为 R1 目标 |
+| **大批量 100+** | 仍推荐 | **IT 目录落盘 + 触发全量索引**；不以浏览器一次传 100 套为 R1 目标 |
 
-**R1 客户合同不含（可选内部实现见 §11.4.2）：** 拖拽整目录、断点续传、upload AI 预识别 preview、**SSO/部门级 ACL**、**F5.6 客户交付**、归档一键入库、过期提醒、检索热力看板、**运营级上传门户**。R1 已包含本地账号、`quote_engineer` / `kb_admin` 两角色与 KB 写操作守卫。
+**R1 不含（后续变更单 / 扩展）：** 拖拽整目录、断点续传、upload AI 预识别 preview、RBAC、反馈 F5.6（L1/L2）、归档一键入库、过期提醒、检索热力看板、**运营级上传门户**。
 
-#### 11.4.2 引用反馈 L1（F5.6 · 内部运维增强 · 可选 · **未实现**）
-
-> **2026-07-06：** **不进客户合同**；R1～M6 视进度可选（[dev-tasks R1-OPS](../R1/dev-tasks.md)）。对客户仍用试搜表 + 例会；商用立项见 [feedback-ops-pack（客户版）](../supplementary/feedback-ops-pack（客户版）.md)。
+#### 11.4.2 引用反馈 L1（F5.6 · 设计规格 · M6 后可选 · **未实现**）
 
 | 项 | L1 规格 | 说明 |
 |----|---------|------|
 | **提交反馈** | 计划 | `POST /knowledge/feedback`；知识库检索 + RFQ 相似项目行 |
 | **类型** | 计划 | `wrong_project` / `irrelevant` / `wrong_snippet` |
-| **列表/导出** | 计划 | `GET /feedback`、`GET /feedback/export` — **乙方**双周复盘（CSV） |
+| **列表/导出** | 计划 | `GET /feedback`、`GET /feedback/export` — 供管理员/乙方审查 |
 | **存储** | 计划 | `${ARIA_DATA_ROOT}/app/feedback/feedback.jsonl` |
 | **自动变准** | 不含 | **不** 微调 LLM；审查后人工：改 metadata、补评测题、Re-index |
 | **L2 闭环** | 不含 | 审查 UI、看板、评测集自动合并 — 变更单 |
@@ -432,9 +376,7 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 工程师点「引用不准」 → 反馈库 → 管理员/乙方审查 → 修正数据或评测集 → Re-index → 下次检索更准
 ```
 
-L1 目标为 **点选 + 存储 + CSV 导出**。**当前代码 Gate 未开**；实施后 **不**写入 R1 acceptance-checklist。
-
----
+L1 目标为 **前两步（点选 + 存储）**；与 [feedback-ops-pack（客户版）](../supplementary/feedback-ops-pack（客户版）.md) 一致。**当前代码 Gate 未开。**
 
 ### 11.5 入库方式（R1 双路径）
 
@@ -474,4 +416,3 @@ flowchart LR
 | 2026-06-29 | v1.2 | v3.3–v3.5：R1 三件套、Q_A 按行、M3 抽取+重映射、M5 解耦 |
 | 2026-06-29 | v1.3 | 回链 m3/m4 规格；baselines Sheet 级 ingest |
 | 2026-07-04 | v1.4 | pgvector 目标架构；解析铁律；拒答/溯源 locator；R1 检索路径（无 Hybrid）；验证体系 |
-| 2026-07-10 | v1.5 | R1-KH：Blue/Green 索引、跨进程资源调度、磁盘保护、Windows→Linux 文件兼容；修正铜级/RBAC 口径 |

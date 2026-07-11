@@ -1,2 +1,4 @@
-# AI / RAG: pgvector (R1). ChromaDB is Demo-only on main; release/r1 does not install chromadb.
-pgvector==0.3.6
+# AI / RAG: LangChain + ChromaDB (see requirements-ai.txt)
+langchain==0.2.11
+langchain-community==0.2.10
+chromadb==0.5.5

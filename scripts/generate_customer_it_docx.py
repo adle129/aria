@@ -95,7 +95,7 @@ def build_document() -> Document:
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
     today = date.today()
     mr = meta.add_run(
-        f"文档版本：v1.3\n"
+        f"文档版本：v1.2\n"
         f"日期：{today.year} 年 {today.month} 月 {today.day} 日\n"
         f"适用对象：EDAG IT 管理员、基础设施采购与运维负责人\n"
         f"文档用途：单独讨论 ARIA 平台生产部署所需的服务器、大模型方案、安全边界与运维职责"
@@ -356,7 +356,7 @@ def build_document() -> Document:
         ["场景", "建议"],
         [
             ["约 10–15 人同时使用（生产目标）", "单台 4090 + 32B + 后端异步任务队列通常可满足"],
-            ["接近 10–20 人频繁触发 RFQ 解析（问卷确认约 3–5 人同时）", "单 worker + 排队即可；极端需评估第二块 GPU"],
+            ["接近 20–30 人频繁触发 RFQ 解析", "评估第二块 GPU、解析任务排队策略或分时段限流"],
             ["仅升级更大参数模型（如 72B）", "通常不是首选；优先队列 + 多卡或维持 32B"],
         ],
     )

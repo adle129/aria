@@ -19,10 +19,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { apiClient, buildApiUrl } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
-import MilestoneStepScaffold from "@/components/MilestoneStepScaffold";
 import { useTaskContext } from "@/context/TaskContext";
-import { useUiProfile } from "@/hooks/useUiProfile";
-import { showsMilestoneScaffold } from "@/lib/uiProfile";
 import type { ManpowerBreakdownItem } from "@/types/task";
 
 const { Paragraph, Text, Title } = Typography;
@@ -38,7 +35,6 @@ interface GenerateResult {
 }
 
 function QuotePageContent() {
-  const { profile } = useUiProfile();
   const searchParams = useSearchParams();
   const { taskId, task, loading, loadTask, setTaskId, syncFromPayload } = useTaskContext();
   const [generating, setGenerating] = useState(false);
@@ -46,7 +42,6 @@ function QuotePageContent() {
   const [generateResult, setGenerateResult] = useState<GenerateResult | null>(null);
   const [breakdown, setBreakdown] = useState<ManpowerBreakdownItem[]>([]);
   const [breakdownLoading, setBreakdownLoading] = useState(false);
-  const scaffoldOnly = showsMilestoneScaffold(profile, "quote");
 
   const loadBreakdown = useCallback(async (id: string) => {
     setBreakdownLoading(true);
@@ -54,7 +49,7 @@ function QuotePageContent() {
       const resp = await apiClient.get<{
         code: number;
         data: { items: ManpowerBreakdownItem[]; demo_preview?: boolean };
-      }>(`/rfq/tasks/${id}/manpower-breakdown-preview`, { silentError: true });
+      }>(`/rfq/tasks/${id}/manpower-breakdown-preview`);
       setBreakdown(resp.data.data.items || []);
     } catch {
       setBreakdown([]);
@@ -67,21 +62,17 @@ function QuotePageContent() {
     const fromUrl = searchParams.get("task_id")?.trim();
     if (fromUrl) {
       setTaskId(fromUrl);
-      if (scaffoldOnly) return;
       void loadTask(fromUrl).then((payload) => {
         if (payload) void loadBreakdown(fromUrl);
       });
     }
-  }, [searchParams, loadTask, setTaskId, loadBreakdown, scaffoldOnly]);
+  }, [searchParams, loadTask, setTaskId, loadBreakdown]);
 
   useEffect(() => {
-    if (scaffoldOnly || !task?.task_id) return;
-    void loadBreakdown(task.task_id);
-  }, [task?.task_id, loadBreakdown, scaffoldOnly]);
-
-  if (scaffoldOnly) {
-    return <MilestoneStepScaffold step="quote" />;
-  }
+    if (task?.task_id) {
+      void loadBreakdown(task.task_id);
+    }
+  }, [task?.task_id, loadBreakdown]);
 
   const handleGenerate = async () => {
     const id = taskId.trim();

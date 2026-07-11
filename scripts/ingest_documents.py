@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ingest knowledge_base engagements into pgvector (MOCK_RAG=false + PostgreSQL + Ollama)."""
+"""Ingest knowledge_base .docx files into ChromaDB (set MOCK_RAG=false)."""
 
 import argparse
 import sys
@@ -9,38 +9,36 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-
 from app.config import Settings  # noqa: E402
-from app.database import engine  # noqa: E402
-from app.services.engagement_ingest_service import EngagementIngestService  # noqa: E402
 from app.services.rag_service import RAGService  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Re-index knowledge base engagements into pgvector")
+    parser = argparse.ArgumentParser(description="Import knowledge base documents into ChromaDB")
     parser.add_argument(
         "--knowledge-base",
         default=str(BACKEND / "data" / "knowledge_base"),
         help="Path to knowledge_base directory",
+    )
+    parser.add_argument(
+        "--chroma-path",
+        default=str(BACKEND / "data" / "chroma_db"),
+        help="ChromaDB persistence directory",
     )
     args = parser.parse_args()
 
     settings = Settings(
         mock_rag=False,
         knowledge_base_path=args.knowledge_base,
+        chroma_path=args.chroma_path,
     )
-    session = sessionmaker(bind=engine)()
-    try:
-        result = EngagementIngestService(settings, session).import_all()
-    finally:
-        session.close()
-
-    stats = RAGService(settings).get_stats()
-    print(f"Indexed chunks: {result.get('new_chunks', 0)}")
-    print(f"Engagements indexed: {result.get('engagements_indexed', 0)}")
-    print(f"Failed: {len(result.get('failed_files') or [])}")
-    print(f"KB stats: {stats['total_documents']} docs, {stats['total_chunks']} chunks, store={stats.get('vector_store')}")
+    rag = RAGService(settings)
+    result = rag.import_documents()
+    stats = rag.get_stats()
+    print(f"Imported documents: {result['new_documents']}")
+    print(f"Skipped: {result['skipped']}")
+    print(f"Chroma chunks: {result['new_chunks']}")
+    print(f"KB stats: {stats['total_documents']} docs, {stats['total_projects']} projects")
     return 0
 
 

@@ -1,46 +1,65 @@
 "use client";
 
-import { Button, Space, Typography } from "antd";
-import Link from "next/link";
+import { Button, Card, Input, Select, Space, Typography } from "antd";
 import { usePathname } from "next/navigation";
 import { useTaskContext } from "@/context/TaskContext";
-import RfqStatusTag from "@/components/rfq/RfqStatusTag";
 import WorkflowSteps from "@/components/WorkflowSteps";
-import { isTaskContextBarVisible } from "@/lib/uiProfile";
 
 const { Text } = Typography;
 
+function formatTaskLabel(t: { task_id: string; file_name: string; processing_status: string; created_at?: string }) {
+  const shortId = t.task_id.slice(0, 8);
+  const time = t.created_at
+    ? new Date(t.created_at).toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    : "";
+  return `${t.file_name} · ${t.processing_status} · ${shortId}${time ? ` · ${time}` : ""}`;
+}
+
 export default function TaskContextBar() {
   const pathname = usePathname();
-  const { task, loading } = useTaskContext();
+  const { taskId, task, loading, recentTasks, setTaskId, loadTask } = useTaskContext();
 
-  if (!isTaskContextBarVisible(pathname)) return null;
-
-  if (pathname.startsWith("/rfq")) {
-    return null;
-  }
+  if (pathname === "/" || pathname.startsWith("/knowledge")) return null;
 
   return (
-    <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #F0F0F0" }}>
+    <Card size="small" style={{ marginBottom: 24 }} title="当前报价任务">
+      <Space wrap style={{ width: "100%", marginBottom: 12 }}>
+        <Select
+          placeholder="从最近分析选择"
+          style={{ width: 360 }}
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          value={taskId || undefined}
+          onChange={(value) => setTaskId(value || "")}
+          options={recentTasks.map((t) => ({
+            value: t.task_id,
+            label: formatTaskLabel(t),
+          }))}
+        />
+        <Input
+          placeholder="或粘贴 task_id"
+          value={taskId}
+          onChange={(e) => setTaskId(e.target.value)}
+          onPressEnter={() => void loadTask()}
+          style={{ width: 280 }}
+        />
+        <Button type="primary" loading={loading} onClick={() => void loadTask()}>
+          加载
+        </Button>
+        {task && (
+          <Text type="secondary">
+            {task.file_name || "—"} · {task.processing_status} · 审阅 {task.status}
+          </Text>
+        )}
+      </Space>
       <WorkflowSteps status={task?.artifacts_status} currentPath={pathname} />
-      {task ? (
-        <Space wrap style={{ marginTop: 12 }} size={8}>
-          <Text strong>{task.file_name || "—"}</Text>
-          <RfqStatusTag
-            processingStatus={task.processing_status}
-            statusMessage={task.status_message}
-          />
-          <Link href={`/rfq?task_id=${task.task_id}`}>
-            <Button type="link" size="small" loading={loading} style={{ paddingInline: 0 }}>
-              在 RFQ 分析中打开
-            </Button>
-          </Link>
-        </Space>
-      ) : (
-        <Text type="secondary" style={{ display: "block", marginTop: 12 }}>
-          尚未加载任务 · <Link href="/rfq">前往 RFQ 分析上传或选择任务</Link>
-        </Text>
-      )}
-    </div>
+    </Card>
   );
 }

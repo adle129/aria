@@ -1,8 +1,0 @@
-{
-  "parse_strategy": "rules_first",
-  "result": {
-    "functions_in_scope_contains": ["Chassis"],
-    "modules": { "min_count": 1 },
-    "timeline_months": { "min": 12, "max": 36 }
-  }
-}

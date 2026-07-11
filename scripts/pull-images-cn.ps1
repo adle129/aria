@@ -1,15 +1,14 @@
-# Pull Docker base images from China mirrors and retag (when Docker Hub is unreachable)
-# Usage: .\scripts\pull-images-cn.ps1
-# Then:  docker compose up --build
+# 从国内镜像拉取 Docker 基础镜像并打 tag，解决 Docker Hub 直连失败
+# 用法: .\scripts\pull-images-cn.ps1
+# 然后: docker compose up --build
 
 $ErrorActionPreference = "Stop"
 
-# Mirror registry list — pick one that works on your network
-# Prefer 1ms.run: daocloud often returns EOF on manifest HEAD during BuildKit resolve
+# 可按网络情况调整镜像源（任选一个能通的）
 $Mirrors = @(
     "docker.1ms.run",
-    "docker.xuanyuan.me",
-    "docker.m.daocloud.io"
+    "docker.m.daocloud.io",
+    "docker.xuanyuan.me"
 )
 
 $Images = @(

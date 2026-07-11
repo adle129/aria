@@ -46,54 +46,22 @@ Windows 推送：`.\scripts\push-and-deploy-aliyun.ps1 -TargetHost <公网IP> -U
 ### 生产部署（内网 GPU + 独立数据盘）
 
 ```bash
-# 一键启动（无 .env 时自动从 .env.production.example 生成）
+# 数据盘挂载 /data 后，见 docs/deployment-guide.md §3.2
+cp .env.production.example .env && nano .env
 bash deploy/scripts/start.sh
-# 或手动：cp .env.production.example .env && docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-- Compose：`docker-compose.prod.yml`（`ARIA_UI_PROFILE=r1`，`ARIA_DATA_ROOT` 默认 `/data/aria`）
+- Compose：`docker-compose.prod.yml`（`ARIA_DATA_ROOT` 默认 `/data/aria`）
 - 客户 IT 说明：[docs/customer-it-infrastructure.md](docs/customer-it-infrastructure.md)
 
 ## 快速启动
 
-### 一键启动（推荐）
-
-```powershell
-# R1 联调 / 开发（默认 Docker 五件套：postgres+backend+worker+frontend+nginx）
-.\scripts\start.ps1
-.\scripts\start.ps1 -Detached
-
-# 生产同拓扑
-.\scripts\start.ps1 -Profile prod -Detached
-
-# 国内镜像构建
-.\scripts\up.ps1 -Cn -Detached
-
-# pytest/CI 专用本机模式（非 R1 等价）
-.\scripts\start.ps1 -Local
-```
-
-```bash
-# Linux 生产 / R1
-bash deploy/scripts/start.sh
-```
-
-访问 **http://localhost**（经 nginx）。Ollama 在宿主机，不进容器。
-
-仍可直接使用 `docker compose up --build`；若存在 `.env` 会参与变量替换，**不再强制** `env_file`（无 `.env` 也能启动，使用 compose 内默认值）。
-
-### 手动步骤（等价）
-
-```bash
-cp .env.example .env   # 可选
-docker compose up --build
-```
-
 ### 前置条件
 
 - Docker Desktop（Windows / macOS）或 Docker Engine + Compose（Linux）
-- **国内网络：先配置 Docker 镜像加速**（见下方）
-- （可选）宿主机 Ollama — 生产/R1 须 `MOCK_LLM=false`；开发默认可 Mock
+- **国内网络：先配置 Docker 镜像加速**（见下方，首次启动前完成，可避免 90% 拉取失败）
+- Git Bash 或 WSL（用于运行 `run_tests.sh`）
+- （可选）Ollama + Qwen2.5 14B，用于真实 LLM 调用
 
 ### 国内网络：Docker Desktop 推荐配置（首次启动前）
 
@@ -111,8 +79,8 @@ Docker Desktop → **Settings** → **Docker Engine**，将 JSON 设为（保留
   },
   "experimental": false,
   "registry-mirrors": [
-    "https://docker.1ms.run",
-    "https://docker.m.daocloud.io"
+    "https://docker.m.daocloud.io",
+    "https://docker.1ms.run"
   ],
   "ipv6": false
 }
@@ -127,15 +95,32 @@ docker pull nginx:alpine
 
 完整示例文件：[docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)
 
-访问地址（容器全部 Up 后）：
+### 一键启动（Docker）
 
-- 经 Nginx：**http://localhost**（唯一推荐入口）
-- Health：**http://localhost/api/v1/health**
-- 后端直连（调试）：http://localhost:8000
+```bash
+# 1. 复制环境变量
+cp .env.example .env
+
+# 2. 构建并启动全部服务（首次约 10～30 分钟，见下方「首次构建须知」）
+docker compose up --build
+
+# Phase 0 仅需验证页面/health、暂不做 RAG 时，可用精简版（跳过后端 AI 大包，构建更快）：
+# docker compose -f docker-compose.dev.yml up --build
+
+# 后台启动（推荐熟悉流程后使用，不占用当前终端）
+# docker compose up --build -d
+# docker compose ps
+# docker compose logs -f
+
+# 3. 等终端出现各容器 Started 后再访问（构建完成前 localhost 无法打开）
+# 前端（经 Nginx）：http://localhost
+# 后端 API：       http://localhost:8000/api/v1/health
+# 前端直连：       http://localhost:3000
+```
 
 ### 首次 `docker compose up --build` 须知
 
-第一次执行会**同时拉镜像、构建前后端、启动 5 个容器**（含 worker），终端会长时间有输出，**属于正常现象**。在全部完成之前，上述 localhost 地址**还无法访问**。
+第一次执行会**同时拉镜像、构建前后端、启动 4 个容器**，终端会长时间有输出，**属于正常现象**。在全部完成之前，上述 localhost 地址**还无法访问**。
 
 #### 大概要多久
 
@@ -195,7 +180,7 @@ docker compose logs -f backend  # 只看后端
 | 同一层 `Pulling fs layer 0B` 超过 **20～30 分钟** 无变化 | 可能镜像下载卡住，Ctrl+C 停止后改用下方「Docker Hub 拉取失败」方案 |
 | 容器 **Restarting** 或 **Exited** | 执行 `docker compose logs backend` 查看报错 |
 | `pip install` 报 **HASHES DO NOT MATCH** | 镜像源与包不一致，见下方「pip 安装失败」 |
-| pytest 不需 Docker | CI/单测 | `.\scripts\start.ps1 -Local`（SQLite，**非 R1 等价**） |
+| 不想等 Docker | 使用 `.\scripts\start-local.ps1` 本地启动（见下方方案 D） |
 
 #### 构建完成后的快速验证
 
@@ -217,58 +202,10 @@ python -m pytest unit_tests API_tests -v
 | 问题 | 原因 | 推荐处理 |
 |------|------|---------|
 | `registry-1.docker.io` / IPv6 超时 | Docker Hub 直连失败 | 配置上方 **registry-mirrors + ipv6:false** |
-| `docker.m.daocloud.io` … `20-alpine` … **EOF** | DaoCloud 对 BuildKit manifest HEAD 不稳定 | 见下方 **「DaoCloud EOF / node 镜像」** |
 | `pip HASHES DO NOT MATCH` | PyPI 下载慢/镜像不一致 | `docker compose build --no-cache backend` 后重试；依赖已拆分为 core + ai 两步安装 |
 | `docker.m.daocloud.io` **401**（cn Dockerfile） | 部分镜像需登录 | 改用 **Docker Engine 镜像加速** + 标准 `docker-compose.yml` |
-| 构建 30+ 分钟仍无容器 | 正常或网络慢 | 另开终端 `docker compose ps`；或 `-Profile dev-fast`（非 R1） |
-| `.env` 里 `AUTH_ENABLED=true` 但 health 仍为 `false` | **Shell 环境变量覆盖 `.env`** | 见下方 **「AUTH 未生效」** |
-| 访问 `/rfq` 不跳转 `/login` | 同上，`auth_enabled=false` | 修复 AUTH 后 `force-recreate backend worker` |
-| pytest 快速迭代 | 不需 Docker 等价栈 | `.\scripts\start.ps1 -Local`（**非 R1 验收**） |
-
-**DaoCloud EOF / `node:20-alpine` 构建失败（2026-07 归档）**
-
-典型报错：
-
-```text
-target frontend: failed to solve: node:20-alpine: failed to resolve source metadata ...
-failed to do request: Head "https://docker.m.daocloud.io/v2/library/node/manifests/20-alpine?ns=docker.io": EOF
-```
-
-处理顺序：
-
-1. **Docker Engine 镜像顺序**：把 `docker.1ms.run` 放在 `daocloud` 之前（见 [docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)），Apply & Restart。
-2. **预拉基础镜像并打 tag**：
-
-```powershell
-.\scripts\pull-images-cn.ps1
-docker compose build --pull=never frontend
-docker compose up -d --build --pull=never
-```
-
-3. `scripts/up.ps1` / `start.ps1` 已默认带 `--pull never`，避免 BuildKit 反复向失效镜像源发 HEAD。
-
-**AUTH 未生效 / 登录页不出现（2026-07 归档）**
-
-Docker Compose：**当前 Shell 会话的环境变量优先于项目 `.env`**。若曾设 `$env:AUTH_ENABLED="false"`，即使 `.env` 已改为 `true`，容器内仍可能是 `false`。
-
-诊断：
-
-```powershell
-$env:AUTH_ENABLED                                    # 宿主机会话
-docker exec aria-backend printenv AUTH_ENABLED       # 运行中容器
-curl http://localhost/api/v1/health                  # 期望 auth_enabled=true
-```
-
-修复：
-
-```powershell
-Remove-Item Env:AUTH_ENABLED -ErrorAction SilentlyContinue
-# 或：$env:AUTH_ENABLED = "true"
-docker compose up -d --no-build --force-recreate backend worker
-.\scripts\create_dev_users.ps1   # engineer / engineer123 · kbadmin / admin123
-```
-
-R1 UI 手验：合并 [.env.docker.example](.env.docker.example) 与 [.env.r1-dev.example](.env.r1-dev.example)（`ARIA_UI_PROFILE=r1`、`AUTH_ENABLED=true`）。改 `NEXT_PUBLIC_ARIA_UI_PROFILE` 后须重建 frontend。
+| 构建 30+ 分钟仍无容器 | 正常或网络慢 | 另开终端 `docker compose ps`；或先用 `docker-compose.dev.yml` |
+| 不想等 Docker | 本地开发 | `.\scripts\start-local.ps1` |
 
 **方案 A — Docker Engine 镜像加速（推荐，已验证可用）**
 
@@ -282,7 +219,7 @@ docker compose up --build
 
 ```powershell
 .\scripts\pull-images-cn.ps1
-docker compose up -d --build --pull=never
+docker compose up --build
 ```
 
 **方案 C — 国内镜像 Compose（Engine 加速仍失败时备用）**
@@ -311,13 +248,19 @@ docker compose up --build
 
 Phase 0 若只需 health + 前端，可用 `docker-compose.dev.yml` 跳过 AI 包安装。
 
-### 本地开发（pytest / 调试，非 R1 一键启动）
-
-R1 日常开发请用 Docker 一键启动（见上文）。以下仅用于跑 pytest 或单步调试：
+### 本地开发（不用 Docker）
 
 ```powershell
-# 终端 1 — 后端（SQLite，见 .env.local.example）
+.\scripts\start-local.ps1
+# 前端 http://localhost:3000  后端 http://localhost:8000/api/v1/health
+```
+
+或分两个终端：
+
+```powershell
+# 终端 1 — 后端
 $env:PYTHONPATH="e:\work\aria\backend"
+pip install fastapi uvicorn pydantic-settings httpx
 cd backend
 python -m uvicorn app.main:app --reload --port 8000
 
@@ -334,13 +277,10 @@ npm run dev
 pip install -r backend/requirements.txt
 pip install -r backend/requirements-ai.txt   # RAG 模块开发时需要
 
-# 一键测试（单元 + 前端单测 + API）
+# 一键测试
 bash run_tests.sh
 # Windows PowerShell:
 # .\run_tests.ps1
-
-# 前端单测（需先在 frontend/ 执行 npm install）
-cd frontend && npm test
 ```
 
 ## 服务说明

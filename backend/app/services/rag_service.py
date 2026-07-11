@@ -1,28 +1,21 @@
+import hashlib
 import json
-import logging
-import time
-from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from app.config import Settings
-from app.services.comparison_service import (
-    build_comparison_matrix,
-    build_matrix_from_dimension_draft,
-)
+from app.services.chroma_store import ChromaStore
+from app.services.comparison_service import build_comparison_matrix
 from app.services.mock_data import (
     MOCK_COMPARISON_TABLE,
     MOCK_KNOWLEDGE_DOCUMENTS,
     MOCK_KNOWLEDGE_STATS,
     MOCK_RAG_HITS,
 )
+from app.services.rfq_parser import RFQParser
 
-logger = logging.getLogger(__name__)
-
-
-class RAGProductionError(RuntimeError):
-    """Raised when a Demo-only RAG path is invoked in production (MOCK_RAG=false)."""
+IMPORT_STATE_FILENAME = "import_state.json"
 
 
 def calculate_overall_confidence(similarity_scores: list[float]) -> str:
@@ -102,22 +95,34 @@ class RAGService:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.knowledge_base_path = settings.knowledge_base_path
+        self._chroma: ChromaStore | None = None
+        self._parser = RFQParser()
 
-    def _index_service(self):
-        from app.services.knowledge_index_service import KnowledgeIndexService
+    def _get_chroma(self) -> ChromaStore:
+        if self._chroma is None:
+            self._chroma = ChromaStore(self.settings.chroma_path)
+        return self._chroma
 
-        return KnowledgeIndexService(
-            self.settings,
-            namespace=self.settings.knowledge_vector_namespace,
-        )
+    def _import_state_path(self) -> Path:
+        return Path(self.settings.chroma_path) / IMPORT_STATE_FILENAME
 
-    def is_insufficient_evidence(self, hits: list[dict[str, Any]]) -> bool:
-        if self.settings.mock_rag:
-            return False
-        if not hits:
-            return True
-        max_score = max(float(h.get("similarity_score") or 0.0) for h in hits)
-        return max_score < float(self.settings.rag_similarity_threshold)
+    def _read_import_state(self) -> dict[str, Any]:
+        path = self._import_state_path()
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    def _write_import_state(self, state: dict[str, Any]) -> None:
+        path = self._import_state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _file_hash(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
 
     def search_similar_projects(
         self,
@@ -125,82 +130,33 @@ class RAGService:
         top_k: int = 5,
         function_filter: list[str] | None = None,
         doc_type_filter: list[str] | None = None,
-        *,
-        request_type: str = "query",
-        cancel_check: Callable[[], None] | None = None,
     ) -> list[dict[str, Any]]:
-        started = time.monotonic()
         if self.settings.mock_rag:
             hits = _filter_hits_by_functions(MOCK_RAG_HITS, function_filter)
             hits = _filter_hits_by_doc_type(hits, doc_type_filter)
             return hits[:top_k]
 
-        index = self._index_service()
-        hits = index.search(
-            query,
-            top_k=top_k,
-            function_filter=function_filter,
-            doc_type_filter=doc_type_filter,
-            request_type=request_type,
-            cancel_check=cancel_check,
-        )
-        max_score = max(
-            (float(h.get("similarity_score") or 0.0) for h in hits),
-            default=0.0,
-        )
-        logger.info(
-            "rag_search request_type=%s top_k=%s hits=%d max_similarity=%.3f "
-            "insufficient=%s elapsed_ms=%d",
-            request_type,
-            top_k,
-            len(hits),
-            max_score,
-            self.is_insufficient_evidence(hits),
-            int((time.monotonic() - started) * 1000),
-        )
-        return hits
+        hits = self._get_chroma().search(query, top_k=top_k)
+        hits = _filter_hits_by_functions(hits, function_filter)
+        hits = _filter_hits_by_doc_type(hits, doc_type_filter)
+        return hits[:top_k]
 
     def build_comparison_table(
         self, rfq_data: dict[str, Any], similar_docs: list[dict[str, Any]]
     ) -> dict[str, Any]:
         scores = [doc.get("similarity_score", 0.0) for doc in similar_docs]
         confidence = calculate_overall_confidence(scores)
-        insufficient = self.is_insufficient_evidence(similar_docs)
 
         if self.settings.mock_rag:
             table = dict(MOCK_COMPARISON_TABLE)
             table["overall_confidence"] = confidence
-            table["insufficient_evidence"] = False
-            hit_engagement = {
-                (h.get("metadata") or {}).get("project_name"): (h.get("metadata") or {}).get(
-                    "engagement_id"
-                )
-                for h in similar_docs
-            }
-            enriched_projects: list[dict[str, Any]] = []
-            for project in MOCK_COMPARISON_TABLE["projects"]:
-                proj = dict(project)
-                eid = hit_engagement.get(project["project_name"]) or project.get("engagement_id")
-                if eid:
-                    proj["engagement_id"] = eid
-                enriched_projects.append(proj)
-            table["projects"] = enriched_projects
-        elif insufficient:
-            table = {
-                "comparison_dimensions": MOCK_COMPARISON_TABLE["comparison_dimensions"],
-                "projects": [],
-                "recommendation": "暂无足够历史项目依据，请补充知识库或人工核对",
-                "overall_confidence": "低",
-                "insufficient_evidence": True,
-            }
         else:
             table = {
                 "comparison_dimensions": MOCK_COMPARISON_TABLE["comparison_dimensions"],
                 "projects": self._projects_from_hits(similar_docs),
                 "recommendation": self._build_recommendation(similar_docs),
-                "overall_confidence": confidence,
-                "insufficient_evidence": False,
             }
+            table["overall_confidence"] = confidence
 
         matrix = build_comparison_matrix(
             rfq_data,
@@ -214,110 +170,30 @@ class RAGService:
         )
         return table
 
-    def build_comparison_table_from_draft(
-        self,
-        rfq_data: dict[str, Any],
-        similar_docs: list[dict[str, Any]],
-        dimension_draft: dict[str, Any],
-    ) -> dict[str, Any]:
-        items = list(dimension_draft.get("items") or [])
-        custom = list(dimension_draft.get("custom_items") or [])
-        in_scope_items = [i for i in items + custom if i.get("in_scope") is True]
-        if not in_scope_items:
-            raise ValueError("至少选择一项 in_scope 维度")
-
-        scores = [doc.get("similarity_score", 0.0) for doc in similar_docs]
-        confidence = calculate_overall_confidence(scores)
-        insufficient = self.is_insufficient_evidence(similar_docs)
-        comparison_dimensions = [str(i.get("name", "")) for i in in_scope_items if i.get("name")]
-
-        if self.settings.mock_rag:
-            table = dict(MOCK_COMPARISON_TABLE)
-            table["comparison_dimensions"] = comparison_dimensions
-            table["overall_confidence"] = confidence
-            table["insufficient_evidence"] = False
-            hit_engagement = {
-                (h.get("metadata") or {}).get("project_name"): (h.get("metadata") or {}).get(
-                    "engagement_id"
-                )
-                for h in similar_docs
-            }
-            enriched_projects: list[dict[str, Any]] = []
-            for project in MOCK_COMPARISON_TABLE["projects"]:
-                proj = dict(project)
-                eid = hit_engagement.get(project["project_name"]) or project.get("engagement_id")
-                if eid:
-                    proj["engagement_id"] = eid
-                enriched_projects.append(proj)
-            table["projects"] = enriched_projects[:3]
-        elif insufficient:
-            table = {
-                "comparison_dimensions": comparison_dimensions,
-                "projects": [],
-                "recommendation": "暂无足够历史项目依据，请补充知识库或人工核对",
-                "overall_confidence": "低",
-                "insufficient_evidence": True,
-            }
-        else:
-            table = {
-                "comparison_dimensions": comparison_dimensions,
-                "projects": self._projects_from_hits(similar_docs[:3]),
-                "recommendation": self._build_recommendation(similar_docs),
-                "overall_confidence": confidence,
-                "insufficient_evidence": False,
-            }
-
-        matrix = build_matrix_from_dimension_draft(in_scope_items, table["projects"])
-        table.update(matrix)
-        table["function_coverage"] = compute_function_coverage(
-            rfq_data.get("functions_in_scope"),
-            similar_docs,
-        )
-        return table
-
     def _projects_from_hits(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         projects: list[dict[str, Any]] = []
         for hit in hits:
             meta = hit.get("metadata") or {}
             name = meta.get("project_name") or "未知项目"
-            engagement_id = meta.get("engagement_id")
-
-            if self.settings.mock_rag:
-                # In mock mode use the pre-built mock project data if name matches.
-                matched = next(
-                    (p for p in MOCK_COMPARISON_TABLE["projects"] if p["project_name"] == name),
-                    None,
-                )
-                if matched:
-                    project = dict(matched)
-                    project["similarity_score"] = hit.get(
-                        "similarity_score", matched["similarity_score"]
-                    )
-                    if engagement_id:
-                        project["engagement_id"] = engagement_id
-                    projects.append(project)
-                    continue
-
-            # Production: build project entry from real chunk metadata.
-            projects.append(
-                {
+            matched = next(
+                (p for p in MOCK_COMPARISON_TABLE["projects"] if p["project_name"] == name),
+                None,
+            )
+            if matched:
+                project = dict(matched)
+                project["similarity_score"] = hit.get("similarity_score", matched["similarity_score"])
+            else:
+                project = {
                     "project_name": name,
                     "similarity_score": hit.get("similarity_score", 0.5),
                     "source_doc": meta.get("source_doc", ""),
-                    "engagement_id": engagement_id,
-                    "customer": meta.get("customer", ""),
-                    "year": meta.get("year"),
-                    "functions": list(meta.get("functions") or []),
                     "dimensions": {},
                     "actual_man_days": "—",
                     "deviation_rate": "—",
                     "summary": (hit.get("content") or "")[:120],
                 }
-            )
-
-        if self.settings.mock_rag and not projects:
-            return list(MOCK_COMPARISON_TABLE["projects"])
-        return projects
+            projects.append(project)
+        return projects or list(MOCK_COMPARISON_TABLE["projects"])
 
     def _build_recommendation(self, hits: list[dict[str, Any]]) -> str:
         if not hits:
@@ -329,35 +205,26 @@ class RAGService:
         ]
         if names:
             return f"建议参考 {'、'.join(names)}"
-        return "已找到相似项目，请参考对比矩阵"
+        return MOCK_COMPARISON_TABLE["recommendation"]
 
     def get_stats(self) -> dict[str, Any]:
         if self.settings.mock_rag:
             return {**MOCK_KNOWLEDGE_STATS, "mock_rag": True}
 
         kb = Path(self.knowledge_base_path)
-        doc_extensions = {"*.docx", "*.doc", "*.xlsx", "*.xls"}
-        doc_files = (
-            [f for ext in doc_extensions for f in kb.rglob(ext)]
-            if kb.exists()
-            else []
-        )
-        project_dirs = (
-            [p for p in kb.iterdir() if p.is_dir() and not p.name.startswith(".")]
-            if kb.exists()
-            else []
-        )
-        index = self._index_service()
-        chunk_count = index.indexed_count()
-        state = index.last_index_state()
+        docx_files = list(kb.rglob("*.docx")) if kb.exists() else []
+        project_dirs = [p for p in kb.iterdir() if p.is_dir()] if kb.exists() else []
+        chunk_count = len(docx_files) * 10 if docx_files else 0
+        try:
+            chunk_count = self._get_chroma().count()
+        except Exception:
+            pass
+        import_state = self._read_import_state()
         return {
-            "total_documents": len(doc_files),
+            "total_documents": len(docx_files),
             "total_chunks": chunk_count,
             "total_projects": len(project_dirs),
-            "last_import_at": state.get("last_index_at"),
-            "active_generation": state.get("active_generation"),
-            "vector_store": "pgvector",
-            "embedding_model": state.get("embedding_model") or self.settings.embedding_model,
+            "last_import_at": import_state.get("last_import_at"),
             "function_coverage": {},
             "mock_rag": False,
         }
@@ -370,36 +237,38 @@ class RAGService:
         if not kb.exists():
             return []
 
-        from app.services.engagement_manifest_service import (
-            ManifestLoadError,
-            resolve_manifest,
-        )
-
-        indexed_sources = self._index_service().list_indexed_source_docs()
+        import_state = self._read_import_state()
+        failed_map = {
+            item.get("path"): item.get("error", "索引失败")
+            for item in import_state.get("failed_files", [])
+            if item.get("path")
+        }
+        store = self._get_chroma()
         documents: list[dict[str, Any]] = []
 
-        for folder in sorted(p for p in kb.iterdir() if p.is_dir() and not p.name.startswith(".")):
-            try:
-                manifest = resolve_manifest(folder)
-            except (ManifestLoadError, ValueError, json.JSONDecodeError):
-                continue
+        for doc_path in sorted(kb.rglob("*.docx")):
+            rel_path = str(doc_path.relative_to(kb)).replace("\\", "/")
+            project_dir = doc_path.relative_to(kb).parts[0] if doc_path.relative_to(kb).parts else "unknown"
+            if rel_path in failed_map:
+                status = "failed"
+                error = failed_map[rel_path]
+            elif store.get_metadata(rel_path):
+                status = "indexed"
+                error = None
+            else:
+                status = "pending"
+                error = None
 
-            rel_folder = str(folder.relative_to(kb)).replace("\\", "/")
-            for doc in manifest.documents:
-                rel_path = f"{rel_folder}/{doc.path}".replace("\\", "/")
-                source_key = f"knowledge_base/{rel_folder}/{doc.path}".replace("\\", "/")
-                status = "indexed" if source_key in indexed_sources else "pending"
-                doc_path = folder / doc.path
-                entry: dict[str, Any] = {
-                    "path": rel_path,
-                    "project_name": manifest.project_name,
-                    "engagement_id": manifest.engagement_id,
-                    "doc_type": doc.doc_type,
-                    "status": status,
-                }
-                if doc_path.is_file():
-                    entry["file_size_bytes"] = doc_path.stat().st_size
-                documents.append(entry)
+            entry: dict[str, Any] = {
+                "path": rel_path,
+                "project_name": project_dir.replace("_", " ").title(),
+                "doc_type": infer_doc_type(doc_path.name),
+                "status": status,
+                "file_size_bytes": doc_path.stat().st_size,
+            }
+            if error:
+                entry["error"] = error
+            documents.append(entry)
 
         return documents
 
@@ -417,6 +286,47 @@ class RAGService:
                 "last_import_at": now,
             }
 
-        raise RAGProductionError(
-            "MOCK_RAG=false 时请使用 EngagementIngestService（POST /api/v1/knowledge/reindex）"
+        store = self._get_chroma()
+        new_docs = 0
+        skipped = 0
+        failed_files: list[dict[str, str]] = []
+
+        for doc_path in docx_files:
+            doc_id = str(doc_path.relative_to(kb)).replace("\\", "/")
+            try:
+                file_hash = self._file_hash(doc_path)
+                existing = store.get_metadata(doc_id)
+                if existing and existing.get("file_hash") == file_hash:
+                    skipped += 1
+                    continue
+
+                text = self._parser.extract_text_from_docx(str(doc_path))
+                project_dir = doc_path.relative_to(kb).parts[0] if doc_path.relative_to(kb).parts else "unknown"
+                store.add_document(
+                    doc_id,
+                    text[:8000],
+                    {
+                        "project_name": project_dir.replace("_", " ").title(),
+                        "source_doc": doc_id,
+                        "doc_type": infer_doc_type(doc_path.name),
+                        "file_hash": file_hash,
+                    },
+                )
+                new_docs += 1
+            except Exception as exc:
+                failed_files.append({"path": doc_id, "error": str(exc)[:200]})
+
+        self._write_import_state(
+            {
+                "last_import_at": now,
+                "failed_files": failed_files,
+            }
         )
+
+        return {
+            "new_documents": new_docs,
+            "new_chunks": store.count(),
+            "skipped": skipped,
+            "failed_files": failed_files,
+            "last_import_at": now,
+        }

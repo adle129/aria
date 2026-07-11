@@ -11,23 +11,6 @@ DEFAULT_DIMENSIONS = [
 ]
 
 
-def build_matrix_from_dimension_draft(
-    in_scope_items: list[dict[str, Any]],
-    projects: list[dict[str, Any]],
-) -> dict[str, Any]:
-    dims = [str(i.get("name", "")) for i in in_scope_items if i.get("name")]
-    new_profile = {
-        str(i.get("name", "")): str(i.get("work_content") or "—")
-        for i in in_scope_items
-        if i.get("name")
-    }
-    return build_comparison_matrix(
-        {"new_project_profile": new_profile},
-        projects,
-        dimensions=dims or None,
-    )
-
-
 def build_comparison_matrix(
     rfq_data: dict[str, Any],
     projects: list[dict[str, Any]],

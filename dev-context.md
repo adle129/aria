@@ -1,9 +1,9 @@
 # ARIA 智能应用平台 — 开发上下文文档
 
 **文件名：** `dev-context.md`（原 `prodtest.md`，已更名）  
-**版本：** v1.15 · 2026-07-11
+**版本：** v1.10 · 2026-07-04  
 **受众：** 工程师、Cursor Agent  
-**产品基线：** [prod.md](prod.md) v1.9 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
+**产品基线：** [prod.md](prod.md) v1.5 · [delivery-traceability.md](docs/supplementary/delivery-traceability.md)
 
 > 本文档描述**如何实现** ARIA 平台及首期 **报价助手** 应用，供日常编码与 AI 辅助开发使用。  
 > **当前代码范围：** Demo（Phase 1）已实现并 **冻结于 `main`**，仅供体验与流程参考；**正式版** 在 `release/r1` 基于 Demo **框架与 UI 壳** 按 [formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) v1.1 逐步实施（多数 R1 API **设计已定 · 未实现**）。
@@ -14,7 +14,7 @@
 
 | 文档 | 用途 |
 |------|------|
-| [prod.md](prod.md) | 产品需求与验收基线（v1.9） |
+| [prod.md](prod.md) | 产品需求与验收基线（v1.5） |
 | [docs/supplementary/delivery-traceability.md](docs/supplementary/delivery-traceability.md) | 客户能力 ↔ prod ↔ API ↔ 验收 |
 | [docs/supplementary/platform-brand.md](docs/supplementary/platform-brand.md) | 品牌定义、平台 vs 应用、**当前开发范围** |
 | **dev-context.md**（本文） | 技术栈、目录、API、模型、编码规范 |
@@ -26,8 +26,6 @@
 | [docs/customer-feedback-baseline.md](docs/customer-feedback-baseline.md) | Demo 反馈 → 需求对照 |
 | [docs/supplementary/pre-development-open-items.md](docs/supplementary/pre-development-open-items.md) | **开发前开放项登记**（写代码 / 开里程碑前必读） |
 | [docs/supplementary/formal-delivery-strategy.md](docs/supplementary/formal-delivery-strategy.md) | **正式版交付实施方案**（Demo 演进 · Profile · R1 Gate） |
-| [docs/R1/knowledge-development-standards.md](docs/R1/knowledge-development-standards.md) | R1-KH 全栈开发规范：分层、事务、迁移、并发、兼容与可观测性 |
-| [docs/R1/knowledge-ui-design-tasks.md](docs/R1/knowledge-ui-design-tasks.md) | 知识库 UI 状态词典、页面任务和前端 DoD |
 | [docs/supplementary/rfq-dimension-baseline-spec.md](docs/supplementary/rfq-dimension-baseline-spec.md) | **F1.10a–d 全维度基准库 + RFQ 勾选 UI**（Q8） |
 | [docs/supplementary/api-design.md](docs/supplementary/api-design.md) | API 详细契约（含 §4 部署与数据持久化） |
 | [docs/supplementary/rag-design.md](docs/supplementary/rag-design.md) | RAG 架构、统一检索契约、Demo P0 / Phase 2 计划 |
@@ -63,18 +61,15 @@
 
 ### 基础设施
 
-- Docker Compose（`postgres` + `backend` + **`worker`** + `frontend` + `nginx`）— **dev 与 prod 同拓扑**
-- Ollama + Qwen2.5：**14b**（Demo）/ **32b Q4**（生产主模型，4090 推荐）— **宿主机独立进程，不进容器**
+- Docker Compose（`web` + **`worker`** 同镜像独立进程 + Postgres + Nginx）、Nginx
+- Ollama + Qwen2.5：**14b**（Demo）/ **32b Q4**（生产主模型，4090 推荐）
 - **nomic-embed-text**（RAG Embedding，经 Ollama `/api/embeddings` 写入 pgvector）
 
 ### 长任务与并发（正式版 R1+）
 
 - RFQ 解析等长任务：**PostgreSQL 任务表 + 独立 worker**（`SKIP LOCKED` 认领），**不用** Redis/Celery
-- Ollama **全局资源租约**（PostgreSQL 跨 backend/worker，不使用 Redis）+ 前端排队位置/ETA；进程内信号量不能作为生产总并发闸
-- 团队规模 **10–20 人**（问卷确认）；高峰同时长任务 **3–5 人**；排队 SLA **≤10 min**
-- 单 GPU 优先级：交互 query embedding > RFQ > KB 增量 > KB 全量；KB 分批让路，全量默认非高峰
-- KB 索引使用 staging generation + 原子 active 切换；磁盘/模型/DB 失败时旧 generation 继续服务
-- 数据盘 80% warning、90% 写保护（可配置）；空间不足返回 507，仅阻止新增写入
+- Ollama **并发闸**（worker 内信号量，同时 1–2 个 generate）+ 前端排队位置/ETA
+- 团队规模 20–30 人；高峰同时长任务人数与排队 SLA **待客户确认（TBD）**
 
 ---
 
@@ -143,16 +138,10 @@ EMBEDDING_MODEL=nomic-embed-text
 MOCK_LLM=true                    # true=规则 Mock；false=真实 Ollama
 MOCK_RAG=true                    # true=固定 Mock 检索结果
 PROMPT_VERSION=v1
-# 知识库 Debug UI：仅本地 dev（见 docs/R1/kb-debug-ui-spec.md）
-# ARIA_UI_PROFILE=dev
-# KB_DEBUG_ENABLED=true
 # Demo 遗留；R1 后向量存 PostgreSQL pgvector
 CHROMA_PATH=/app/data/chroma_db
 UPLOAD_PATH=/app/data/uploads
 OLLAMA_MAX_CONCURRENT=1          # worker 内 LLM 并发闸（正式版，TBD 1 或 2）
-TASK_MAX_QUEUE_SIZE=20           # 上传队列深度上限；满时 429
-TASK_JOB_STALE_SECONDS=900        # running 作业超时（秒）；worker 自动恢复/重试
-TASK_WORKER_INLINE=false          # 测试/SQLite 同步执行 worker
 KNOWLEDGE_BASE_PATH=/app/data/knowledge_base
 TEMPLATE_PATH=/app/data/templates
 ```
@@ -189,17 +178,13 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/v1/health` | 健康检查 |
-| POST | `/api/v1/rfq/upload` | 上传 Word RFQ（**.docx / .doc**），返回 task_id |
+| POST | `/api/v1/rfq/upload` | 上传 .docx，返回 task_id |
 | POST | `/api/v1/rfq/analyze` | 触发异步分析（可选，与 upload 合并亦可） |
-| GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`、`include_archived`） |
+| GET | `/api/v1/rfq/tasks` | 最近任务列表（`limit`、`unique_file`） |
 | GET | `/api/v1/rfq/tasks/{id}` | 任务状态与结果（含 `artifacts_status`） |
-| POST | `/api/v1/rfq/tasks/{id}/retry` | **F1.11** 失败/已取消任务重新解析（无需重传） |
-| POST | `/api/v1/rfq/tasks/{id}/cancel` | **F1.11** 协作取消分析（Phase 1→`cancelled`；Phase 2→回滚 `dimension_review`） |
-| DELETE | `/api/v1/rfq/tasks/{id}` | **F1.11** 删除任务及关联文件 |
-| PATCH | `/api/v1/rfq/tasks/{id}/archive` | **F1.11** 归档（默认列表隐藏） |
 | GET | `/api/v1/rfq/tasks/{id}/status` | 进度轮询（含 `dimension_review`） |
 | PUT | `/api/v1/rfq/tasks/{id}` | 编辑/确认（含 `dimension_draft`） |
-| POST | `/api/v1/rfq/tasks/{id}/confirm-dimensions` | **F1.10d** 确认维度并生成矩阵（R1 · 已实现） |
+| POST | `/api/v1/rfq/tasks/{id}/confirm-dimensions` | **F1.10** 确认维度并生成矩阵（R1 · 未实现） |
 | POST | `/api/v1/rfq/tasks/{id}/generate-excel` | 生成 Excel（M3 含 `quote_fill_report`） |
 | POST | `/api/v1/rfq/tasks/{id}/generate-proposal` | Demo Stub：Mock 方案草案 |
 | POST | `/api/v1/rfq/tasks/{id}/generate-qa` | Demo Stub：Mock QA 清单 |
@@ -207,9 +192,9 @@ ARIA_DATA_ROOT=/data/aria   # docker-compose.prod.yml bind 源
 | GET | `/api/v1/knowledge/stats` | 知识库统计 |
 | POST | `/api/v1/knowledge/search` | 向量检索（Top-K） |
 | POST | `/api/v1/knowledge/import` | 触发索引 |
-| GET | `/api/v1/knowledge/baselines` | 人天基线预览（R1 · **规则 JSON，非向量**；见 [manpower-baselines-spec.md](docs/supplementary/manpower-baselines-spec.md)） |
+| GET | `/api/v1/knowledge/baselines` | 人天基线预览（R1） |
 | POST | `/api/v1/knowledge/engagements/upload` | R1 轻量 Web 上传 ≤5 套（未实现） |
-| POST | `/api/v1/knowledge/feedback` | F5.6 L1（**内部运维增强 · 可选** · 非合同 · 未实现） |
+| POST | `/api/v1/knowledge/feedback` | F5.6 L1（合同外 · 未实现） |
 
 **正式版（R1/M3–M6）：** M4/M5 替换 Stub；`download/qa`、`download/ppt`；详见 [delivery-traceability.md](docs/supplementary/delivery-traceability.md)。
 
@@ -230,15 +215,13 @@ class RFQTask(Base):
 
     # 系统处理状态
     processing_status = Column(String, default="pending")
-    # pending → parsing → dimension_review → retrieving → generating → completed / failed / cancelled
-    # cancelling：协作取消软状态（轮询可见）
+    # pending → parsing → dimension_review → retrieving → generating → completed / failed
 
     # 人机协同状态（见 prod.md §5）
     review_status     = Column(String, default="draft")
     # draft → in_review → approved → exported
 
     rfq_modules       = Column(JSON, nullable=True)
-    dimension_draft   = Column(JSON, nullable=True)   # F1.10b/c 基准匹配 + 勾选复核
     similar_projects  = Column(JSON, nullable=True)
     comparison_table  = Column(JSON, nullable=True)
     solution_draft    = Column(JSON, nullable=True)   # Demo Stub / Phase 2 真实
@@ -305,28 +288,11 @@ generator.generate(context, template_path, output_path)
 - **R1 目标：** 结构化预解析（Heading 章节 + `doc.tables` → IR）→ LLM 填 [`rfq_parse.txt`](backend/prompts/v1/rfq_parse.txt) JSON；不确定填「未知」，禁止编造
 - 失败降级：`{"raw_output": ..., "parse_error": true}`
 
-### 任务队列（R1+ · 已实现）
+### 任务队列（正式版 R1+ · 设计已定 · 未实现）
 
-- RFQ 上传写入 PostgreSQL `task_jobs` 表；**独立 worker**（`python -m app.worker`）认领执行
-- `OLLAMA_MAX_CONCURRENT` 默认 **1**（问卷 O-06 已关闭）
-- `task_max_queue_size` 默认 **20**；满时 `POST /rfq/upload` → **429** + `queue_depth`
-- `task_job_stale_seconds` 默认 **900**；`WorkerService.recover_stale_jobs` 超时恢复，经 `mark_failed` 尊重 `max_attempts`
-- 状态 API 返回 `queue_position`、`estimated_wait_seconds`
-- 测试/SQLite 可用 `TASK_WORKER_INLINE=true` 同步执行
-- 任务生命周期：`retry_task` / `delete` / `archived` 字段；Alembic `005_wave6_task_lifecycle`
-- 详见 [api-design.md §2.2 / §3](docs/supplementary/api-design.md) · [prod.md §5.5](prod.md)
-
-### 认证与权限（R1 · SURVEY-05/06）
-
-| 模型 | 说明 |
-|------|------|
-| `users` | id, username, password_hash, display_name, role, is_active |
-| `rfq_tasks.owner_id` | FK → users；列表/读写按 owner 过滤 |
-| 角色 | `quote_engineer`（默认）、`kb_admin` |
-| 会话 | JWT（`Authorization: Bearer`）；生产 `AUTH_ENABLED=true` |
-
-- API 契约：[api-design.md §0](docs/supplementary/api-design.md)
-- 任务 ID：[dev-tasks.md R1-AUTH](docs/R1/dev-tasks.md)
+- 替换 `BackgroundTasks`：任务写入 PG 表，**独立 worker** 进程消费（compose 同镜像、不同 CMD）
+- `TaskQueue` 接口封装；认领用 `SELECT … FOR UPDATE SKIP LOCKED`
+- 详见 [production-deploy-artifacts.md](docs/supplementary/production-deploy-artifacts.md)、[api-design.md §3](docs/supplementary/api-design.md)
 
 ### RAGService（`services/rag_service.py`）
 
@@ -336,7 +302,6 @@ generator.generate(context, template_path, output_path)
 
 - `ingest_document(file_path, metadata)`
 - `search_similar_projects(query, top_k) → list[RAGHit]`
-- **R1 优化（2026-07）：** Embedding 批量 `/api/embed`（Ollama ≥0.3）+ 超长文本截断（`DEFAULT_EMBED_MAX_CHARS=2400`）；pgvector upsert 分批（200 条/批）；检索阈值与 metadata 过滤加固
 - `build_comparison_table(rfq_data, similar_docs) → dict` — 从 hits **派生** projects，勿 duplicate 人天等展示字段
 - `calculate_overall_confidence(hits) → float`
 - `get_stats() → dict`
@@ -373,7 +338,7 @@ generator.generate(context, template_path, output_path)
 
 | 路由 | 组件要点 |
 |------|---------|
-| `/rfq` | 上传、**取消分析**（解析/检索/生成）、最近分析（侧栏 **失败 / 已取消** 筛选）、对比矩阵、相似项目 Expand、**Function 缺口 Alert**（P0） |
+| `/rfq` | 上传、最近分析、对比矩阵、相似项目 Expand、**Function 缺口 Alert**（P0） |
 | `/proposal` | 按 Function 的模块卡片、Stub 生成、`solution_draft` |
 | `/qa` | Q_A 列结构表格、Stub 生成、可编辑、`qa_items` |
 | `/quote` | Excel 生成下载、人天构成明细 Mock 表 |
@@ -397,13 +362,11 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 
 ```json
 {"code": 200, "data": {...}}
-{"code": 400, "msg": "仅支持 Word RFQ 文件（.docx 或 .doc）"}
+{"code": 400, "msg": "仅支持 .docx 格式文件"}
 {"code": 404, "msg": "任务 ID 不存在"}
 {"code": 422, "msg": "参数校验失败", "detail": [...]}
 {"code": 500, "msg": "服务器内部错误，请联系管理员"}
 ```
-
-RFQ 异步流水线：`processing_status=failed` 时 `status_message` / `error_msg` 可为用户可读文案（如非 RFQ 内容门禁），见 [api-design.md](docs/supplementary/api-design.md) · `rfq_document_guard.py`。
 
 - 500 禁止暴露 StackTrace；服务端 `exc_info=True` 记日志
 - LLM/文件异常必须降级，不可导致进程崩溃
@@ -542,9 +505,9 @@ test: 知识库搜索异常路径
 - Ollama 不入容器：`OLLAMA_BASE_URL` 访问宿主机
 - 容器名：`aria-backend`、`aria-frontend`
 - 数据库：`aria_db` / `aria_admin`
-- **Docker（国内）：** 优先 Docker Desktop `registry-mirrors` + `ipv6:false`，见 [docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)；DaoCloud EOF / `AUTH_ENABLED` 覆盖见 [README § Docker 常见问题](README.md#docker-常见问题与方案)
+- **Docker（国内）：** 优先 Docker Desktop `registry-mirrors` + `ipv6:false`，见 [docs/docker-desktop-engine.example.json](docs/docker-desktop-engine.example.json)
 - **Docker 构建：** 依赖分 `requirements.txt` / `requirements-ai.txt`；Phase 0 可用 `docker-compose.dev.yml`（`INSTALL_AI=false`）
 
 ---
 
-**关联文档：** [prod.md](prod.md) v1.9 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) v1.3 | [implementation-plan.md](docs/implementation-plan.md) v1.6 | [api-design.md](docs/supplementary/api-design.md) v1.7 | [rag-design.md](docs/supplementary/rag-design.md) v1.5
+**关联文档：** [prod.md](prod.md) v1.5 | [delivery-traceability.md](docs/supplementary/delivery-traceability.md) | [implementation-plan.md](docs/implementation-plan.md) | [api-design.md](docs/supplementary/api-design.md) | [rag-design.md](docs/supplementary/rag-design.md)

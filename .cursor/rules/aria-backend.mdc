@@ -1,5 +1,5 @@
 ---
-description: ARIA 后端分层、RAG/LLM/Mock、状态机与 R1 架构规范
+description: ARIA 后端分层架构、API 与 Service 开发规范
 globs: backend/**/*
 alwaysApply: false
 ---
@@ -13,91 +13,29 @@ HTTP → api/v1/*.py → services/*.py → repositories/*.py → models/*.py
 ```
 
 - **路由层：** 仅参数校验、调用 Service、返回响应；**禁止**直接调用 LLM、读写文件、操作 DB
-- **Service：** 业务逻辑；Generator 经 `GeneratorRegistry.create("excel_manpower")` 获取，**禁止**在路由/Service 中直接 new Generator
-- **Repository：** CRUD；LLM/RAG 在 Service 封装，单元测试全部 Mock
+- **Service：** 业务逻辑；Generator 插件注册到 `GeneratorRegistry`
+- **Repository：** CRUD；LLM/RAG 在 Service 中封装，单元测试全部 Mock
 
 ## API 响应格式
 
-- 成功：`{"code": 200|202, "data": {...}}`（health 除外）；长任务返回 202 + job_id
-- 错误：`{"code": 400|404|409|422|429|507|503|500, "msg": "..."}`；500 **禁止** StackTrace；容量不足 507；LLM 不可用 503
-- 所有 LLM/文件操作须 `try/except`；服务端 `exc_info=True` 日志
+成功：`{"code": 200, "data": {...}}`（health 端点除外，见 api-design）
 
-## Mock 开关
+错误：`{"code": 400|404|422|500, "msg": "..."}`；500 **禁止**暴露 StackTrace
 
-| 变量 | 行为 |
-|------|------|
-| `MOCK_LLM=true` | RFQ 规则提取，不调用 Ollama（CI/无 GPU） |
-| `MOCK_RAG=true` | 固定 `mock_data.py` 结果（前端联调） |
+## 关键约定
 
-- **唯一 Mock 源：** [mock_data.py](backend/app/services/mock_data.py)；`MOCK_RAG_HITS` 为唯一 chunk Mock；`MOCK_COMPARISON_TABLE` 须与 hits 对齐或派生；**禁止第三套** Mock
-- Stub `generate-proposal` / `generate-qa` **不依赖** MOCK 开关，始终 Mock 结构 + `demo_preview`
-- **生产验收：** `MOCK_LLM` 与 `MOCK_RAG` 均为 false
-
-## RAG 与向量库
-
-- **唯一出口：** `RAGService.search()` / `search_similar_projects()`；RFQ 与 `/knowledge/search` 共用 `RAGHit` 契约
-- **R1 目标：** PostgreSQL **pgvector**（`CREATE EXTENSION IF NOT EXISTS vector`）；`chroma_store.py` 为 Demo 遗留，R1 后移除
-- **ingest：** 进入 PostgreSQL job；写 staging generation，校验后原子切 active；**禁止**先清生产索引
-- 切块须保留 `source`、`engagement_id`、`doc_id` 等 metadata；检索须显式 `top_k`；LLM temperature **0.1–0.3**
-- **拒答门控（R1）：** Top-K 空或 `max(similarity) < 阈值` → `insufficient_evidence: true`；**禁止** Mock 项目回退或编造人天
-
-## LLM
-
-- 统一经 [llm_service.py](backend/app/services/llm_service.py) `complete_json()`；timeout **120s**；最多 **2** 次重试
-- 输出经 [safe_parse_llm_json](backend/app/utils/json_utils.py) 清洗；失败降级 `{"raw_output", "parse_error": true}`，不可 500
-- Prompt：`backend/prompts/v1/`，`PROMPT_VERSION=v1`；**禁止**硬编码 Prompt；变更须跑回归
-- **LLM 不做：** M5 PPT 技术正文；M3 Excel 月列人天自由填写；Q_A 凭空造题；编造历史依据
-
-## 任务状态机
-
-**`processing_status`（机器）：**  
-`pending` → `parsing` → **`dimension_review`** → `retrieving` → `generating` → `completed` / `failed`
-
-**`dimension_review`：** 等待 F1.10 基准维度勾选（~100 项）；不可跳过
-
-**`review_status`（人工）：** `draft` → `in_review` → `approved` → `exported`
-
-**`artifacts_status`（计算字段）：** `rfq_parsed`、`comparison_ready`、`proposal_ready`、`qa_ready`、`excel_ready`
-
-## 任务队列（R1+）
-
-- Demo：`BackgroundTasks`（过渡）
-- R1：**PostgreSQL 任务表 + 独立 worker**（`SKIP LOCKED`）；**不用** Redis/Celery
-- Ollama 并发：PostgreSQL 全局租约/锁须覆盖 backend + worker；进程内信号量只作局部保护
-- 优先级：query > RFQ > KB 增量 > KB 全量；job/cancel/retry/stale recovery 必须幂等
-
-## 配置与文件
-
-- 全经 [config.py](backend/app/config.py) + pydantic-settings；关键变量：`OLLAMA_*`、`EMBEDDING_MODEL`、`MOCK_*`、`PROMPT_VERSION`、`ARIA_DATA_ROOT`
-- RFQ 上传支持 `.docx`/`.doc`；`.doc` 经 Linux LibreOffice 转换
-- KB 上传须流式写数据盘 staging，ZIP 防路径穿越/炸弹，校验后 atomic rename；禁止整包读内存
-- 持久化数据 **不可**在容器内路径；`backend/data/` Volume 挂载
-
-## 数据库
-
-- Demo：`create_all`；升级用 `scripts/migrate_*.sql`；**禁止**生产 `drop_all`
-- R1+：**Alembic** 管理表结构变更
-- 迁移采用 expand → migrate → contract；须有旧数据 fixture、回滚说明和锁表风险
-- 镜像：`pgvector/pgvector:pg16`；FastAPI `depends_on` postgres **healthy**
-
-## Pydantic v2
-
-- `model_config = ConfigDict(from_attributes=True)`；`@field_validator` / `@model_validator`；**禁止** v1 语法混用
-
-## 依赖
-
-- `requirements.txt`（核心）+ `requirements-ai.txt`（**R1：pgvector**；Demo 过渡期或仍含 chromadb，迁移后移除）
-
-## 禁止事项
-
-- LangChain · ChromaDB（R1 后）· asyncpg · Redis · Celery · 外网 AI API
-- 路由层直接 LLM/DB/文件 · 多套 RAG Mock · 硬编码配置
-- 生产 Mock 验收 · M5 LLM 写 PPT 正文 · LLM 填 Excel 人天 · 编造历史依据
+- Prompt 版本化：`backend/prompts/v1/`
+- LLM JSON 失败须降级（`parse_error` + `raw_output`），不可崩溃
+- 双状态：`processing_status`（系统）+ `review_status`（draft → in_review → approved → exported）
+- Excel：复制 `data/templates/quote_template.xlsx`，Demo 仅填 PM + Chassis
+- **Demo Stub（框架 Demo）：** `proposal_stub` / `qa_stub` Generator；`POST .../generate-proposal`、`POST .../generate-qa` 写入 `solution_draft` / `qa_items`；`GET .../tasks/{id}` 返回 `artifacts_status`（契约见 api-design.md）
+- Phase 2 替换 Stub 为真实 RAG+LLM，**路由与 JSON 形状不变**
+- **RAG：** 单一 `RAGService.search()` 出口；RFQ 与 `/knowledge/search` 共用 `RAGHit` 契约；禁止双份 Mock（见 [rag-design.md](docs/supplementary/rag-design.md)）
+- 依赖：`requirements.txt`（核心）+ `requirements-ai.txt`（LangChain/ChromaDB）
 
 ## 新增 API 检查清单
 
-- [ ] [api-design.md](docs/supplementary/api-design.md) 契约
-- [ ] 知识库改动已读 [knowledge-development-standards.md](docs/R1/knowledge-development-standards.md)
-- [ ] `unit_tests/test_<service>.py`（Mock 外部依赖）
-- [ ] `API_tests/test_<module>_api.py`（TestClient + SQLite）
-- [ ] `.\run_tests.ps1` 全绿；RAG/Prompt 变更 + `--regression`
+- [ ] 契约已对齐 [api-design.md](docs/supplementary/api-design.md)
+- [ ] `unit_tests/test_<service>.py` 覆盖 Service（LLM Mock）
+- [ ] `API_tests/test_<module>_api.py` 覆盖正常 + 异常路径
+- [ ] `./run_tests.sh` 或 `.\run_tests.ps1` 全绿

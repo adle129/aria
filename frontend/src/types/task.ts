@@ -1,47 +1,3 @@
-export interface DimensionEvidence {
-  rfq_section?: string;
-  rfq_section_title?: string;
-  matched_keyword?: string;
-  snippet?: string;
-  source_ref?: string;
-}
-
-export interface DimensionDraftItem {
-  dimension_id: string;
-  module?: string;
-  module_label?: string;
-  name: string;
-  in_scope: boolean;
-  work_content?: string;
-  source_ref?: string | null;
-  source_label?: string;
-  match_type?: string;
-  review_tier?: "auto_include" | "needs_review" | "auto_exclude";
-  evidence?: DimensionEvidence;
-  manually_adjusted?: boolean;
-  custom?: boolean;
-  confidence?: string;
-}
-
-export interface DimensionDraft {
-  baseline_version?: string;
-  items: DimensionDraftItem[];
-  custom_items?: DimensionDraftItem[];
-  module_summary?: Array<{
-    module: string;
-    module_label?: string;
-    needed: boolean;
-    in_scope_count: number;
-    needs_review_count?: number;
-  }>;
-  review_summary?: {
-    total: number;
-    auto_include: number;
-    needs_review: number;
-    auto_exclude: number;
-  };
-}
-
 export interface ArtifactsStatus {
   rfq_parsed: boolean;
   comparison_ready: boolean;
@@ -56,10 +12,6 @@ export interface TaskSummary {
   file_name: string;
   status: string;
   processing_status: string;
-  progress?: number;
-  status_message?: string | null;
-  project_name?: string | null;
-  customer?: string | null;
   created_at?: string;
 }
 
@@ -94,10 +46,8 @@ export interface TaskPayload {
   task_id: string;
   file_name?: string;
   processing_status: string;
-  status_message?: string | null;
   status: string;
   rfq_modules?: Record<string, unknown>;
-  dimension_draft?: DimensionDraft;
   similar_projects?: Array<Record<string, unknown>>;
   comparison_table?: Record<string, unknown>;
   solution_draft?: SolutionDraft;

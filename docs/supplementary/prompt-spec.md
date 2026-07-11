@@ -1,7 +1,7 @@
 # ARIA — Prompt 规范
 
-**版本：** v1.4 · 2026-07-07  
-**基线：** [prod.md](../../prod.md) v1.7 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
+**版本：** v1.3 · 2026-07-04  
+**基线：** [prod.md](../../prod.md) v1.5 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)
 
 ---
 
@@ -88,12 +88,6 @@
 ```json
 {
   "baseline_version": "v1",
-  "review_summary": {
-    "total": 100,
-    "auto_include": 18,
-    "needs_review": 12,
-    "auto_exclude": 70
-  },
   "items": [
     {
       "dimension_id": "chassis_front_susp",
@@ -102,15 +96,7 @@
       "name": "前悬架开发",
       "in_scope": true,
       "work_content": "前悬架 M1/M2 数据开发",
-      "match_type": "keywords",
-      "source_label": "关键词匹配",
-      "source_ref": "RFQ §4.2.1 · 前悬架开发",
-      "review_tier": "auto_include",
-      "evidence": {
-        "rfq_section": "4.2.1",
-        "matched_keyword": "前悬",
-        "snippet": "…前悬架 MacPherson…"
-      },
+      "source_ref": "RFQ §4.2.1",
       "manually_adjusted": false,
       "custom": false
     },
@@ -121,8 +107,6 @@
       "name": "门把手开发",
       "in_scope": false,
       "work_content": "—",
-      "match_type": "none",
-      "review_tier": "auto_exclude",
       "source_ref": null,
       "manually_adjusted": false,
       "custom": false
@@ -130,7 +114,7 @@
   ],
   "custom_items": [],
   "module_summary": [
-    {"module": "Chassis", "module_label": "底盘", "needed": true, "in_scope_count": 5, "needs_review_count": 2}
+    {"module": "Chassis", "module_label": "底盘", "needed": true, "in_scope_count": 5}
   ]
 }
 ```
@@ -139,11 +123,10 @@
 
 - **主路径：** 维度名来自 **基准库**，LLM **不得** 凭空新增标准维度（仅 `custom_items` 可补充）
 - `in_scope=false` 时 `work_content` **必须** 为 `—`
-- `match_type=module_scope` → `review_tier=needs_review` 且默认 **`in_scope=false`**
-- `source_ref` 为客户可见 RFQ 出处（格式：`RFQ §{section} · {章节标题}` 或 `RFQ · 关键词 {kw}`）；`source_label` 为中文匹配方式
+- `in_scope=true` 须有 `work_content` 或 `source_ref` 之一；无依据标 `unknown` 供人工勾选
 - 规则通道（keywords）可预填，LLM 批处理修正
 
-**工程师交互（F1.10c · v1.2 单视图）：** 仅展示 RFQ 相关模块；展开查看全模块行（含 excluded）→ 勾选/编辑 → `PUT /rfq/tasks/{id}` → `POST confirm-dimensions`
+**工程师交互（F1.10c）：** 勾选 / 取消 / 编辑 `work_content` / 添加 `custom_items` → `PUT /rfq/tasks/{id}`
 
 ### 3.2 阶段 B — 对比矩阵（确认后 · F1.10d）
 

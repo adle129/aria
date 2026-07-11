@@ -1,89 +1,9 @@
 # ARIA — API 设计规范
 
-**版本：** v1.7
+**版本：** v1.3  
 **Base URL：** `/api/v1`  
-**日期：** 2026-07-09  
-**基线：** [prod.md](../../prod.md) v1.9 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
-
----
-
-## 0. 认证与授权（R1 · SURVEY-05/06）
-
-生产环境 `AUTH_ENABLED=true`（测试/CI 可 `false` 跳过守卫）。除 `GET /health` 与 `POST /auth/login` 外，业务 API **须** 携带 `Authorization: Bearer <token>`。
-
-### 0.1 登录
-
-```
-POST /api/v1/auth/login
-```
-
-**请求：**
-
-```json
-{
-  "username": "engineer01",
-  "password": "********"
-}
-```
-
-**成功 200：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "access_token": "<jwt>",
-    "token_type": "bearer",
-    "user": {
-      "id": "uuid",
-      "username": "engineer01",
-      "display_name": "张工",
-      "role": "quote_engineer"
-    }
-  }
-}
-```
-
-**失败 401：**
-
-```json
-{
-  "code": 401,
-  "msg": "用户名或密码错误"
-}
-```
-
-### 0.2 当前用户
-
-```
-GET /api/v1/auth/me
-```
-
-**成功 200：** 同 login 响应中的 `user` 对象。
-
-### 0.3 登出
-
-```
-POST /api/v1/auth/logout
-```
-
-**成功 200：** `{ "code": 200, "data": { "ok": true } }` — 服务端无黑名单；前端清除 token。
-
-### 0.4 角色
-
-| role | 说明 |
-|------|------|
-| `quote_engineer` | 默认；RFQ 全流程；知识库 **只读**（search / stats / baselines） |
-| `kb_admin` | 含工程师能力 + 知识库 **写**（import / reindex / engagements/upload） |
-
-### 0.5 授权规则摘要
-
-| 场景 | HTTP |
-|------|------|
-| 未登录访问业务 API | **401** `{ "code": 401, "msg": "未登录" }` |
-| 工程师访问他人 `task_id` | **404**（防 ID 枚举） |
-| 工程师调用 KB 写 API | **403** `{ "code": 403, "msg": "需要资料库管理员权限" }` |
-| `GET /rfq/tasks` | 仅返回 `owner_id = 当前用户` 的任务 |
+**日期：** 2026-07-04  
+**基线：** [prod.md](../../prod.md) v1.5 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)
 
 ---
 
@@ -105,7 +25,7 @@ POST /api/v1/auth/logout
 ```json
 {
   "code": 400,
-  "msg": "仅支持 Word RFQ 文件（.docx 或 .doc）"
+  "msg": "仅支持 .docx 格式文件"
 }
 ```
 
@@ -125,8 +45,6 @@ POST /api/v1/auth/logout
 |----|------|
 | 200 | 成功 |
 | 400 | 业务错误（格式不对等） |
-| 401 | 未登录或 token 无效 |
-| 403 | 已登录但权限不足 |
 | 404 | 资源不存在 |
 | 422 | 参数校验失败 |
 | 500 | 服务器内部错误（不暴露 StackTrace） |
@@ -150,40 +68,15 @@ GET /api/v1/health
   "model": "qwen2.5:14b",
   "embedding_model": "nomic-embed-text",
   "mock_llm": true,
-  "mock_rag": true,
-  "data_volume": {
-    "volume": "data",
-    "total_bytes": 4398046511104,
-    "used_bytes": 879609302221,
-    "free_bytes": 3518437208883,
-    "usage_percent": 20.0,
-    "warning": false,
-    "write_protected": false
-  },
-  "temp_volume": {
-    "volume": "tmp",
-    "total_bytes": 4398046511104,
-    "used_bytes": 879609302221,
-    "free_bytes": 3518437208883,
-    "usage_percent": 20.0,
-    "warning": false,
-    "write_protected": false
-  },
-  "kb_index": {
-    "status": "idle",
-    "active_generation": "production-20260710-01"
-  },
-  "production_warnings": []
+  "mock_rag": true
 }
 ```
-
-`used_percent >= 80` 加入 warning；达到可配置写保护阈值时 `write_protected=true`。磁盘 warning 不得把健康接口本身变成 500。
 
 ---
 
 ### 2.2 RFQ 模块
 
-#### 工作维度基准库（F1.10a · R1 · **已实现**）
+#### 工作维度基准库（F1.10a · R1 · 设计已定 · 未实现）
 
 只读返回当前生效的基准维度主数据，供 RFQ 确认页渲染与匹配。
 
@@ -228,32 +121,9 @@ Content-Type: multipart/form-data
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| file | File | 是 | Word RFQ：**`.docx` 或 `.doc`**，最大 50MB |
+| file | File | 是 | .docx 文件，最大 50MB |
 
-**成功响应：** 同下（`code: 200`）。
-
-**队列已满（R1+）：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）：
-
-```json
-{
-  "code": 429,
-  "msg": "当前处理队列已满（N 个任务排队中），请稍后再试",
-  "queue_depth": 20
-}
-```
-
-**格式错误（同步）：** 非 `.docx` / `.doc` → `400`，`msg`: `仅支持 Word RFQ 文件（.docx 或 .doc）`。
-
-**内容门禁（异步 · R1+）：** 上传仍返回 `200` 并入队；worker 读入正文后若判定非预期文档，任务 `processing_status=failed`，`status` 轮询与任务详情可见下列 `message` / `error_msg`（**不**调用 LLM 补全，避免幻觉）：
-
-| 场景 | `message` 示例 |
-|------|----------------|
-| 不像 RFQ/技术协议 | `上传的文档不像 RFQ/技术协议（未识别到项目要求、交付物或里程碑等结构），请上传客户 RFQ Word 后重试` |
-| 无结构化命中 | `未能从文档中识别 RFQ 结构化信息（项目/交付物/里程碑等），请确认是否为客户完整 RFQ Word 后重试` |
-
-判定依据：客户模板结构词（如技术协议、工作内容、交付物清单、`4.2.x`）或规则预抽命中；**不**因正文任意出现「RFQ」字样即通过。实现：`rfq_document_guard.py`。
-
-**响应（成功）：**
+**响应：**
 
 ```json
 {
@@ -272,16 +142,10 @@ Content-Type: multipart/form-data
 #### 查询任务列表
 
 ```
-GET /api/v1/rfq/tasks?limit=20&unique_file=true&include_archived=false
+GET /api/v1/rfq/tasks?limit=20&unique_file=true
 ```
 
-| 参数 | 类型 | 默认 | 说明 |
-|------|------|------|------|
-| `limit` | int | 20 | 返回条数上限 |
-| `unique_file` | bool | true | 同文件名仅保留最新一条 |
-| `include_archived` | bool | false | **R1+** 为 true 时包含已归档任务 |
-
-**响应 `data` 数组元素：** `task_id`、`file_name`、`status`（review_status）、`processing_status`、`progress`、`created_at`
+**响应 `data` 数组元素：** `task_id`、`file_name`、`status`（review_status）、`processing_status`、`created_at`
 
 #### 查询任务
 
@@ -297,7 +161,7 @@ GET /api/v1/rfq/tasks/{task_id}
   "data": {
     "task_id": "uuid",
     "status": "draft | in_review | approved | exported",
-    "processing_status": "pending | queued | parsing | dimension_review | retrieving | generating | cancelling | cancelled | completed | failed",
+    "processing_status": "pending | parsing | dimension_review | retrieving | generating | completed | failed",
     "rfq_modules": { ... },
     "dimension_draft": {
       "baseline_version": "v1",
@@ -350,76 +214,7 @@ PUT /api/v1/rfq/tasks/{task_id}
 | dimension_draft | object | **F1.10：** 基准匹配结果（见 [rfq-dimension-baseline-spec §4](rfq-dimension-baseline-spec.md)）；工程师勾选/编辑 |
 | confirmed | boolean | 用户确认已审阅 |
 
-#### 重新解析失败任务（R1 · F1.11）
-
-```
-POST /api/v1/rfq/tasks/{task_id}/retry
-```
-
-**前置：** `processing_status=failed` 或 `cancelled`；`archived=false`；原始 RFQ 文件存在。
-
-**成功：** `200`，`data` 含更新后的 status payload（`processing_status=queued`）。
-
-| HTTP | `msg` 示例 |
-|------|-----------|
-| 404 | 任务 ID 不存在 |
-| 400 | 只有失败或已取消状态的任务才能重试 / 已归档任务不支持重试 / 原始 RFQ 文件已丢失，请重新上传 |
-
-#### 取消分析（R1 · F1.11）
-
-```
-POST /api/v1/rfq/tasks/{task_id}/cancel
-```
-
-**前置：** 任务处于可取消阶段（`queued` / `parsing` / `retrieving` / `generating`）；`dimension_review` 及终态幂等 no-op。
-
-**行为：**
-- Phase 1（`TaskJob` active）：`queued` 立即 `cancelled`；`running` 协作取消（`cancelling` 软状态 → `cancelled`）
-- Phase 2（无 active Job）：`retrieving`/`generating` 标 `cancelling`，在 RAG/生成边界回滚 `dimension_review`（保留维度勾选）
-
-**实现要点（协作，非杀进程）：**
-- Phase 1：worker 在解析/匹配/LLM 边界读取 `TaskJob.cancel_requested_at`；LLM 使用 **流式 generate** 并在取消时 **关闭 HTTP 连接** 释放 Ollama 租约
-- Phase 2：`confirm-dimensions` 同步路径读取 `RFQTask.processing_status=cancelling`；query **embedding** 与后续步骤同样支持 `cancel_check`
-- 取消标志 DB 查询 **节流**（约 0.5s），避免每个 stream chunk 打库
-- `cancelling` 超过 `task_job_cancel_stale_seconds`（默认 120s）由 worker 恢复终态或回滚 `dimension_review`
-
-**成功：** `200`，`data` 为 status payload（`status` 可为 `cancelling` 或 `cancelled`）。
-
-**前端：** 侧栏「最近 RFQ」筛选项 **失败 / 已取消** 合并展示 `failed` 与 `cancelled`（见 prod §5.5 · [user-manual.md](../user-manual.md) §4）。
-
-| HTTP | `msg` 示例 |
-|------|-----------|
-| 404 | 任务 ID 不存在 |
-
-#### 删除任务（R1 · F1.11）
-
-```
-DELETE /api/v1/rfq/tasks/{task_id}
-```
-
-**成功：** `204` No Content。删除 DB 记录并清理 `file_path`、`excel_path`、`qa_excel_path`（文件不存在时仍返回 204）。
-
-| HTTP | 说明 |
-|------|------|
-| 404 | 任务不存在或非 owner |
-| 409 | 进行中的任务不可删除，请等待处理完成 |
-
-#### 归档任务（R1 · F1.11）
-
-```
-PATCH /api/v1/rfq/tasks/{task_id}/archive
-```
-
-**成功：** `200`，`code: 200`。设置 `archived=true`；默认列表不再展示；可重复调用（幂等）。
-
-| HTTP | 说明 |
-|------|------|
-| 404 | 任务不存在或非 owner |
-| 409 | 进行中的任务不可归档 |
-
-> **与 archive-to-knowledge 区分：** 本节为 **列表隐藏**；`POST .../archive-to-knowledge`（§2.3.5）为定稿写入知识库（Phase 2 / 变更单）。
-
-#### F1.10 确认维度清单并生成对比矩阵（R1 · **已实现**）
+#### F1.10 确认维度清单并生成对比矩阵（R1 · 设计已定 · 未实现）
 
 工程师审阅 `dimension_draft`（勾选 in_scope、编辑工作内容）后确认，触发 RAG 并按 **in_scope 维度** 生成 `comparison_table`。
 
@@ -569,26 +364,15 @@ GET /api/v1/knowledge/stats
 
 #### 人天基线（R1 · v3.3 规格）
 
-> **架构定稿：** [manpower-baselines-spec.md](manpower-baselines-spec.md) — 报价 Excel **规则解析、不向量化**；客户查历史人力 = 本 API + RFQ Top-3 联动。
-
 ```
 GET /api/v1/knowledge/baselines
-  ?engagement_id=2023_chassis
-  &function=PM,Chassis
 ```
 
-**用途：** R1 验收台 **基线预览 Tab**；管理员/工程师查历史 Function 人天；M3 `load_baselines(engagement_id)`。
+**用途：** R1 验收台预览；M3 校验/追溯（主路径为复制源 Excel Sheet）。
 
 **存储（R1）：** `${ARIA_DATA_ROOT}/app/manpower_baselines.json`（dev：`backend/data/manpower_baselines.json`）  
 **写入时机：** 与 `POST /knowledge/import` **同一批次**；报价 Excel 解析成功则 upsert；失败写入 `failed_files`  
-**原子性：** 先写临时文件 → 校验 → rename；失败不覆盖旧 baselines  
-
-**与向量检索分工：**
-
-| 资料 | 入库 |
-|------|------|
-| RFQ / Q_A | pgvector |
-| 报价 Excel | **仅** `manpower_baselines.json`（不进 pgvector 主路径） |
+**原子性：** 先写临时文件 → 校验 → rename；失败不覆盖旧 baselines
 
 **响应：**
 
@@ -625,8 +409,7 @@ POST /api/v1/knowledge/search
 |------|------|------|------|
 | query | string | 是 | 2–500 字符 |
 | top_k | int | 否 | 默认 5，最大 20 |
-| function_filter | string[] | 否 | P1；按 `metadata.functions` / Q_A **Area** 过滤 |
-| doc_type_filter | string[] | 否 | `rfq` / `qa`；**检索实验室应先选类型再输入 query**；报价 Excel 不进向量 |
+| function_filter | string[] | 否 | P1；按 `metadata.functions` 过滤 |
 
 **响应（RAGHit 契约 — RFQ 内部分析共用）：**
 
@@ -660,7 +443,6 @@ POST /api/v1/knowledge/search
 - `MOCK_RAG=true` 与 pgvector 真实检索返回**同一 schema**；Real 允许空 `results`；空或低置信度时 `insufficient_evidence: true`（见 [rag-design.md §3.1](rag-design.md)）
 - 展示用人天等字段来自 `comparison_table.projects`，不在 hit 顶层 duplicate
 - 实现：`RAGService.search_similar_projects()` — RFQ 与 knowledge 共用
-- Ollama 全局租约等待超过 query timeout 时返回 `503 {"code":503,"msg":"本地模型资源繁忙，请稍后重试"}`；不得暴露 holder、SQL 或内部路径。
 
 #### 触发导入
 
@@ -668,36 +450,20 @@ POST /api/v1/knowledge/search
 POST /api/v1/knowledge/import
 ```
 
-扫描 `knowledge_base/`（含 manifest 项目包），解析 RFQ/Q_A/报价后 upsert 至 **PostgreSQL pgvector** + `manpower_baselines.json`。R1-KH 后该接口只负责创建或复用 `kb_index` job，不在 HTTP 请求中同步执行全库 embedding。
+扫描 `knowledge_base/`（含 manifest 三件套），解析 RFQ/Q_A/报价后 upsert 至 **PostgreSQL pgvector** + `manpower_baselines.json`（R1；Demo 过渡期或仍写 Chroma，迁移后仅 pgvector）。
 
-**响应（202）：**
+**响应：**
 
 ```json
 {
-  "code": 202,
+  "code": 200,
   "data": {
-    "job_id": "uuid",
-    "status": "queued",
-    "reused": false
+    "new_documents": 3,
+    "new_chunks": 45,
+    "skipped": 12
   }
 }
 ```
-
-同一 production namespace 已有 queued/running job 时返回同一 `job_id`，`reused=true`。
-`KB_ASYNC_INDEX_ENABLED=false` 仅用于一个发布周期内回退旧 200 响应；前端同时兼容 200/202，生产默认 `true`。
-状态查询与控制：
-
-```
-GET  /api/v1/knowledge/imports?limit=20&offset=0
-GET  /api/v1/knowledge/imports/active
-GET  /api/v1/knowledge/imports/{job_id}
-POST /api/v1/knowledge/imports/{job_id}/cancel
-```
-
-完成响应字段：`status`、`progress`、`started_at`、`finished_at`、`triggered_by`、`new_documents`、`new_chunks`、`skipped`、`failed_files[]`、`active_generation`。失败不得切换 active generation。
-
-`cancel` 仅在 Engagement/embedding 批次边界生效，须幂等并清理 staging；取消前后 active generation 不变。
-`pause/resume` 不进入 R1 首批 API；仅在 R1-KH11c checkpoint（last engagement / batch offset）设计及恢复测试通过后增加。
 
 #### 2.3.4 文档列表（P1，Demo 可选）
 
@@ -707,7 +473,7 @@ GET /api/v1/knowledge/documents
 
 只读；扫描 filesystem 或返回 Mock 三态（indexed / processing / failed）各 1 条。**Demo 不建 `knowledge_documents` 表。**
 
-#### 2.3.5 R1 — Engagement 与文档
+#### 2.3.5 Phase 2 — Engagement 与文档（设计已定，未实现）
 
 **Engagement 项目包** — 关联 RFQ / QA / 报价成套资料。
 
@@ -723,57 +489,17 @@ POST /api/v1/knowledge/engagements/import-manifest
 POST /api/v1/knowledge/engagements/upload
 ```
 
-`multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）和 `replace_existing`（默认 false）。
-**限制（KH06 默认）：** 单次请求 **≤5 套**；上传文件/ZIP 100MB、ZIP 条目 500、单个解压文件 50MB、解压总量 500MB、压缩比 100。由 `UPLOAD_MAX_*` 环境变量配置，Nginx 请求体限制不得低于应用上限。
-**校验：** ZIP 使用逐条流式解压；拒绝绝对路径、`..`、Windows 盘符/UNC、反斜杠逃逸、symlink/设备条目、损坏/加密/不支持压缩格式。违反限制返回 `400 { "code": 400, "msg": "<原因>" }`。
-**落盘：** `UploadFile` 以默认 1MB chunk 流式写 `${ARIA_DATA_ROOT}/app/.staging/{request_id}`，禁止整包读取；校验成功后 atomic rename，400/409/507/异常均清理 staging。
-响应：每套 `status=stored`、`stored`、`tier`、`indexable`、`missing[]`、`automation_impacts[]` 与写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
-同 ID 已存在且未明确 `replace_existing=true` 时返回 `409`；替换不合并旧文件，仅在新包包含可解析 RFQ 且校验通过后原子替换，失败保留原目录。
+`multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）。  
+**限制（建议）：** 单次请求 **≤5 套**；单 ZIP **≤100MB**（可配置）。  
+响应：每套 `status`（ok / failed）、`missing[]`（缺 Q&A、缺报价等）、写入路径。
 
-上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
-
-**容量错误：**
-
-```json
-{
-  "code": 507,
-  "msg": "数据盘空间不足，写入操作已暂停；现有检索和下载仍可使用",
-  "data": {
-    "volume": "data",
-    "required_bytes": 2147483648,
-    "available_bytes": 1073741824,
-    "usage_percent": 92.0,
-    "action": "请清理或扩容数据盘后重试；如无法处理，请联系系统管理员"
-  }
-}
-```
-
-磁盘达到写保护阈值时，上传/import 返回 507；search/stats/documents/download 仍须可用。
-
-#### 2.3.6a 知识库 Debug API（DEV 专用 · **已实现**）
-
-门禁：`ARIA_UI_PROFILE=dev` + `KB_DEBUG_ENABLED=true`；否则 **404**。详见 [kb-debug-ui-spec.md](../R1/kb-debug-ui-spec.md)。
-
-```
-GET  /api/v1/knowledge/debug/status
-POST /api/v1/knowledge/debug/preview-ingest
-GET  /api/v1/knowledge/debug/chunks
-GET  /api/v1/knowledge/debug/chunks/{chunk_id}
-POST /api/v1/knowledge/debug/index          # Ollama nomic-embed-text → Chroma debug 集合
-POST /api/v1/knowledge/debug/search
-POST /api/v1/knowledge/debug/feedback         # audience=internal
-POST /api/v1/knowledge/debug/eval/run
-```
-
-CLI 验证：`python scripts/run_kb_debug_validation.py --eval`（须 `MOCK_RAG=false` + Ollama）。
+上传完成后调用 `POST /knowledge/import`（全量）或 `POST /knowledge/import?since=<batch_id>`（仅本批，实现可选）。
 
 #### 2.3.6 引用反馈（F5.6 · L1 MVP · 设计已定 · **未实现**）
 
-工程师标记检索/对标引用不准；**写入反馈库，不训练 LLM**。
+工程师标记检索/对标引用不准；**写入反馈库，不训练 LLM**。首期合同 **不含**；M6 后可选 L1。详见 [feedback-ops-pack（客户版）](feedback-ops-pack（客户版）.md)。
 
-> **内部决策（2026-07-06）：** L1 为 **乙方内部运维增强**，R1～M6 **视进度可选实现**；**不写入客户合同**，**不绑** R1～M6 验收与付款。客户侧仍用检索试搜表 + 双周例会。若将来客户单独立项，见 [feedback-ops-pack（客户版）](feedback-ops-pack（客户版）.md) · [dev-tasks R1-OPS](../R1/dev-tasks.md)。
-
-**路由（实施后 · 与 debug 分存储）：**
+```
 POST /api/v1/knowledge/feedback
 GET  /api/v1/knowledge/feedback?limit=50&offset=0
 GET  /api/v1/knowledge/feedback/export
@@ -976,12 +702,10 @@ RFQ 解析超过 30s 时返回 `task_id`，客户端轮询 `/status`。
 
 - 上传接口将任务写入 **PostgreSQL 任务表**（queued），立即返回 `task_id`
 - **独立 worker** 进程认领（`SKIP LOCKED`）并执行 parsing → retrieving → generating
-- worker 内 **Ollama 并发闸**（`OLLAMA_MAX_CONCURRENT`，默认 **1** · 问卷 O-06 已关闭）
-- **队列深度门控：** `task_max_queue_size`（默认 **20**）；满时上传 **429**（见 §2.2）
-- **僵死作业恢复：** worker 每轮轮询前调用 `recover_stale_jobs`；`running` 超过 `task_job_stale_seconds`（默认 **900s**）的作业经 `mark_failed` 处理——未达 `max_attempts` 时重入 `queued` 并同步 RFQ 任务状态，否则标 `failed`
-- 容器重启后 queued/running 任务可恢复
+- worker 内 **Ollama 并发闸**（`OLLAMA_MAX_CONCURRENT`，默认 1，TBD 1–2）
+- 容器重启后 queued/running 任务可恢复；**不用** FastAPI `BackgroundTasks`
 
-> **工程状态：** RFQ 上传路径已迁入 PG 队列 + worker；SQLite/测试环境可用 `TASK_WORKER_INLINE` 同步执行。
+**Demo 现状：** 进程内 `BackgroundTasks`（迁移前）。
 
 ```
 GET /api/v1/rfq/tasks/{task_id}/status
@@ -991,7 +715,7 @@ GET /api/v1/rfq/tasks/{task_id}/status
 
 ```json
 {
-  "status": "pending | queued | parsing | dimension_review | retrieving | generating | cancelling | cancelled | completed | failed",
+  "status": "pending | queued | parsing | dimension_review | retrieving | generating | completed | failed",
   "progress": 60,
   "message": "正在生成技术维度对比表...",
   "queue_position": 2,
@@ -1034,9 +758,6 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 |------|----------------|
 | `CHROMA_PATH` | `/app/data/chroma_db` | **Demo 遗留**；R1 后向量在 PostgreSQL pgvector |
 | `OLLAMA_MAX_CONCURRENT` | `1` | worker 内 LLM 并发上限（TBD） |
-| `TASK_MAX_QUEUE_SIZE` | `20` | 上传队列深度上限；满时 429 |
-| `TASK_JOB_STALE_SECONDS` | `900` | running 作业超时阈值（秒） |
-| `TASK_WORKER_INLINE` | `false` | 测试/SQLite 同步执行 worker |
 | `UPLOAD_PATH` | `/app/data/uploads` |
 | `OUTPUT_PATH` | `/app/data/outputs` |
 | `KNOWLEDGE_BASE_PATH` | `/app/data/knowledge_base` |
@@ -1048,7 +769,7 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 
 | 操作 | 路径来源 | 说明 |
 |------|----------|------|
-| RFQ 上传 | `UPLOAD_PATH` | 写入 `{task_id}_*.{docx,doc}` |
+| RFQ 上传 | `UPLOAD_PATH` | 写入 `{task_id}_*.docx` |
 | Excel / QA 下载 | `OUTPUT_PATH` | `GET .../download/{type}` 读生成文件 |
 | 知识库 ingest | `KNOWLEDGE_BASE_PATH` | 扫描项目子目录；`metadata.source_doc` 为相对路径 |
 | RAG 检索 | PostgreSQL **pgvector** | 与业务表同库；`CREATE EXTENSION vector`；备份见 `pg_dump` |
@@ -1063,4 +784,4 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 
 ---
 
-**关联文档：** [test-plan.md](test-plan.md) v1.3 | [prod.md](../../prod.md) v1.9 | [delivery-traceability.md](delivery-traceability.md) v1.3 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)
+**关联文档：** [test-plan.md](test-plan.md) | [prod.md](../../prod.md) v1.5 | [delivery-traceability.md](delivery-traceability.md) | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)
