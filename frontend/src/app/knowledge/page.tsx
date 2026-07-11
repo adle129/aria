@@ -22,6 +22,7 @@ import { InfoCircleOutlined } from "@ant-design/icons";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
+import EngagementInventoryPanel from "@/components/EngagementInventoryPanel";
 import EngagementUploadPanel from "@/components/EngagementUploadPanel";
 import KbCapacityAlert from "@/components/KbCapacityAlert";
 import KnowledgeImportHistoryPanel from "@/components/KnowledgeImportHistoryPanel";
@@ -342,6 +343,10 @@ export default function KnowledgePage() {
         <Card title="导入审计" style={{ marginBottom: 16 }}>
           <KnowledgeImportHistoryPanel refreshToken={importHistoryRefresh} />
         </Card>
+      )}
+
+      {canWriteKb && isFormalDelivery && (
+        <EngagementInventoryPanel refreshToken={importHistoryRefresh} />
       )}
 
       <Tabs

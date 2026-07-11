@@ -21,6 +21,7 @@ def auth_client(upload_dir, monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.models.engagement import Engagement
+    from app.models.knowledge_import import KnowledgeImport
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
@@ -39,6 +40,7 @@ def auth_client(upload_dir, monkeypatch):
             RFQTask.__table__,
             TaskJob.__table__,
             Engagement.__table__,
+            KnowledgeImport.__table__,
         ],
     )
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)

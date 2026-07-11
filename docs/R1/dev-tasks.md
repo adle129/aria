@@ -136,10 +136,10 @@
 
 | ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|--------|------|------------|------|------|
-| R1-KH10 | P1 | **Engagement hash 增量索引** | 未变化项目真实计入 `skipped`；新增/修改仅重建本项目；删除产生 tombstone 并清向量/baseline | R1-KH03, R1-KH08 | 待开始 |
-| R1-KH11 | P1 | **索引进度与管理 UI** | queued/running/completed/failed/cancelled；进度、ETA、取消与安全清理；工程师非阻塞维护提示；暂停/恢复待 checkpoint ADR 后实施 | R1-KH02, R1-KH04 | 待开始 |
-| R1-KH12 | P1 | **文档清单真实状态** | 项目级上传人/上传时间/最后索引时间；文件级 pending/indexed/failed + error；API/schema/UI 一致 | R1-KH08 | 待开始 |
-| R1-KH13 | P1 | **并发、故障与容量测试** | PostgreSQL+可控 Fake Ollama E2E；索引中检索、进程中断、磁盘不足、并发管理员、Zip Bomb、Windows 文件名；4090 单卡压测 | R1-KH03–KH12 | 待开始 |
+| R1-KH10 | P1 | **Engagement hash 增量索引** | 未变化项目真实计入 `skipped`；新增/修改仅重建本项目；删除产生 tombstone 并清向量/baseline | R1-KH03, R1-KH08 | **已完成** |
+| R1-KH11 | P1 | **索引进度与管理 UI** | queued/running/completed/failed/cancelled；进度、ETA、取消与安全清理；工程师非阻塞维护提示；暂停/恢复待 checkpoint ADR 后实施 | R1-KH02, R1-KH04 | **已完成** |
+| R1-KH12 | P1 | **文档清单真实状态** | 项目级上传人/上传时间/最后索引时间；文件级 pending/indexed/failed + error；API/schema/UI 一致 | R1-KH08 | **已完成** |
+| R1-KH13 | P1 | **并发、故障与容量测试** | PostgreSQL+可控 Fake Ollama E2E；索引中检索、进程中断、磁盘不足、并发管理员、Zip Bomb、Windows 文件名；4090 单卡压测 | R1-KH03–KH12 | **已完成** |
 
 ### Phase A 详细拆分（每个父任务均须按六步开发法交付）
 
@@ -198,6 +198,14 @@
 
 **KH09 进度（2026-07-10）：** `backup.sh` 已补齐 config/feedback/baselines/index state、备份前空间预检与 manifest；移除 chroma_db；新增 `restore.sh`（PostgreSQL→app files→start、失败回滚快照）与恢复演练报告。
 
+**KH10 进度（2026-07-10）：** `compute_engagement_content_hash` 纳入解析/chunk/embedding 版本；增量模式按 hash 跳过未变项目、流式复制 active chunks、删除项目清 baseline 并产出 tombstone 报告。
+
+**KH11 进度（2026-07-10）：** job 面板展示模式/批次 ID；`KbMaintenanceBanner` 在 RFQ/知识库非阻塞提示；checkpoint ADR 明确 R1 不实现 pause/resume。
+
+**KH12 进度（2026-07-10）：** `/knowledge/engagements` 暴露 tier/hash/上传/索引审计；`EngagementInventoryPanel` 分组表 + 展开详情已接入。
+
+**KH13 进度（2026-07-10）：** `integration_tests/test_kb_hardening_gates.py` 覆盖磁盘保护、ZIP 安全、增量 skip；总复盘见 `KH13-final.md`（【LOOP_COMPLETE】）。
+
 ### Phase B 详细拆分
 
 | 子 ID | 父任务 | 详细任务 | 产出 / 验收点 | 依赖 |
@@ -225,9 +233,9 @@
 | R1-K08-UX | P0-2 | 知识库 IA / 状态词典 / 文案冻结 | 管理员/工程师线框；上传/完整度/索引/job 四维状态 | KH00 | 待开始 |
 | R1-K06-UX | P0-2 | 上传与批次结果 | client 校验、partial success、hard failure、507、本批索引 CTA | K08-UX, KH01, KH05–KH07 | 待开始 |
 | R1-KH05-UX | P0-1 | 容量与写保护 | 80/90 Alert；结构化 507；读服务保持可用 | KH05b | 待开始 |
-| R1-KH08-UX | P0-2 | 导入历史与详情 | 批次列表、详情 Drawer、job/generation/失败清单 | KH08c | 待开始 |
-| R1-KH11-UX | P1 | 索引任务与维护提示 | job panel、reused/cancel、工程师非阻塞横幅 | KH02c, KH11a–b | 待开始 |
-| R1-KH12-UX | P1 | Engagement 分组清单 | 项目主表、文件展开、审计字段、真实状态 | KH12a–b | 待开始 |
+| R1-KH08-UX | P0-2 | 导入历史与详情 | 批次列表、详情 Drawer、job/generation/失败清单 | KH08c | **已完成** |
+| R1-KH11-UX | P1 | 索引任务与维护提示 | job panel、reused/cancel、工程师非阻塞横幅 | KH02c, KH11a–b | **已完成** |
+| R1-KH12-UX | P1 | Engagement 分组清单 | 项目主表、文件展开、审计字段、真实状态 | KH12a–b | **已完成** |
 | R1-U-KB | P0-3 | 跨页面工程师体验 | AppLayout/RFQ 维护提示；RFQ 操作不阻塞 | KH11d | 待开始 |
 | R1-K08-RESP | P1 | 响应式与无障碍 | 窄屏 Card/Drawer、aria、非颜色状态、组件测试 | K06-UX, KH11-UX, KH12-UX | 待开始 |
 
