@@ -1,9 +1,9 @@
 # ARIA — API 设计规范
 
-**版本：** v1.5  
+**版本：** v1.7
 **Base URL：** `/api/v1`  
 **日期：** 2026-07-09  
-**基线：** [prod.md](../../prod.md) v1.8 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
+**基线：** [prod.md](../../prod.md) v1.9 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
 
 ---
 
@@ -150,9 +150,34 @@ GET /api/v1/health
   "model": "qwen2.5:14b",
   "embedding_model": "nomic-embed-text",
   "mock_llm": true,
-  "mock_rag": true
+  "mock_rag": true,
+  "data_volume": {
+    "volume": "data",
+    "total_bytes": 4398046511104,
+    "used_bytes": 879609302221,
+    "free_bytes": 3518437208883,
+    "usage_percent": 20.0,
+    "warning": false,
+    "write_protected": false
+  },
+  "temp_volume": {
+    "volume": "tmp",
+    "total_bytes": 4398046511104,
+    "used_bytes": 879609302221,
+    "free_bytes": 3518437208883,
+    "usage_percent": 20.0,
+    "warning": false,
+    "write_protected": false
+  },
+  "kb_index": {
+    "status": "idle",
+    "active_generation": "production-20260710-01"
+  },
+  "production_warnings": []
 }
 ```
+
+`used_percent >= 80` 加入 warning；达到可配置写保护阈值时 `write_protected=true`。磁盘 warning 不得把健康接口本身变成 500。
 
 ---
 
@@ -598,6 +623,7 @@ POST /api/v1/knowledge/search
 - `MOCK_RAG=true` 与 pgvector 真实检索返回**同一 schema**；Real 允许空 `results`；空或低置信度时 `insufficient_evidence: true`（见 [rag-design.md §3.1](rag-design.md)）
 - 展示用人天等字段来自 `comparison_table.projects`，不在 hit 顶层 duplicate
 - 实现：`RAGService.search_similar_projects()` — RFQ 与 knowledge 共用
+- Ollama 全局租约等待超过 query timeout 时返回 `503 {"code":503,"msg":"本地模型资源繁忙，请稍后重试"}`；不得暴露 holder、SQL 或内部路径。
 
 #### 触发导入
 
@@ -605,20 +631,36 @@ POST /api/v1/knowledge/search
 POST /api/v1/knowledge/import
 ```
 
-扫描 `knowledge_base/`（含 manifest 三件套），解析 RFQ/Q_A/报价后 upsert 至 **PostgreSQL pgvector** + `manpower_baselines.json`（R1；Demo 过渡期或仍写 Chroma，迁移后仅 pgvector）。
+扫描 `knowledge_base/`（含 manifest 项目包），解析 RFQ/Q_A/报价后 upsert 至 **PostgreSQL pgvector** + `manpower_baselines.json`。R1-KH 后该接口只负责创建或复用 `kb_index` job，不在 HTTP 请求中同步执行全库 embedding。
 
-**响应：**
+**响应（202）：**
 
 ```json
 {
-  "code": 200,
+  "code": 202,
   "data": {
-    "new_documents": 3,
-    "new_chunks": 45,
-    "skipped": 12
+    "job_id": "uuid",
+    "status": "queued",
+    "reused": false
   }
 }
 ```
+
+同一 production namespace 已有 queued/running job 时返回同一 `job_id`，`reused=true`。
+`KB_ASYNC_INDEX_ENABLED=false` 仅用于一个发布周期内回退旧 200 响应；前端同时兼容 200/202，生产默认 `true`。
+状态查询与控制：
+
+```
+GET  /api/v1/knowledge/imports?limit=20&offset=0
+GET  /api/v1/knowledge/imports/active
+GET  /api/v1/knowledge/imports/{job_id}
+POST /api/v1/knowledge/imports/{job_id}/cancel
+```
+
+完成响应字段：`status`、`progress`、`started_at`、`finished_at`、`triggered_by`、`new_documents`、`new_chunks`、`skipped`、`failed_files[]`、`active_generation`。失败不得切换 active generation。
+
+`cancel` 仅在 Engagement/embedding 批次边界生效，须幂等并清理 staging；取消前后 active generation 不变。
+`pause/resume` 不进入 R1 首批 API；仅在 R1-KH11c checkpoint（last engagement / batch offset）设计及恢复测试通过后增加。
 
 #### 2.3.4 文档列表（P1，Demo 可选）
 
@@ -628,7 +670,7 @@ GET /api/v1/knowledge/documents
 
 只读；扫描 filesystem 或返回 Mock 三态（indexed / processing / failed）各 1 条。**Demo 不建 `knowledge_documents` 表。**
 
-#### 2.3.5 Phase 2 — Engagement 与文档（设计已定，未实现）
+#### 2.3.5 R1 — Engagement 与文档
 
 **Engagement 项目包** — 关联 RFQ / QA / 报价成套资料。
 
@@ -644,11 +686,32 @@ POST /api/v1/knowledge/engagements/import-manifest
 POST /api/v1/knowledge/engagements/upload
 ```
 
-`multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）。  
-**限制（建议）：** 单次请求 **≤5 套**；单 ZIP **≤100MB**（可配置）。  
-响应：每套 `status`（ok / failed）、`missing[]`（缺 Q&A、缺报价等）、写入路径。
+`multipart/form-data`：每套为 **1 个 ZIP** 或 **一组文件** + 表单字段 `engagement_id`（可选，缺则从 manifest/文件名推断）和 `replace_existing`（默认 false）。
+**限制（KH06 默认）：** 单次请求 **≤5 套**；上传文件/ZIP 100MB、ZIP 条目 500、单个解压文件 50MB、解压总量 500MB、压缩比 100。由 `UPLOAD_MAX_*` 环境变量配置，Nginx 请求体限制不得低于应用上限。
+**校验：** ZIP 使用逐条流式解压；拒绝绝对路径、`..`、Windows 盘符/UNC、反斜杠逃逸、symlink/设备条目、损坏/加密/不支持压缩格式。违反限制返回 `400 { "code": 400, "msg": "<原因>" }`。
+**落盘：** `UploadFile` 以默认 1MB chunk 流式写 `${ARIA_DATA_ROOT}/app/.staging/{request_id}`，禁止整包读取；校验成功后 atomic rename，400/409/507/异常均清理 staging。
+响应：每套 `status=stored`、`stored`、`tier`、`indexable`、`missing[]`、`automation_impacts[]` 与写入路径。缺 Q&A/报价可作为铜/银级落盘；只要 RFQ 可解析，即可参与 R1 Top-3。
+同 ID 已存在且未明确 `replace_existing=true` 时返回 `409`；替换不合并旧文件，仅在新包包含可解析 RFQ 且校验通过后原子替换，失败保留原目录。
 
-上传完成后调用 `POST /knowledge/import`（全量）或 `POST /knowledge/import?since=<batch_id>`（仅本批，实现可选）。
+上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
+
+**容量错误：**
+
+```json
+{
+  "code": 507,
+  "msg": "数据盘空间不足，写入操作已暂停；现有检索和下载仍可使用",
+  "data": {
+    "volume": "data",
+    "required_bytes": 2147483648,
+    "available_bytes": 1073741824,
+    "usage_percent": 92.0,
+    "action": "请清理或扩容数据盘后重试；如无法处理，请联系系统管理员"
+  }
+}
+```
+
+磁盘达到写保护阈值时，上传/import 返回 507；search/stats/documents/download 仍须可用。
 
 #### 2.3.6a 知识库 Debug API（DEV 专用 · **已实现**）
 
@@ -963,4 +1026,4 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 
 ---
 
-**关联文档：** [test-plan.md](test-plan.md) v1.2 | [prod.md](../../prod.md) v1.7 | [delivery-traceability.md](delivery-traceability.md) v1.1 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)
+**关联文档：** [test-plan.md](test-plan.md) v1.3 | [prod.md](../../prod.md) v1.9 | [delivery-traceability.md](delivery-traceability.md) v1.3 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | [production-deploy-artifacts.md](production-deploy-artifacts.md)

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+import time
+
 import httpx
 
 from app.config import Settings
 from app.services.ollama_concurrency import get_ollama_gate
 from app.services.ollama_service import ollama_http_client
+
+logger = logging.getLogger(__name__)
 
 # nomic-embed-text on Ollama defaults to num_ctx=2048 tokens; dense CN/EN RFQ
 # chunks exceed that near ~3000 chars. Keep head for retrieval relevance.
@@ -47,7 +52,15 @@ def _try_batch_embed(
     if resp.status_code == 404:
         return None  # Old Ollama — endpoint doesn't exist
 
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail = resp.text.strip()
+        if len(detail) > 1000:
+            detail = f"{detail[:1000]}..."
+        raise EmbeddingError(
+            f"Ollama embedding failed ({resp.status_code}): {detail or exc}"
+        ) from exc
     data = resp.json()
     embeddings = data.get("embeddings")
     if not embeddings or len(embeddings) != len(prompts):
@@ -77,7 +90,12 @@ def _serial_embed(
     return vectors
 
 
-def embed_texts(settings: Settings, texts: list[str]) -> list[list[float]]:
+def embed_texts(
+    settings: Settings,
+    texts: list[str],
+    *,
+    request_type: str = "query",
+) -> list[list[float]]:
     """Embed a list of texts via Ollama.
 
     Tries the batch /api/embed endpoint (Ollama ≥0.3) first.
@@ -91,15 +109,43 @@ def embed_texts(settings: Settings, texts: list[str]) -> list[list[float]]:
     base = settings.ollama_base_url.rstrip("/")
     max_chars = settings.embedding_max_chars
     prompts = [truncate_for_embedding(t, max_chars) for t in texts]
+    batch_size = max(1, settings.embedding_batch_size)
 
     gate = get_ollama_gate(settings)
+    started = time.monotonic()
+    logger.info(
+        "embed_start request_type=%s texts=%d model=%s batch_size=%d",
+        request_type,
+        len(prompts),
+        settings.embedding_model,
+        batch_size,
+    )
     try:
-        with gate.acquire():
-            with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
-                vectors = _try_batch_embed(client, base, settings.embedding_model, prompts)
-                if vectors is not None:
-                    return vectors
-                # Batch endpoint unavailable — use serial fallback
-                return _serial_embed(client, base, settings.embedding_model, prompts)
+        with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
+            all_vectors: list[list[float]] = []
+            for start in range(0, len(prompts), batch_size):
+                batch = prompts[start : start + batch_size]
+                with gate.acquire(request_type=request_type):
+                    vectors = _try_batch_embed(
+                        client, base, settings.embedding_model, batch
+                    )
+                    if vectors is None:
+                        vectors = _serial_embed(
+                            client, base, settings.embedding_model, batch
+                        )
+                all_vectors.extend(vectors)
+            logger.info(
+                "embed_ok request_type=%s texts=%d elapsed_ms=%d",
+                request_type,
+                len(all_vectors),
+                int((time.monotonic() - started) * 1000),
+            )
+            return all_vectors
     except httpx.HTTPError as exc:
+        logger.exception(
+            "embed_failed request_type=%s texts=%d elapsed_ms=%d",
+            request_type,
+            len(prompts),
+            int((time.monotonic() - started) * 1000),
+        )
         raise EmbeddingError(f"Ollama embedding failed: {exc}") from exc

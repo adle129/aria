@@ -5,14 +5,15 @@ from app.config import get_settings
 
 def test_reindex_mock_mode(client):
     resp = client.post("/api/v1/knowledge/reindex")
-    assert resp.status_code == 200
+    assert resp.status_code == 202
     data = resp.json()["data"]
-    assert "new_documents" in data
-    assert "failed_files" in data
+    assert data["job_id"]
+    assert data["status"] == "completed"
 
 
 def test_reindex_production_returns_ingest_report(client, upload_dir, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
+    monkeypatch.setenv("KB_ASYNC_INDEX_ENABLED", "false")
     get_settings.cache_clear()
 
     expected = {
@@ -44,6 +45,7 @@ def test_reindex_production_returns_ingest_report(client, upload_dir, monkeypatc
 
 def test_import_production_same_as_reindex(client, upload_dir, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
+    monkeypatch.setenv("KB_ASYNC_INDEX_ENABLED", "false")
     get_settings.cache_clear()
 
     calls = {"count": 0}

@@ -22,6 +22,7 @@ EMBEDDING_DIMENSION = 768  # nomic-embed-text
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
 
+    generation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     chunk_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     namespace: Mapped[str] = mapped_column(String(64), nullable=False, index=True, default="default")
     content: Mapped[str] = mapped_column(Text, nullable=False)

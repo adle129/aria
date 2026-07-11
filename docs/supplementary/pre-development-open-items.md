@@ -1,6 +1,6 @@
 # 开发前开放项与待确认登记
 
-**版本：** v1.1 · 2026-07-07  
+**版本：** v1.2 · 2026-07-10
 **受众：** PM、开发、验收负责人（**内部 · 不对客户披露**）  
 **用途：** 正式版 **写代码 / 开里程碑 / 合并 PR 前** 必读；确保待确认信息不遗漏。  
 **维护：** PM + 开发 Lead；状态变更时同步来源文档。
@@ -28,7 +28,7 @@
 | 里程碑 | 可开工 / 可验收条件（摘要） | 仍缺则 |
 |--------|---------------------------|--------|
 | **R1 编码启动** | 已读 [formal-delivery-strategy.md](formal-delivery-strategy.md) · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)；计划从 Demo 壳 + `release/r1` 演进；**不强制**客户 ~100 项基准清单（R1-α 可用内部 seed） | — |
-| **R1 客户验收签字** | O-01～O-05 及 **O-02a/c/d** 关闭；内网 **≥15** indexed RFQ（推荐）；3 份 RFQ 基准勾选 + 矩阵；≥12/15 检索评测 | **不可签字** |
+| **R1 客户验收签字** | O-01～O-05 及 **O-02a/c/d** 关闭；**R1-KH Phase A/B** 完成；内网 **≥15** indexed RFQ（推荐）；3 份 RFQ 基准勾选 + 矩阵；≥12/15 检索评测 | **不可签字** |
 | **M3** | O-08、O-09 关闭；ScopeMatch + 9 Function Excel | 顺延 |
 | **M4** | Q3 已确认（仅生成/下载 Excel） | — |
 | **M5** | O-10、O-11 关闭；34 页 PPT 预填验收 | 顺延 |
@@ -103,6 +103,12 @@
 | **I-07** | R1 检索评测 JSON 快照 / 自动化程度 | 手工表为主 | R1 第 4 周 | 内部待定 | test-plan §7 |
 | **I-08** | **F5.6 引用反馈 L1**（一键反馈 + CSV 导出） | **内部运维增强 · 可选做**；**不进客户合同** | R1～M6 视进度 | 内部待定 | dev-tasks **R1-OPS** · 2026-07-06 决策 |
 | **I-09** | **`JWT_SECRET` 生成策略** | 部署时 `openssl rand -hex 32`；写入 `.env.production` | R1-AUTH 开工前 | **已关闭** · 2026-07-07 | api-design §0 · deployment-guide |
+| **I-10** | KB 索引一致性 | staging generation + 原子切换；失败保留旧索引 | 2026-07-10 Review | **已关闭** | rag-design §6.1 · R1-KH03 |
+| **I-11** | 单 GPU 资源优先级 | 交互检索 > RFQ > KB 增量 > KB 全量；全量非高峰 | 2026-07-10 Review | **已关闭** | rag-design §6.1 · R1-KH04 |
+| **I-12** | 数据盘保护阈值 | 80% warning、90% 写保护，均可配置；既有读服务继续 | 2026-07-10 Review | **已关闭** | api-design §2.1/§2.3 · R1-KH05 |
+| **I-13** | 铜级 Engagement | 缺 Q&A/报价可落盘；有可解析 RFQ 即可参与 R1 Top-3，报告注明 M3/M4 影响 | 2026-07-10 Review | **已关闭** | R1 验收说明 · rag-design §11.4.1 · R1-KH01 |
+
+> **I-10～I-13 的“已关闭”仅表示设计决策已定，不表示代码已完成。** 实施状态以 [dev-tasks R1-KH00–KH13](../R1/dev-tasks.md) 为准；KH00 ADR 与 Phase A/B 仍是 R1-β Gate。
 
 **I-08 说明：** 便于乙方 R1 末～M6 联调期收集 Top-3/检索问题；客户验收仍用试搜表 + 例会。若实施，**不**写入 [acceptance-checklist.md](../R1/acceptance-checklist.md) 与客户彩排。
 
@@ -131,6 +137,7 @@
 | `ARIA_UI_PROFILE=r1` | formal-delivery-strategy §5.2 |
 | RFQ Word 表格解析 | prod F1.x |
 | **Auth MVP**（users 表 · JWT · owner 隔离 · kb_admin 写守卫） | api-design §0 · R1-AUTH01–07 |
+| **KB 生产稳定性加固**（原子 generation、任务化、资源优先级、磁盘/ZIP/跨 OS、审计与备份） | rag-design §6.1 · [dev-tasks R1-KH](../R1/dev-tasks.md) |
 
 
 **可选 · 非合同（I-08）：** F5.6 引用反馈 L1 — [dev-tasks R1-OPS](../R1/dev-tasks.md)；**不**绑里程碑验收。

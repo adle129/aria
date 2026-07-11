@@ -1,8 +1,8 @@
 # ARIA 智能应用平台 — 项目实施计划
 
 **首期应用：** ARIA 报价助手  
-**版本：** v1.5 · 2026-07-07  
-**状态：** Demo 完成 · **正式版方案已定 v1.2**（见 [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md)）· Q2/Q3 已确认 · **SURVEY-01~06 已确认** · 基于 Demo 框架按 R1→M6 逐步开发
+**版本：** v1.6 · 2026-07-10
+**状态：** Demo 完成 · **正式版方案已定 v1.5**（见 [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md)）· Q2/Q3 已确认 · **SURVEY-01~06 已确认** · 基于 Demo 框架按 R1→M6 逐步开发
 
 > 品牌与范围：[platform-brand.md](supplementary/platform-brand.md) — **当前 WBS 仅覆盖报价助手 Demo，不含财务助手实现。**
 
@@ -32,7 +32,7 @@
 | 客户 | EDAG（爱达克） |
 | 开发方 | [开发团队名称] |
 | 计划周期 | Phase 1: 4–6 周（Demo · 已完成）；**正式版：R1/M3–M6 约 20 周** |
-| 需求基线 | [prod.md](../prod.md) v1.7 · [customer-delivery-roadmap.md](customer-delivery-roadmap.md) v1.9 · [使用场景问卷](客户使用场景与访问方式确认（客户版）.md) v1.1 |
+| 需求基线 | [prod.md](../prod.md) v1.9 · [customer-delivery-roadmap.md](customer-delivery-roadmap.md) v1.9 · [使用场景问卷](客户使用场景与访问方式确认（客户版）.md) v1.1 |
 
 ### 1.2 项目目标
 
@@ -168,7 +168,7 @@ gantt
 ### 3.2 正式版增量 WBS（内部 2A–2F ↔ 合同 R1/M3–M6）
 
 > **R1 开发任务明细（可勾选）：** [docs/R1/README.md](R1/README.md) · [dev-tasks.md](R1/dev-tasks.md)  
-> **实施方案（Demo 定位 · 复用壳层 · 里程碑逐步交付）：** [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md) v1.2  
+> **实施方案（Demo 定位 · 复用壳层 · 里程碑逐步交付）：** [formal-delivery-strategy.md](supplementary/formal-delivery-strategy.md) v1.5
 > **对照：** [prod.md §13.3](../prod.md) · [delivery-traceability.md](supplementary/delivery-traceability.md)
 
 ```
@@ -178,6 +178,11 @@ gantt
    2A.3 metadata 增强 + manpower_baselines（见 [manpower-baselines-spec.md](supplementary/manpower-baselines-spec.md)）
    2A.4 KB 运营 UI（upload、导入进度、Re-index）
    2A.5 检索评测集（3–5 RFQ 人工标注应命中项目）
+   2A.6 R1-KH00 ADR：generation/job/全局 Ollama 闸/迁移回滚
+   2A.7 R1-KH Phase A：索引 job 单飞 + staging generation 原子切换
+   2A.8 全局模型优先级 + 磁盘/ZIP/Windows 上传 + 导入审计/备份
+   2A.9 R1-KH Phase B：Engagement hash 增量 + 状态 UI + 单卡/故障测试
+   2A.10 知识库 UI/UX：上传批次、job、容量、维护提示、Engagement 清单
 
 2B RFQ 对标增强
    2B.1 rfq_baseline_match.txt + 基准库加载（F1.10a–b）

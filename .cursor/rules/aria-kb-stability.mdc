@@ -1,0 +1,39 @@
+---
+description: R1 知识库生产稳定性、原子索引、全局调度与上传兼容规范
+globs: "{backend,frontend}/**/*"
+alwaysApply: false
+---
+
+# ARIA 知识库生产稳定性
+
+> 任务：[docs/R1/dev-tasks.md](docs/R1/dev-tasks.md) R1-KH00–KH13  
+> 规范：[knowledge-development-standards.md](docs/R1/knowledge-development-standards.md)  
+> UI：[knowledge-ui-design-tasks.md](docs/R1/knowledge-ui-design-tasks.md)
+
+## 架构 Gate
+
+- KH00 ADR 未签收，不实现 KH02–KH04。
+- Route 仅鉴权/校验/DTO；业务在 Service，SQL/锁在 Repository，worker 不复制业务逻辑。
+- 数据库按 expand → migrate → contract；迁移必须含旧数据、回滚和锁表风险。
+
+## 数据安全
+
+- 禁止先清 active；只写 staging generation，校验后单事务切 active。
+- 搜索/统计/RFQ 始终读 active；失败、取消、重启、507 时旧索引持续可用。
+- 上传流式写 `${ARIA_DATA_ROOT}/app/.staging`，校验后 atomic rename；禁止整包读内存。
+- ZIP 必验条目数、解压总量、压缩比、路径穿越、盘符/UNC、链接条目。
+
+## 状态与并发
+
+- 上传、完整度、索引、job 使用独立 Enum；禁止一个 `failed` 表示多种语义。
+- import single-flight；duplicate/cancel/retry/stale recovery 必须幂等。
+- Ollama 全局闸必须跨 backend/worker；进程内 Semaphore 不算生产总并发控制。
+- 优先级：query > RFQ > KB 增量 > KB 全量；KB 在批次边界让路。
+- R1 只交付安全取消；pause/resume 须 checkpoint 设计和恢复测试。
+
+## 前端与测试
+
+- 前端只展示 API 真实状态；领域错误不得只用 toast；R1 不展示未交付按钮。
+- 状态有文字/aria；窄屏 Card/Drawer；活跃索引不阻塞工程师 RFQ。
+- Unit + API + PostgreSQL/Fake Ollama integration；覆盖 202/409/507、原子切换、Zip Bomb、Windows ZIP、取消/重启。
+- 日志带 request/job/import/engagement/generation/user/phase；禁止记录正文、Prompt、JWT。

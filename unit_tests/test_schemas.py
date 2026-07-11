@@ -12,6 +12,24 @@ def test_health_response_valid():
         embedding_model="nomic-embed-text",
         mock_llm=True,
         mock_rag=True,
+        data_volume={
+            "volume": "data",
+            "total_bytes": 100,
+            "used_bytes": 50,
+            "free_bytes": 50,
+            "usage_percent": 50,
+            "warning": False,
+            "write_protected": False,
+        },
+        temp_volume={
+            "volume": "tmp",
+            "total_bytes": 100,
+            "used_bytes": 50,
+            "free_bytes": 50,
+            "usage_percent": 50,
+            "warning": False,
+            "write_protected": False,
+        },
     )
     assert data.status == "ok"
     assert data.mock_llm is True

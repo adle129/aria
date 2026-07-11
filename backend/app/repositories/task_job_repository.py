@@ -32,6 +32,41 @@ class TaskJobRepository:
         )
         return self.db.scalar(stmt)
 
+    def get_active_by_single_flight(self, job_type: str, key: str) -> TaskJob | None:
+        stmt = (
+            select(TaskJob)
+            .where(
+                TaskJob.job_type == job_type,
+                TaskJob.single_flight_key == key,
+                TaskJob.status.in_(("queued", "running")),
+            )
+            .order_by(TaskJob.created_at.desc())
+            .limit(1)
+        )
+        return self.db.scalar(stmt)
+
+    def list_by_type(self, job_type: str, *, limit: int, offset: int = 0) -> list[TaskJob]:
+        stmt = (
+            select(TaskJob)
+            .where(TaskJob.job_type == job_type)
+            .order_by(TaskJob.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(self.db.scalars(stmt))
+
+    def get_active_by_type(self, job_type: str) -> TaskJob | None:
+        stmt = (
+            select(TaskJob)
+            .where(
+                TaskJob.job_type == job_type,
+                TaskJob.status.in_(("queued", "running")),
+            )
+            .order_by(TaskJob.priority.desc(), TaskJob.queued_at.asc())
+            .limit(1)
+        )
+        return self.db.scalar(stmt)
+
     def update(self, job: TaskJob) -> TaskJob:
         job.updated_at = datetime.now(timezone.utc)
         self.db.commit()
@@ -46,7 +81,7 @@ class TaskJobRepository:
                     """
                     SELECT id FROM task_jobs
                     WHERE status = 'queued'
-                    ORDER BY queued_at ASC
+                    ORDER BY priority DESC, queued_at ASC
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
                     """
@@ -59,7 +94,7 @@ class TaskJobRepository:
             job = self.db.scalar(
                 select(TaskJob)
                 .where(TaskJob.status == "queued")
-                .order_by(TaskJob.queued_at.asc())
+                .order_by(TaskJob.priority.desc(), TaskJob.queued_at.asc())
                 .limit(1)
             )
             if not job:
@@ -69,6 +104,7 @@ class TaskJobRepository:
         job.status = "running"
         job.worker_id = worker_id
         job.started_at = now
+        job.heartbeat_at = now
         job.attempts = (job.attempts or 0) + 1
         job.updated_at = now
         self.db.commit()
@@ -83,7 +119,13 @@ class TaskJobRepository:
             .select_from(TaskJob)
             .where(
                 TaskJob.status == "queued",
-                TaskJob.queued_at < job.queued_at,
+                (
+                    (TaskJob.priority > job.priority)
+                    | (
+                        (TaskJob.priority == job.priority)
+                        & (TaskJob.queued_at < job.queued_at)
+                    )
+                ),
             )
         )
         return int(self.db.scalar(stmt) or 0)
@@ -102,7 +144,7 @@ class TaskJobRepository:
                 select(TaskJob).where(
                     TaskJob.status == "running",
                     TaskJob.started_at.isnot(None),
-                    TaskJob.started_at < older_than,
+                    func.coalesce(TaskJob.heartbeat_at, TaskJob.started_at) < older_than,
                 )
             )
         )

@@ -120,8 +120,9 @@ def test_search_delegates_to_knowledge_index_service(monkeypatch, tmp_path):
             top_k: int = 5,
             function_filter: list[str] | None = None,
             doc_type_filter: list[str] | None = None,
+            request_type: str = "query",
         ):
-            calls.append((query, top_k, function_filter, doc_type_filter))
+            calls.append((query, top_k, function_filter, doc_type_filter, request_type))
             return [
                 {
                     "content": "scope text",
@@ -146,7 +147,7 @@ def test_search_delegates_to_knowledge_index_service(monkeypatch, tmp_path):
         doc_type_filter=["rfq"],
     )
     assert len(calls) == 1
-    assert calls[0] == ("MEB chassis", 3, ["Chassis"], ["rfq"])
+    assert calls[0] == ("MEB chassis", 3, ["Chassis"], ["rfq"], "query")
     assert hits[0]["similarity_score"] == 0.91
     assert hits[0]["metadata"]["doc_type"] == "rfq"
 
@@ -166,6 +167,7 @@ def test_real_search_empty_returns_no_mock_fallback(monkeypatch, tmp_path):
             top_k: int = 5,
             function_filter: list[str] | None = None,
             doc_type_filter: list[str] | None = None,
+            request_type: str = "query",
         ):
             return []
 

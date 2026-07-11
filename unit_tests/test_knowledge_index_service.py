@@ -54,7 +54,7 @@ def test_index_chunks_mock_embed_and_store(monkeypatch, tmp_path):
                 self.rows[cid] = {"content": content, "metadata": meta}
             return len(kwargs["chunk_ids"])
 
-        def count(self, namespace=None):
+        def count(self, namespace=None, *, generation_id=None):
             return len(self.rows)
 
         def search_by_embedding(self, query_embedding, top_k=5, namespace=None):
@@ -73,11 +73,40 @@ def test_index_chunks_mock_embed_and_store(monkeypatch, tmp_path):
                 return None
             return {"chunk_id": chunk_id, **row}
 
+        def delete_generation(self, generation_id):
+            self.rows.clear()
+            return 0
+
+    class FakeGenerations:
+        def __init__(self):
+            self.active_id = None
+
+        def create(self, **kwargs):
+            return kwargs
+
+        def mark_validated(self, generation_id, chunk_count):
+            return None
+
+        def activate(self, generation_id, namespace):
+            previous = self.active_id
+            self.active_id = generation_id
+            return previous
+
+        def mark_failed(self, generation_id, error):
+            return None
+
+        def retired_for_cleanup(self, namespace):
+            return []
+
+        def get_active_id(self, namespace):
+            return self.active_id
+
     fake = FakeStore("test_ns")
     monkeypatch.setattr(svc, "_store", fake)
+    monkeypatch.setattr(svc, "_generations", FakeGenerations())
     monkeypatch.setattr(
         "app.services.knowledge_index_service.embed_texts",
-        lambda s, texts: [[0.01] * 768 for _ in texts],
+        lambda s, texts, **_kwargs: [[0.01] * 768 for _ in texts],
     )
     monkeypatch.setattr("app.services.knowledge_index_service.PgVectorStore.ensure_schema", lambda: None)
 
@@ -126,7 +155,7 @@ def test_search_applies_doc_type_filter(monkeypatch, tmp_path):
     monkeypatch.setattr(svc, "_store", FakeStore())
     monkeypatch.setattr(
         "app.services.knowledge_index_service.embed_texts",
-        lambda s, texts: [[0.01] * 768 for _ in texts],
+        lambda s, texts, **_kwargs: [[0.01] * 768 for _ in texts],
     )
     hits = svc.search("tolerance", top_k=5, doc_type_filter=["qa"])
     assert len(hits) == 1
@@ -159,3 +188,44 @@ def test_list_indexed_source_docs_unavailable_returns_empty(monkeypatch, tmp_pat
 
     monkeypatch.setattr(svc, "_store", FailingStore())
     assert svc.list_indexed_source_docs() == set()
+
+
+def test_failed_generation_keeps_existing_active_pointer(monkeypatch, tmp_path):
+    settings = Settings(mock_rag=False, chroma_path=str(tmp_path / "chroma"))
+    svc = KnowledgeIndexService(settings, namespace="production")
+
+    class FakeGenerations:
+        active_id = "generation-old"
+        failed: list[str] = []
+
+        def create(self, **kwargs):
+            return kwargs
+
+        def mark_failed(self, generation_id, error):
+            self.failed.append(generation_id)
+
+        def get_active_id(self, namespace):
+            return self.active_id
+
+    class FakeStore:
+        deleted: list[str] = []
+
+        def delete_generation(self, generation_id):
+            self.deleted.append(generation_id)
+
+    generations = FakeGenerations()
+    store = FakeStore()
+    monkeypatch.setattr(svc, "_generations", generations)
+    monkeypatch.setattr(svc, "_store", store)
+    monkeypatch.setattr("app.services.knowledge_index_service.PgVectorStore.ensure_schema", lambda: None)
+    monkeypatch.setattr(
+        "app.services.knowledge_index_service.embed_texts",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("embedding failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="embedding failed"):
+        svc.build_generation([{"chunk_id": "c1", "content": "hello", "metadata": {}}])
+
+    assert generations.active_id == "generation-old"
+    assert len(generations.failed) == 1
+    assert store.deleted == generations.failed

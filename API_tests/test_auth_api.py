@@ -21,6 +21,7 @@ def auth_client(upload_dir, monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.models.engagement import Engagement
+    from app.models.knowledge_import import KnowledgeImport
     from app.models.project import Project
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
@@ -39,6 +40,7 @@ def auth_client(upload_dir, monkeypatch):
             RFQTask.__table__,
             TaskJob.__table__,
             Engagement.__table__,
+            KnowledgeImport.__table__,
         ],
     )
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -190,32 +192,54 @@ def test_engineer_cannot_reindex(auth_client, monkeypatch):
     assert resp.json()["msg"] == "需要资料库管理员权限"
 
 
+def test_engineer_can_read_kb_maintenance(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/knowledge/maintenance",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["active"] is False
+
+
+def test_engineer_cannot_read_imports_active(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/knowledge/imports/active",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_engineer_can_list_engagements_readonly(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/knowledge/engagements",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert "engagements" in resp.json()["data"]
+
+
+def test_engineer_still_cannot_reindex(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.post(
+        "/api/v1/knowledge/reindex",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
 def test_kb_admin_can_reindex(auth_client, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
     get_settings.cache_clear()
-
-    class FakeIngest:
-        def __init__(self, settings, db=None):
-            pass
-
-        def import_all(self):
-            return {
-                "new_documents": 0,
-                "new_chunks": 0,
-                "skipped": 0,
-                "failed_files": [],
-                "last_import_at": "2026-07-07T00:00:00Z",
-                "engagements_indexed": 0,
-                "doc_type_counts": {},
-            }
-
-    monkeypatch.setattr("app.api.v1.knowledge.EngagementIngestService", FakeIngest)
     token = _login(auth_client, "kbadmin", "admin123")
     resp = auth_client.post(
         "/api/v1/knowledge/reindex",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 202
+    assert resp.json()["data"]["job_id"]
 
 
 def test_health_includes_auth_enabled(auth_client):

@@ -1,9 +1,9 @@
 # R1 第一期 — 任务索引
 
 **里程碑：** R1（第 1–8 周 · ¥76,300）  
-**版本：** v1.4 · 2026-07-07  
-**状态：** **RFQ + RAG spike 已结案** · pgvector 生产入库（R1-K）未开工 · Debug UI 已实现  
-**基线：** [prod.md](../../prod.md) v1.7 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.4
+**版本：** v1.6 · 2026-07-10
+**状态：** **RFQ + RAG spike 已结案** · R1-KH 生产稳定性任务已详细拆分 · Debug UI 已实现
+**基线：** [prod.md](../../prod.md) v1.9 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.5
 
 ---
 
@@ -13,6 +13,9 @@
 |------|------|
 | [dev-tasks.md](dev-tasks.md) | **开发任务主清单**（含 **R1-SPK** spike 后续 · **R1-OPS**） |
 | [r1-execution-plan.md](r1-execution-plan.md) | **Wave 1–6 执行顺序**（Spike 后正式实施） |
+| [knowledge-development-standards.md](knowledge-development-standards.md) | **知识库全栈开发规范**：分层、事务、迁移、幂等、兼容、可观测性、测试 |
+| [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md) | **知识库生产化 UI/UX**：状态词典、页面任务、角色/异常/响应式 DoD |
+| [kh00-architecture-decisions.md](kh00-architecture-decisions.md) | **KH00 ADR 草案**：generation、job、Ollama 租约、事务补偿、202 迁移 |
 | [dev-error-retrospective.md](dev-error-retrospective.md) | **错误总结与提效指南**（Spike/测试/架构教训） |
 | [spike-follow-up-tasks.md](spike-follow-up-tasks.md) | **Spike 结案 → R1 正式实施任务**（RFQ + RAG） |
 | [validation-corpus.md](validation-corpus.md) | **客户模板语料** + spike 复现命令 |
@@ -49,6 +52,7 @@ R1 业务主线：**先知识库（2A），再 RFQ 对标（2B）**。其前须�
 | **P0-0** | R1-E | 分支、Profile、规则 — 开工门禁 |
 | **P0-1** | R1-I | 任务队列 + pgvector — KB 与 RFQ 共用底座 |
 | **P0-2** | **R1-K** | **知识库优先**：manifest → ingest → baselines → 检索 → `/knowledge` |
+| **P0-1～P1** | **R1-KH** | KH00 ADR → 原子索引/全局调度/磁盘与上传 → 增量、审计、UI、压测 |
 | **P0-3** | R1-F → R1-U | KB 可用后：F1.10 → dimension_review → confirm → Top-3 RAG → 矩阵 |
 | 收尾 | R1-AUTH + R1-A | 认证权限收尾、检索评测、彩排、R1-β 客户签字 |
 

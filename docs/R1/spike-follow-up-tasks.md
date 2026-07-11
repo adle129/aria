@@ -58,7 +58,7 @@
 
 | ID | 优先级 | 任务 | 映射 dev-tasks | DoD | 状态 |
 |----|--------|------|----------------|-----|------|
-| SPK-K01 | **P0-2** | **入库必须 RFQ+Q_A** | **R1-K02, R1-K07** | `flatten_preview_chunks` 后 count：rfq+qa；**禁止仅 rfq 入库** | 待开始 |
+| SPK-K01 | **P0-2** | **金标准 RFQ+Q_A 回归门禁** | **R1-K02, R1-K07, R1-KH01** | 金标准 fixture 在 `flatten_preview_chunks` 后保持 rfq+qa count=171；生产铜级项目可仅 RFQ 入库并标明 Q&A 缺件影响 | 待开始 |
 | SPK-K02 | P0-2 | **入库回归测试** | R1-K09, R1-I09 | index 后 assert doc_type 分布；171 模板基准 | 待开始 |
 | SPK-K03 | P0-2 | **生产检索 = spike vector 路径** | R1-K03 | `RAGService.search` 与 `KnowledgeIndexService.search` 同 schema；Top-3 用 vector | 待开始 |
 | SPK-K04 | P0-2 | **评测集与 Pass 记录** | **R1-K09, R1-A02** | `debug_eval_queries.sample.json` 15 条；`rag_compare_spike.json` 作内部 Pass 表；客户签字 O-03 | **部分完成** |

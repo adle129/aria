@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.database import engine
 from app.models.knowledge_chunk import EMBEDDING_DIMENSION, KnowledgeChunk
+from app.models.knowledge_index_generation import KnowledgeIndexGeneration, KnowledgeIndexState
+from app.repositories.knowledge_generation_repository import KnowledgeGenerationRepository
 
 try:
     from pgvector.sqlalchemy import Vector
@@ -33,6 +35,7 @@ class PgVectorUnavailableError(RuntimeError):
 class PgVectorStore:
     def __init__(self, namespace: str = "default"):
         self.namespace = namespace
+        self.generations = KnowledgeGenerationRepository()
 
     @staticmethod
     def is_available() -> bool:
@@ -47,6 +50,8 @@ class PgVectorStore:
         from app.database import Base
         from app.models import knowledge_chunk  # noqa: F401
 
+        KnowledgeIndexGeneration.__table__.create(bind=engine, checkfirst=True)
+        KnowledgeIndexState.__table__.create(bind=engine, checkfirst=True)
         KnowledgeChunk.__table__.create(bind=engine, checkfirst=True)
         PgVectorStore._ensure_embedding_column()
 
@@ -112,6 +117,15 @@ class PgVectorStore:
             session.commit()
             return result.rowcount or 0
 
+    def delete_generation(self, generation_id: str) -> int:
+        self._require_pg()
+        with Session(engine) as session:
+            result = session.execute(
+                delete(KnowledgeChunk).where(KnowledgeChunk.generation_id == generation_id)
+            )
+            session.commit()
+            return result.rowcount or 0
+
     def upsert_batch(
         self,
         *,
@@ -120,6 +134,7 @@ class PgVectorStore:
         embeddings: list[list[float]],
         metadatas: list[dict[str, Any]],
         namespace: str | None = None,
+        generation_id: str,
     ) -> int:
         self._require_pg()
         ns = namespace or self.namespace
@@ -138,23 +153,24 @@ class PgVectorStore:
                     rows = [
                         {
                             "chunk_id": cid,
+                            "generation_id": generation_id,
                             "namespace": ns,
                             "content": content,
                             "embedding": emb,
-                            "chunk_metadata": meta,
+                            "metadata": meta,
                         }
                         for cid, content, emb, meta in zip(
                             chunk_ids[sl], contents[sl], embeddings[sl], metadatas[sl]
                         )
                     ]
-                    stmt = pg_insert(KnowledgeChunk).values(rows)
+                    stmt = pg_insert(KnowledgeChunk.__table__).values(rows)
                     stmt = stmt.on_conflict_do_update(
-                        index_elements=["chunk_id"],
+                        index_elements=["generation_id", "chunk_id"],
                         set_={
                             "namespace": stmt.excluded.namespace,
                             "content": stmt.excluded.content,
                             "embedding": stmt.excluded.embedding,
-                            "chunk_metadata": stmt.excluded.chunk_metadata,
+                            "metadata": stmt.excluded.metadata,
                         },
                     )
                     session.execute(stmt)
@@ -165,9 +181,13 @@ class PgVectorStore:
                 for cid, content, emb, meta in zip(
                     chunk_ids, contents, embeddings, metadatas, strict=True
                 ):
-                    row = session.get(KnowledgeChunk, cid)
+                    row = session.get(KnowledgeChunk, (generation_id, cid))
                     if row is None:
-                        row = KnowledgeChunk(chunk_id=cid, namespace=ns)
+                        row = KnowledgeChunk(
+                            generation_id=generation_id,
+                            chunk_id=cid,
+                            namespace=ns,
+                        )
                         session.add(row)
                     row.namespace = ns
                     row.content = content
@@ -177,32 +197,103 @@ class PgVectorStore:
 
         return len(chunk_ids)
 
-    def count(self, namespace: str | None = None) -> int:
+    def copy_engagement_chunks(
+        self,
+        *,
+        from_generation_id: str,
+        to_generation_id: str,
+        engagement_ids: list[str],
+        namespace: str | None = None,
+    ) -> int:
         self._require_pg()
+        if not engagement_ids:
+            return 0
         ns = namespace or self.namespace
         with Session(engine) as session:
-            return session.scalar(
-                select(func.count()).select_from(KnowledgeChunk).where(KnowledgeChunk.namespace == ns)
-            ) or 0
+            rows = session.scalars(
+                select(KnowledgeChunk).where(
+                    KnowledgeChunk.namespace == ns,
+                    KnowledgeChunk.generation_id == from_generation_id,
+                )
+            ).all()
+            copied = 0
+            for row in rows:
+                meta = dict(row.chunk_metadata or {})
+                if meta.get("engagement_id") not in engagement_ids:
+                    continue
+                existing = session.get(
+                    KnowledgeChunk, (to_generation_id, row.chunk_id)
+                )
+                if existing is None:
+                    existing = KnowledgeChunk(
+                        generation_id=to_generation_id,
+                        chunk_id=row.chunk_id,
+                        namespace=ns,
+                    )
+                    session.add(existing)
+                existing.namespace = ns
+                existing.content = row.content
+                existing.embedding = row.embedding
+                existing.chunk_metadata = meta
+                copied += 1
+            session.commit()
+            return copied
 
-    def list_source_docs(self, namespace: str | None = None) -> set[str]:
+    def count(
+        self,
+        namespace: str | None = None,
+        *,
+        generation_id: str | None = None,
+    ) -> int:
         self._require_pg()
         ns = namespace or self.namespace
+        generation_id = generation_id or self.generations.get_active_id(ns)
+        if generation_id is None:
+            return 0
+        with Session(engine) as session:
+            return session.scalar(
+                select(func.count())
+                .select_from(KnowledgeChunk)
+                .where(
+                    KnowledgeChunk.namespace == ns,
+                    KnowledgeChunk.generation_id == generation_id,
+                )
+            ) or 0
+
+    def list_source_docs(
+        self,
+        namespace: str | None = None,
+        *,
+        generation_id: str | None = None,
+    ) -> set[str]:
+        self._require_pg()
+        ns = namespace or self.namespace
+        generation_id = generation_id or self.generations.get_active_id(ns)
+        if generation_id is None:
+            return set()
         sql = text(
             """
             SELECT DISTINCT metadata->>'source_doc' AS source_doc
             FROM knowledge_chunks
-            WHERE namespace = :ns AND metadata->>'source_doc' IS NOT NULL
+            WHERE namespace = :ns
+              AND generation_id = :generation_id
+              AND metadata->>'source_doc' IS NOT NULL
             """
         )
         with Session(engine) as session:
-            rows = session.execute(sql, {"ns": ns}).scalars().all()
+            rows = session.execute(
+                sql,
+                {"ns": ns, "generation_id": generation_id},
+            ).scalars().all()
         return {str(row) for row in rows if row}
 
     def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
         self._require_pg()
+        generation_id = self.generations.get_active_id(self.namespace)
+        if generation_id is None:
+            return None
         with Session(engine) as session:
-            row = session.get(KnowledgeChunk, chunk_id)
+            row = session.get(KnowledgeChunk, (generation_id, chunk_id))
             if row is None:
                 return None
             meta = dict(row.chunk_metadata or {})
@@ -220,24 +311,38 @@ class PgVectorStore:
         *,
         top_k: int = 5,
         namespace: str | None = None,
+        generation_id: str | None = None,
     ) -> list[dict[str, Any]]:
         self._require_pg()
         if len(query_embedding) != EMBEDDING_DIMENSION:
             raise ValueError(f"query embedding dim {len(query_embedding)} != {EMBEDDING_DIMENSION}")
         ns = namespace or self.namespace
+        generation_id = generation_id or self.generations.get_active_id(ns)
+        if generation_id is None:
+            return []
         vec_literal = "[" + ",".join(str(float(x)) for x in query_embedding) + "]"
         sql = text(
             """
             SELECT chunk_id, content, metadata,
                    1 - (embedding <=> CAST(:qvec AS vector)) AS similarity
             FROM knowledge_chunks
-            WHERE namespace = :ns AND embedding IS NOT NULL
+            WHERE namespace = :ns
+              AND generation_id = :generation_id
+              AND embedding IS NOT NULL
             ORDER BY embedding <=> CAST(:qvec AS vector)
             LIMIT :limit
             """
         )
         with Session(engine) as session:
-            rows = session.execute(sql, {"qvec": vec_literal, "ns": ns, "limit": top_k}).mappings().all()
+            rows = session.execute(
+                sql,
+                {
+                    "qvec": vec_literal,
+                    "ns": ns,
+                    "generation_id": generation_id,
+                    "limit": top_k,
+                },
+            ).mappings().all()
         hits: list[dict[str, Any]] = []
         for row in rows:
             meta = row["metadata"]

@@ -1,9 +1,9 @@
 # 正式版交付实施方案（内部 · 定方案版）
 
-**版本：** v1.4 · 2026-07-07  
+**版本：** v1.5 · 2026-07-10
 **状态：** **方案已定 · 可开工 R1**  
 **受众：** PM、开发、验收负责人（**本文不对客户披露**）  
-**关联：** [prod.md](../../prod.md) v1.7 · [delivery-traceability.md](delivery-traceability.md) v1.1 · [customer-feedback-baseline.md](../customer-feedback-baseline.md) v1.5 · [customer-delivery-roadmap.md](../customer-delivery-roadmap.md) v2.0
+**关联：** [prod.md](../../prod.md) v1.9 · [delivery-traceability.md](delivery-traceability.md) v1.3 · [customer-feedback-baseline.md](../customer-feedback-baseline.md) v1.5 · [customer-delivery-roadmap.md](../customer-delivery-roadmap.md) v2.0
 
 > **本文用途：** 统一内部实施口径：Demo 与正式版的关系、按合同里程碑如何一步一步开发、分支与环境如何隔离。  
 > **客户侧：** 仅感知 [customer-delivery-roadmap.md](../customer-delivery-roadmap.md) 与各期验收文档；**不参与**分支、Profile、是否复用 Demo 代码等工程决策。  
@@ -151,6 +151,7 @@ flowchart LR
 | RAG | Top-K + metadata；禁止 Mock 兜底 | P0 |
 | RFQ | F1.10a–d · Word 表格 · 基准库 | P0 |
 | 知识库 | manifest · Engagement Web ≤5 · baselines | P0 |
+| KB 稳定性 | staging generation 原子切换 · job 单飞 · RFQ 优先 · 磁盘/ZIP/跨 OS 加固 · 导入批次 | P0 |
 | 清理 | 移除未使用 LangChain | 低 |
 | DB 池 | `pool_size=10` / `max_overflow=20` | 低 |
 
@@ -196,9 +197,10 @@ Service → unit test → API → API test → 前端 → 联调
 3. **Auth MVP（R1-AUTH01–07，与 2–4 并行）**  
 4. pgvector + ingest  
 4. Engagement + baselines  
-5. **F1.10a–d** + RFQ 页（基准勾选 + 矩阵）  
-6. Knowledge 页扩展 + Profile=`r1`  
-7. 检索评测 + R1 内网彩排  
+5. **R1-KH Phase A**：原子索引、全局调度、磁盘/ZIP/跨 OS、审计与备份
+6. **F1.10a–d** + RFQ 页（基准勾选 + 矩阵）
+7. Knowledge 页扩展 + Profile=`r1` + R1-KH Phase B
+8. 检索评测 + 单卡并行/故障测试 + R1 内网彩排
 
 ---
 
@@ -228,6 +230,7 @@ Service → unit test → API → API test → 前端 → 联调
 - [ ] 生产无 Mock LLM/RAG  
 - [ ] F1.10a–d + Engagement + ≥12/15 检索评测  
 - [ ] **Auth MVP**：登录 · 任务隔离 · kb_admin 写守卫（AUTH-01～07）  
+- [ ] **R1-KH Phase A/B**：索引时旧库可读、RFQ 优先、磁盘不足安全拒绝、Windows 上传兼容、导入/备份可追踪
 - [ ] 客户正式基准库已导入并完成 3 份 RFQ 对标签字  
 - [ ] `run_tests.ps1` 全绿；涉及 RAG/解析则 `--regression` 结构通过  
 - [ ] **不含** F5.6 一键反馈作为客户交付或验收项

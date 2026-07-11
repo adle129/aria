@@ -9,6 +9,8 @@ def test_health_returns_ok(client):
     assert body["mock_llm"] is True
     assert body["mock_rag"] is True
     assert "ollama_reachable" in body
+    assert body["data_volume"]["total_bytes"] >= body["data_volume"]["free_bytes"]
+    assert "write_protected" in body["temp_volume"]
 
 
 def test_health_response_schema_keys(client):
@@ -28,4 +30,6 @@ def test_health_response_schema_keys(client):
         "aria_ui_profile",
         "auth_enabled",
         "production_warnings",
+        "data_volume",
+        "temp_volume",
     }

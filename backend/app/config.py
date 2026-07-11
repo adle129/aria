@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ollama_llm_timeout_seconds: int = 600
     embedding_model: str = "nomic-embed-text"
     embedding_max_chars: int = 2400
+    embedding_batch_size: int = 16
     mock_llm: bool = True
     mock_rag: bool = True
 
@@ -28,12 +29,27 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = 24
 
     ollama_max_concurrent: int = 1
+    ollama_global_scheduling_enabled: bool = True
+    ollama_lease_ttl_seconds: int = 30
+    ollama_lease_heartbeat_seconds: int = 10
+    ollama_lease_query_wait_timeout_seconds: int = 30
+    ollama_lease_worker_wait_timeout_seconds: int = 600
     rag_similarity_threshold: float = 0.65
     task_worker_inline: bool = False
     task_worker_poll_seconds: float = 2.0
     task_job_avg_seconds: int = 120
     task_job_stale_seconds: int = 900
     task_max_queue_size: int = 20
+    kb_async_index_enabled: bool = True
+    disk_warning_percent: float = 80.0
+    disk_write_protect_percent: float = 90.0
+    disk_min_free_bytes: int = 256 * 1024 * 1024
+    upload_max_archive_bytes: int = 100 * 1024 * 1024
+    upload_max_entries: int = 500
+    upload_max_single_file_bytes: int = 50 * 1024 * 1024
+    upload_max_expanded_bytes: int = 500 * 1024 * 1024
+    upload_max_compression_ratio: float = 100.0
+    upload_stream_chunk_bytes: int = 1024 * 1024
 
     # UI / deployment (see docs/R1/kb-debug-ui-spec.md)
     aria_ui_profile: str = "experience"  # dev | experience | r1 | full
@@ -57,6 +73,40 @@ class Settings(BaseSettings):
     def _kb_debug_dev_only(self) -> "Settings":
         if self.kb_debug_enabled and self.aria_ui_profile != "dev":
             self.kb_debug_enabled = False
+        return self
+
+    @model_validator(mode="after")
+    def _validate_disk_thresholds(self) -> "Settings":
+        if not (
+            0
+            <= self.disk_warning_percent
+            < self.disk_write_protect_percent
+            <= 100
+        ):
+            raise ValueError(
+                "disk thresholds must satisfy 0 <= warning < write_protect <= 100"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_upload_limits(self) -> "Settings":
+        positive_limits = (
+            self.upload_max_archive_bytes,
+            self.upload_max_entries,
+            self.upload_max_single_file_bytes,
+            self.upload_max_expanded_bytes,
+            self.upload_max_compression_ratio,
+            self.upload_stream_chunk_bytes,
+        )
+        if any(limit <= 0 for limit in positive_limits):
+            raise ValueError("upload limits must all be positive")
+        if (
+            self.upload_max_single_file_bytes
+            > self.upload_max_expanded_bytes
+        ):
+            raise ValueError(
+                "single upload file limit cannot exceed expanded ZIP limit"
+            )
         return self
 
     @model_validator(mode="after")

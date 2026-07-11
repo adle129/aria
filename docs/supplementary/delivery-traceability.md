@@ -1,7 +1,7 @@
 # 交付能力追溯矩阵
 
-**版本：** v1.2 · 2026-07-09  
-**基线：** [prod.md](../../prod.md) v1.7 · [客户版 v3.8](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.6](../ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md) · [R1 验收说明 v1.6](../R1-知识库验收与检索评测说明（客户版）.md) · **[使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)**
+**版本：** v1.3 · 2026-07-10
+**基线：** [prod.md](../../prod.md) v1.9 · [客户版 v3.8](../ARIA-报价助手-正式版交付方案与报价（客户版）.md) · [客户易懂版 v1.6](../ARIA-报价助手-正式版交付方案与报价（客户易懂版）.md) · [R1 验收说明 v1.6](../R1-知识库验收与检索评测说明（客户版）.md) · **[使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)**
 
 > **用途：** 一页回答「客户说的某能力 → prod 功能 ID → API → 设计规格 → 如何验收」。  
 > **AI 列：** LLM = 本地大模型 · RAG = Embedding 检索 · Rule = 规则/算法/模板，不用 LLM 填核心数字或正文。
@@ -22,6 +22,10 @@
 | Top-3 项目查看对应 baselines | R1 | F1.4, F5.10 | RAG+Rule | RFQ 矩阵 + baselines 联动 | manpower-baselines-spec §2 | R1-K08c |
 | 知识库检索实验室 | R1 | F5.3, F5.4 | RAG | GET `/knowledge/stats` · POST `/knowledge/search` | rag-design §11.4 | R1 §4.4 |
 | Web 上传 ≤5 套/次 | R1 | F5.1 | Rule | POST `/knowledge/engagements/upload` | rag-design §11.4.1 · api-design §2.3.5 | R1 §4.1 |
+| 索引期间工程师持续使用 | R1 | NF23–NF24 | Rule | POST `/knowledge/import` + GET `/knowledge/imports/{job_id}` | rag-design §6.1 · R1-KH02–KH04 | 索引中 search/RFQ 并行测试 |
+| 数据盘不足安全拒绝 | R1 | NF25 | Rule | health `data_volume` · upload/import 507 | api-design §2.1/§2.3.5 · R1-KH05–KH06 | 低空间/ENOSPC 测试 |
+| Windows 上传至 Linux | R1 | NF26 | Rule | POST `/knowledge/engagements/upload` | rag-design §6.1 · R1-KH07 | 中文/路径/ZIP/legacy doc 回归 |
+| KB 导入批次与最小审计 | R1 | F5.11, NF13, NF23 | — | GET `/knowledge/imports/{job_id}` | R1-KH08 · api-design §2.3 | 导入报告与恢复测试 |
 | 选最相似历史报价 | M3 | F4.9 | Rule | POST `.../generate-excel` | [m3-scope-match-spec.md §3](m3-scope-match-spec.md) · manpower-baselines-spec §4 | M3 ≥3 RFQ ScopeMatch 签字 |
 | 按当前 RFQ 日期排人力 Excel | M3 | F4.10, F4.3 | Rule | POST `.../generate-excel` | m3-scope-match-spec §5–7 | 附录 §2.3 |
 | 报价填充说明 | M3 | F4.11 | Rule | generate-excel 响应 `quote_fill_report` | m3-scope-match-spec §8 | prod §10.2 M3 |

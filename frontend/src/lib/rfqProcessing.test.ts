@@ -46,4 +46,13 @@ describe("resolveProcessingStepVisuals", () => {
     expect(steps[0].state).toBe("done");
     expect(steps[1]).toEqual({ label: "解析 RFQ 文档", state: "active" });
   });
+
+  it("shows retrieve step after engineer confirmation", () => {
+    const steps = resolveProcessingStepVisuals("retrieving", 55, null);
+    expect(steps.slice(0, 4).every((step) => step.state === "done")).toBe(true);
+    expect(steps[4]).toEqual({
+      label: "检索相似历史项目",
+      state: "active",
+    });
+  });
 });

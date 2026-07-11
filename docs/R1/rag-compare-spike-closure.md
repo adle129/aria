@@ -43,7 +43,7 @@
 |------|-----------|
 | **R1 生产主路径：vector + metadata** | **80% Pass**，RFQ **100%**；满足 O-03 方向（≥12/15） |
 | **R1 仍不上完整 Hybrid / Cross-encoder Rerank** | 合同范围 · 部署成本 · 仅 **3/15** 边界 case 受益 |
-| **入库必须 RFQ + Q_A** | `index_corpus` / Engagement 入库时 **`flatten_preview_chunks` 含 qa 35 行** |
+| **金标准回归须 RFQ + Q_A** | `index_corpus` / fixture 的 **`flatten_preview_chunks` 含 qa 35 行**；该 171-chunk 结论不作为铜级生产项目硬门禁，仅 RFQ 可索引并须报告 Q&A 缺件影响 |
 | **评测集用模板真实 Question** | 勿用臆测 query；已从 `Q_A_模板.xlsx` 按 Area 抽取 |
 | **Phase 2 候选（变更单）** | 若客户脱敏库上 vector Pass 持续 <70%，再评估 **hybrid_lite 或 keyword boost** |
 | **可选 R1 轻量增强（非变更单）** | `rag-design` §7 路径 ②：**keyword boost / ILIKE** 仅覆盖项目代号类 query，不引入 RRF 全链路 |

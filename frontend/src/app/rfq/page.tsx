@@ -209,9 +209,21 @@ export default function RfqPage() {
 
       for (let i = 0; i < POLL_MAX_ITERATIONS; i++) {
         if (activePollEpochRef.current !== myEpoch) return "cancelled";
-        const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${taskId}/status`);
+        let status: TaskStatusPayload;
+        try {
+          const statusResp = await apiClient.get<TaskStatusPayload>(
+            `/rfq/tasks/${taskId}/status`,
+            { silentError: true },
+          );
+          status = statusResp.data;
+        } catch {
+          if (activePollEpochRef.current !== myEpoch) return "cancelled";
+          setStalledPolling(true);
+          setAnalysisMessage("状态查询暂时失败，后台可能仍在处理，请稍后继续等待");
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS * 2));
+          continue;
+        }
         if (activePollEpochRef.current !== myEpoch) return "cancelled";
-        const status = statusResp.data;
         const progress = status.progress ?? 0;
         if (status.status !== lastStatus) {
           lastStatus = status.status;
@@ -514,7 +526,15 @@ export default function RfqPage() {
       message.success("已确认维度，正在生成对比矩阵...");
       await pollUntilTerminal(task.task_id, "completed");
     } catch {
-      message.error("确认维度失败，请检查勾选后重试");
+      try {
+        const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
+          `/rfq/tasks/${task.task_id}`,
+          { silentError: true },
+        );
+        syncMatrixFromTask(taskResp.data.data);
+      } catch {
+        /* keep current UI; interceptor already toasted API error */
+      }
     } finally {
       setConfirmingDimensions(false);
       setUploading(false);
@@ -667,17 +687,40 @@ export default function RfqPage() {
     }
 
     if (showFailed && task) {
+      const failHint = (() => {
+        const err = (task.error_msg || "").toLowerCase();
+        const msg = task.status_message || "";
+        if (
+          err.includes("ollama") ||
+          err.includes("lease") ||
+          err.includes("embedding") ||
+          msg.includes("模型") ||
+          msg.includes("检索")
+        ) {
+          return "相似项目检索或本地模型暂时不可用。请确认 Ollama 正常、知识库未在全量索引，然后重试。";
+        }
+        if (err.includes("timeout") || msg.includes("超时")) {
+          return "处理超时。请稍后重试；若反复出现，请联系管理员检查 worker 与模型负载。";
+        }
+        return "可能是文档格式不标准或内容过短。您可以重新解析（使用同一文件）或重新上传。";
+      })();
       return (
         <div style={{ maxWidth: 480, margin: "40px auto", textAlign: "center" }}>
           <Title level={4} style={{ fontWeight: 500, marginBottom: 8 }}>
-            这份 RFQ 没能解析完成
+            这份 RFQ 没能完成分析
           </Title>
-          <Paragraph type="secondary" style={{ marginBottom: 24 }}>
-            可能是文档格式不标准或内容过短。您可以重新解析（使用同一文件）或重新上传。
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            {failHint}
           </Paragraph>
-          {task.error_msg ? (
+          <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 8 }}>
+            任务 ID：{task.task_id}
+          </Paragraph>
+          {task.error_msg || task.status_message ? (
             <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 24 }}>
-              技术信息：{task.error_msg}
+              {task.status_message || task.error_msg}
+              {task.error_msg && task.status_message !== task.error_msg
+                ? `（${task.error_msg}）`
+                : ""}
             </Paragraph>
           ) : null}
           <Space>

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import logging
 
 import jwt
 from passlib.context import CryptContext
@@ -10,6 +11,7 @@ from app.models.user import USER_ROLE_QUOTE_ENGINEER, USER_ROLES, User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import UserDetail, UserPublic
 
+logger = logging.getLogger(__name__)
 _pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
@@ -45,10 +47,29 @@ class AuthService:
 
     def authenticate(self, db: Session, username: str, password: str) -> User | None:
         user = UserRepository(db).get_by_username(username)
-        if not user or not user.is_active:
+        if not user:
+            logger.info("auth_login_fail username=%r reason=not_found", username)
+            return None
+        if not user.is_active:
+            logger.info(
+                "auth_login_fail username=%r user_id=%s reason=inactive",
+                username,
+                user.id,
+            )
             return None
         if not self.verify_password(password, user.password_hash):
+            logger.info(
+                "auth_login_fail username=%r user_id=%s reason=bad_creds",
+                username,
+                user.id,
+            )
             return None
+        logger.info(
+            "auth_login_ok username=%r user_id=%s role=%s",
+            username,
+            user.id,
+            user.role,
+        )
         return user
 
     def token_expire_time(self) -> datetime:

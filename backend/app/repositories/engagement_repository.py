@@ -27,6 +27,10 @@ class EngagementRepository:
             existing.folder_path = engagement.folder_path
             existing.manifest = engagement.manifest
             existing.index_status = engagement.index_status
+            existing.tier = engagement.tier
+            existing.content_hash = engagement.content_hash
+            existing.uploaded_at = engagement.uploaded_at
+            existing.uploaded_by = engagement.uploaded_by
             existing.last_indexed_at = engagement.last_indexed_at
             existing.last_error = engagement.last_error
             existing.updated_at = now
