@@ -211,6 +211,25 @@ def test_engineer_cannot_read_imports_active(auth_client):
     assert resp.status_code == 403
 
 
+def test_engineer_can_list_engagements_readonly(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.get(
+        "/api/v1/knowledge/engagements",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert "engagements" in resp.json()["data"]
+
+
+def test_engineer_still_cannot_reindex(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.post(
+        "/api/v1/knowledge/reindex",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
 def test_kb_admin_can_reindex(auth_client, monkeypatch):
     monkeypatch.setenv("MOCK_RAG", "false")
     get_settings.cache_clear()

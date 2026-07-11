@@ -31,6 +31,13 @@ import ManpowerBaselinesPanel from "@/components/ManpowerBaselinesPanel";
 import PlatformKnowledgeExplainer from "@/components/PlatformKnowledgeExplainer";
 import { useAuth } from "@/context/AuthContext";
 import { useUiProfile } from "@/hooks/useUiProfile";
+import {
+  getKnowledgePageVisibility,
+  knowledgeCoverageHint,
+  knowledgeDocumentsEmptyText,
+  knowledgePageIntro,
+  knowledgeSearchHint,
+} from "@/lib/knowledgePageVisibility";
 
 const { Paragraph, Text, Title } = Typography;
 
@@ -119,7 +126,12 @@ export default function KnowledgePage() {
   const { authEnabled, isKbAdmin } = useAuth();
   const { health, showDemoChrome, isFormalDelivery } = useUiProfile();
   const docTypeQuotingHint = showDemoChrome ? DOC_TYPE_QUOTING_HINT_DEMO : DOC_TYPE_QUOTING_HINT_R1;
-  const canWriteKb = !authEnabled || isKbAdmin;
+  const visibility = getKnowledgePageVisibility({
+    authEnabled,
+    isKbAdmin,
+    isFormalDelivery,
+  });
+  const { canWriteKb } = visibility;
   const writeProtected = health?.data_volume?.write_protected === true;
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
@@ -242,13 +254,9 @@ export default function KnowledgePage() {
         </Title>
         <Tag color="blue">平台能力</Tag>
       </Space>
-      <Paragraph type="secondary">
-        历史项目 RFQ、方案、报价等工程资料 · 平台共享检索底座。日常在「RFQ
-        分析」查看对标结果；本页可检索与查看统计
-        {authEnabled && isKbAdmin ? "，并完成入库与索引。" : "。"}
-      </Paragraph>
+      <Paragraph type="secondary">{knowledgePageIntro(canWriteKb)}</Paragraph>
 
-      <PlatformKnowledgeExplainer />
+      <PlatformKnowledgeExplainer canWriteKb={canWriteKb} />
 
       {stats?.mock_rag && showDemoChrome && (
         <Alert
@@ -264,7 +272,7 @@ export default function KnowledgePage() {
         />
       )}
 
-      {stats?.mock_rag && isFormalDelivery && (
+      {stats?.mock_rag && isFormalDelivery && visibility.showOpsMockRagAlert && (
         <Alert
           type="error"
           showIcon
@@ -275,45 +283,47 @@ export default function KnowledgePage() {
 
       <DemoModuleCapability module="knowledge" />
 
-      <Card title="入库与验证向导" style={{ marginBottom: 16 }} size="small">
-        <Steps
-          size="small"
-          current={wizardStep}
-          items={[
-            {
-              title: "准备项目资料",
-              description: "目录落盘或 Web 上传",
-            },
-            {
-              title: "更新索引",
-              description: "扫描并写入向量库",
-            },
-            {
-              title: "查看清单",
-              description: `${indexedCount}/${documents.length} 已索引`,
-            },
-            {
-              title: "检索验证",
-              description: "确认能命中预期资料",
-            },
-          ]}
-        />
-        <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 8 }}>
-          <Text strong>R1 入库方式：</Text>
-          <Text strong>（A）</Text> IT 将项目包放入服务器{" "}
-          <Text code>knowledge_base/&lt;项目名&gt;/</Text>
-          （100+ 推荐）→ 点击「更新知识库索引」；
-          <Text strong>（B）</Text> 本页「上传项目包」— 单套 ZIP/多文件，或一次最多{" "}
-          <Text strong>5 套</Text> → 查看缺件提示 → 更新索引。
-        </Paragraph>
-        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
-        </Paragraph>
-      </Card>
+      {visibility.showIngestWizard && (
+        <Card title="入库与验证向导" style={{ marginBottom: 16 }} size="small">
+          <Steps
+            size="small"
+            current={wizardStep}
+            items={[
+              {
+                title: "准备项目资料",
+                description: "目录落盘或 Web 上传",
+              },
+              {
+                title: "更新索引",
+                description: "扫描并写入向量库",
+              },
+              {
+                title: "查看清单",
+                description: `${indexedCount}/${documents.length} 已索引`,
+              },
+              {
+                title: "检索验证",
+                description: "确认能命中预期资料",
+              },
+            ]}
+          />
+          <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 8 }}>
+            <Text strong>R1 入库方式：</Text>
+            <Text strong>（A）</Text> IT 将项目包放入服务器{" "}
+            <Text code>knowledge_base/&lt;项目名&gt;/</Text>
+            （100+ 推荐）→ 点击「更新知识库索引」；
+            <Text strong>（B）</Text> 本页「上传项目包」— 单套 ZIP/多文件，或一次最多{" "}
+            <Text strong>5 套</Text> → 查看缺件提示 → 更新索引。
+          </Paragraph>
+          <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
+          </Paragraph>
+        </Card>
+      )}
 
-      {canWriteKb && <KbCapacityAlert volume={health?.data_volume} />}
+      {visibility.showCapacityAlert && <KbCapacityAlert volume={health?.data_volume} />}
 
-      {canWriteKb && (
+      {visibility.showUpload && (
         <EngagementUploadPanel
           writeProtected={writeProtected}
           onUploaded={() => {
@@ -323,20 +333,20 @@ export default function KnowledgePage() {
         />
       )}
 
-      {canWriteKb && (
+      {visibility.showIndexJob && (
         <KnowledgeIndexJobPanel
           onCompleted={handleIndexCompleted}
           writeProtected={writeProtected}
         />
       )}
 
-      {canWriteKb && isFormalDelivery && (
+      {visibility.showImportAudit && (
         <Card title="导入审计" style={{ marginBottom: 16 }}>
           <KnowledgeImportHistoryPanel refreshToken={importHistoryRefresh} />
         </Card>
       )}
 
-      {canWriteKb && isFormalDelivery && (
+      {visibility.showEngagementInventory && (
         <EngagementInventoryPanel refreshToken={importHistoryRefresh} />
       )}
 
@@ -403,7 +413,7 @@ export default function KnowledgePage() {
                             />
                           </Text>
                           <Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 12 }}>
-                            覆盖偏低的领域，建议在 RFQ 对标时重点人工补充依据，或优先补充该类历史项目资料。
+                            {knowledgeCoverageHint(canWriteKb)}
                           </Paragraph>
                           <div style={{ maxWidth: 480 }}>
                             {coverageEntries.map(([fn, rate]) => (
@@ -413,7 +423,7 @@ export default function KnowledgePage() {
                                     <Text>{fn}</Text>
                                     {rate < 0.4 && (
                                       <Tag color="orange" style={{ margin: 0 }}>
-                                        建议补充资料
+                                        {canWriteKb ? "建议补充资料" : "覆盖偏低"}
                                       </Tag>
                                     )}
                                   </Space>
@@ -442,9 +452,10 @@ export default function KnowledgePage() {
                     dataSource={documents}
                     pagination={{ pageSize: 8, hideOnSinglePage: true }}
                     locale={{
-                      emptyText: showDemoChrome
-                        ? "暂无文档；可将项目包放入 knowledge_base/<项目名>/ 或本页「上传项目包」"
-                        : "暂无文档；请通过 IT 目录入库或本页「上传项目包」添加 Engagement",
+                      emptyText: knowledgeDocumentsEmptyText({
+                        canWriteKb,
+                        showDemoChrome,
+                      }),
                     }}
                     columns={[
                       { title: "路径", dataIndex: "path", ellipsis: true },
@@ -505,7 +516,7 @@ export default function KnowledgePage() {
 
                 <Card title="历史资料检索" style={{ marginBottom: 16 }}>
                   <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                    RFQ 分析页中的「相似历史项目」由相同检索逻辑产生，可在此验证关键词能否命中预期资料。
+                    {knowledgeSearchHint(canWriteKb)}
                   </Paragraph>
                   <Space wrap style={{ marginBottom: 16 }}>
                     <Input

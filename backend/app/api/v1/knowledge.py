@@ -354,8 +354,9 @@ def knowledge_import_batch_detail(
 @router.get("/engagements")
 def knowledge_engagements(
     db: Session = Depends(get_db),
-    _admin=Depends(require_kb_admin),
+    _user=Depends(get_current_user),
 ):
+    """Read-only inventory for any authenticated user (engineers included)."""
     repo = EngagementRepository(db)
     items = []
     for row in repo.list_all():
