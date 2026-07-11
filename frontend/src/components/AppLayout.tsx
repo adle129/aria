@@ -272,7 +272,7 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
             { label: "全部", value: "all" },
             { label: "进行中", value: "in_progress" },
             { label: "已完成", value: "done" },
-            { label: "失败", value: "failed" },
+            { label: "失败 / 已取消", value: "failed" },
           ]}
           style={{ marginTop: 8, width: "100%", fontSize: 11 }}
         />

@@ -88,16 +88,19 @@ describe("formatRecentTaskLabel", () => {
 });
 
 describe("matchesInboxFilter", () => {
-  it("includes only failed tasks in failed filter", () => {
+  it("includes failed and cancelled tasks in failed filter", () => {
     expect(matchesInboxFilter("failed", "failed")).toBe(true);
+    expect(matchesInboxFilter("cancelled", "failed")).toBe(true);
     expect(matchesInboxFilter("completed", "failed")).toBe(false);
     expect(matchesInboxFilter("parsing", "failed")).toBe(false);
     expect(matchesInboxFilter("dimension_review", "failed")).toBe(false);
   });
 
-  it("excludes failed from in_progress and done", () => {
+  it("excludes failed and cancelled from in_progress and done", () => {
     expect(matchesInboxFilter("failed", "in_progress")).toBe(false);
+    expect(matchesInboxFilter("cancelled", "in_progress")).toBe(false);
     expect(matchesInboxFilter("failed", "done")).toBe(false);
+    expect(matchesInboxFilter("cancelled", "done")).toBe(false);
     expect(matchesInboxFilter("parsing", "in_progress")).toBe(true);
     expect(matchesInboxFilter("completed", "done")).toBe(true);
   });

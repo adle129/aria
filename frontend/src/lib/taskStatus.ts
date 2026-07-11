@@ -45,7 +45,7 @@ const INBOX_IN_PROGRESS_STATUSES = new Set([
 
 export function matchesInboxFilter(status: string, filter: InboxFilterKey): boolean {
   if (filter === "all") return true;
-  if (filter === "failed") return status === "failed";
+  if (filter === "failed") return status === "failed" || status === "cancelled";
   if (filter === "done") return status === "completed";
   if (filter === "in_progress") return INBOX_IN_PROGRESS_STATUSES.has(status);
   return false;
