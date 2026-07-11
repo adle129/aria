@@ -21,6 +21,7 @@ import { archiveTask, deleteTask, fetchHealth, type HealthData } from "@/api/cli
 import RfqRecentTasksTable from "@/components/rfq/RfqRecentTasksTable";
 import TaskContextBar from "@/components/TaskContextBar";
 import ChangePasswordModal from "@/components/ChangePasswordModal";
+import KbMaintenanceBanner from "@/components/KbMaintenanceBanner";
 import { AuthProvider, useAuth, useTokenExpiryWarning } from "@/context/AuthContext";
 import { TaskProvider, useTaskContext } from "@/context/TaskContext";
 import { useUiProfile } from "@/hooks/useUiProfile";
@@ -473,6 +474,9 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
         </Sider>
         <Content style={{ margin: 24, padding: 24, background: "#fff", borderRadius: 4 }}>
           {showTaskContextBar && <TaskContextBar />}
+          {formalDelivery && (pathname.startsWith("/rfq") || pathname.startsWith("/knowledge")) && (
+            <KbMaintenanceBanner />
+          )}
           {children}
         </Content>
       </Layout>

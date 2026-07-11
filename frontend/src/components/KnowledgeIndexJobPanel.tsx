@@ -43,6 +43,9 @@ interface KnowledgeIndexJob {
   new_chunks?: number;
   skipped?: number;
   failed_files?: KnowledgeIndexFailure[];
+  triggered_by?: string | null;
+  mode?: string | null;
+  import_id?: string | null;
 }
 
 interface KnowledgeIndexJobPanelProps {
@@ -241,6 +244,16 @@ export default function KnowledgeIndexJobPanel({
                 : INDEX_JOB_STATUS_LABEL[job.status]}
             </Tag>
             <Text>{phaseLabel}</Text>
+            {job.mode && (
+              <Text type="secondary">
+                {job.mode === "full" ? "全量" : "增量"}
+              </Text>
+            )}
+            {job.import_id && (
+              <Text type="secondary" copyable={{ text: job.import_id }}>
+                批次 {job.import_id.slice(0, 8)}
+              </Text>
+            )}
             {job.queue_position != null && <Text type="secondary">队列第 {job.queue_position} 位</Text>}
             {(job.active_generation ?? job.generation_id) && (
               <Text type="secondary" copyable>
