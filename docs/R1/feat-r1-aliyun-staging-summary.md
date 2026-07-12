@@ -14,9 +14,10 @@
 | `docker-compose.offline.yml` | 预打标离线镜像，禁止 build |
 | `.env.aliyun-staging.example` | AUTH、SEED 账号、Ollama、数据盘路径 |
 | `scripts/deploy-aliyun-staging.sh` | ECS 一键：Ollama、seed、**DEPLOY_SHA 增量 build**、compose up、**verify** |
-| `scripts/verify-staging-deploy.sh` | 对账 stamp ↔ `/health.deploy_sha` ↔ 镜像内关键文件 |
+| `scripts/verify-staging-deploy.sh` | 对账 stamp ↔ `/health.deploy_sha` ↔ `/app/DEPLOY_SHA`；容器 / `MOCK_*` / `knowledge_paths.py` |
 | `scripts/package-aliyun-staging.ps1` / `push-and-deploy-aliyun-staging.ps1` | Windows 打包（含 `deploy_sha`）推送 |
-| `backend/Dockerfile.cn` / `frontend/Dockerfile.cn` | 阿里云 apt；`ARG DEPLOY_SHA` 在 COPY app 前失效缓存 |
+| `backend/Dockerfile.cn` | 阿里云 Debian apt；`ARG DEPLOY_SHA` 在 `COPY app` 前失效代码层缓存 |
+| `frontend/Dockerfile.cn` | npmmirror；`ARG NEXT_PUBLIC_DEPLOY_SHA`（compose 映射自 `DEPLOY_SHA`）失效 Next 构建缓存 |
 | `scripts/package-offline-delivery.sh` / `install-offline-delivery.sh` | 客户内网离线包 |
 | `scripts/seed-runtime-data.sh` | templates + `dimension_baseline.v1.json` → 数据盘 |
 | `scripts/seed-staging-users.sh` + `backend/scripts/seed_default_users.py` | 默认 `admin` / `engineer` |

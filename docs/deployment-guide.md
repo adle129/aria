@@ -68,7 +68,7 @@
 | **offline** | `docker-compose.offline.yml` | **是** | 客户内网离线安装（禁止 build） |
 | **production** | `docker-compose.prod.yml` | **是**（`/data/aria`） | 内网 GPU 生产 |
 
-> Staging / 离线步骤：[aliyun-staging-deploy.md](aliyun-staging-deploy.md) · [offline-customer-deploy.md](offline-customer-deploy.md) · 变更摘要 [R1/feat-r1-aliyun-staging-summary.md](R1/feat-r1-aliyun-staging-summary.md)
+> Staging / 离线步骤：[aliyun-staging-deploy.md](aliyun-staging-deploy.md) · [offline-customer-deploy.md](offline-customer-deploy.md) · 变更摘要 [R1/feat-r1-aliyun-staging-summary.md](R1/feat-r1-aliyun-staging-summary.md)。Staging 版本对账见 `scripts/verify-staging-deploy.sh`（`deploy_sha`）。
 
 **设计原则：**
 

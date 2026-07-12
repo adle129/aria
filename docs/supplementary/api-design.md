@@ -153,6 +153,14 @@ GET /api/v1/health
   "embedding_model": "nomic-embed-text",
   "mock_llm": true,
   "mock_rag": true,
+  "ollama_reachable": true,
+  "ollama_model_ready": true,
+  "embedding_model_ready": true,
+  "ollama_error": null,
+  "kb_debug_enabled": false,
+  "aria_ui_profile": "experience",
+  "auth_enabled": false,
+  "production_warnings": [],
   "data_volume": {
     "volume": "data",
     "total_bytes": 4398046511104,
@@ -170,16 +178,11 @@ GET /api/v1/health
     "usage_percent": 20.0,
     "warning": false,
     "write_protected": false
-  },
-  "kb_index": {
-    "status": "idle",
-    "active_generation": "production-20260710-01"
-  },
-  "production_warnings": []
+  }
 }
 ```
 
-`deploy_sha` / `packaged_at` 来自镜像构建参数（`DEPLOY_SHA` / `PACKAGED_AT`），用于核对「解包代码」与「运行中镜像」是否一致；staging 部署后由 `scripts/verify-staging-deploy.sh` 校验。
+`deploy_sha` / `packaged_at` 来自镜像构建参数（`DEPLOY_SHA` / `PACKAGED_AT`），用于核对「解包代码」与「运行中镜像」是否一致。Staging 部署后 `scripts/verify-staging-deploy.sh` **校验 `deploy_sha`**（stamp ↔ 镜像文件 ↔ health）；不强制对账 `packaged_at`。
 
 `used_percent >= 80` 加入 warning；达到可配置写保护阈值时 `write_protected=true`。磁盘 warning 不得把健康接口本身变成 500。
 

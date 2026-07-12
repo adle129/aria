@@ -48,9 +48,13 @@ df -h /data
 
 ## 3. 部署（Workbench 小包 + scp 大文件）
 
+**一键（推荐）：** 本机 `.\scripts\push-and-deploy-aliyun-staging.ps1 -TargetHost <IP> -KeyPath <密钥.pem>`（内部调用 package → scp → `deploy-aliyun-staging.sh` → verify）。
+
+**手工：**
+
 ```powershell
 .\scripts\package-aliyun-staging.ps1
-# Workbench 上传 aria-staging.tar.gz → /tmp/
+# Workbench / scp 上传 aria-staging.tar.gz → /tmp/
 ```
 
 ```bash
@@ -70,7 +74,7 @@ bash scripts/deploy-aliyun-staging.sh
 
 ## 4. 验收与默认账号
 
-部署结束自动执行 `scripts/seed-staging-users.sh`，并以 `scripts/verify-staging-deploy.sh` 核对版本。
+部署结束自动执行 `scripts/seed-staging-users.sh`，并以 `scripts/verify-staging-deploy.sh` 核对版本（stamp ↔ 镜像 `/app/DEPLOY_SHA` ↔ `/health.deploy_sha`；容器齐全；`MOCK_*=false`；backend 含 `knowledge_paths.py`）。
 
 | 用户名 | 默认密码 | 角色 |
 |--------|----------|------|
@@ -81,6 +85,7 @@ bash scripts/deploy-aliyun-staging.sh
 
 ```bash
 cat deploy-stamp.txt
+# 关键字段：deploy_sha / git_sha / packaged_at / profile / compose
 curl -s http://127.0.0.1/api/v1/health | python3 -m json.tool
 # health.deploy_sha 必须等于 stamp 的 deploy_sha
 bash scripts/verify-staging-deploy.sh
@@ -92,9 +97,9 @@ bash scripts/seed-staging-users.sh   # 幂等补种
 
 ### 版本更新（防「解包了但仍是旧镜像」）
 
-1. 本机 `package-aliyun-staging.ps1` 写入带 `deploy_sha`（git short + 打包时间）的 `deploy-stamp.txt`
-2. ECS 解包后 `deploy-aliyun-staging.sh` **导出 `DEPLOY_SHA`/`PACKAGED_AT`**，**增量** `docker compose build`（**不要**日常 `--no-cache`，否则 LibreOffice 走 apt 极慢）
-3. `DEPLOY_SHA` 写在 `COPY app` **之前**，保证代码层不会被错误 CACHED；镜像内 `/app/DEPLOY_SHA` + `/health.deploy_sha` 可对账
+1. 本机 `package-aliyun-staging.ps1` 写入 `deploy-stamp.txt`（`deploy_sha` = git short + 打包时间；另含 `git_sha` / `packaged_at` 等）
+2. ECS 解包后 `deploy-aliyun-staging.sh` **导出 `DEPLOY_SHA`/`PACKAGED_AT`**，**增量** `docker compose build`（**不要**日常 `--no-cache`，否则 LibreOffice 走 apt 极慢）；缺 stamp 时脚本会写 `local-<时间>` 兜底
+3. **Backend：** `DEPLOY_SHA` 写在 `COPY app` **之前**；**Frontend：** `NEXT_PUBLIC_DEPLOY_SHA` 参与 Next build。镜像内 `/app/DEPLOY_SHA` + `/health.deploy_sha` 对账；compose **只**把 SHA 作 build-arg，**不**在运行时 env 覆盖为 `unknown`
 4. **禁止**把 `docker cp` 热修当正式更新（`compose up` recreate 会丢）
 
 ---
@@ -130,7 +135,7 @@ COMPOSE_FILE=docker-compose.aliyun-staging.yml bash deploy/scripts/stop.sh
 | 项目「已索引」但文档清单「待索引」 | `source_doc` 路径别名不一致 / 报价不进向量 | `list_documents` 按 engagement 别名匹配；报价对照 baselines |
 | 解包/部署后仍是旧行为 | 只更新了 `/opt/aria`，镜像未按新 SHA rebuild；或 `docker cp` 被 recreate 冲掉 | `DEPLOY_SHA` bake + `verify-staging-deploy.sh`；日常增量 build，勿 `--no-cache` |
 | `compose up frontend` 后 backend 回退 | recreate 拉回旧镜像，热修丢失 | 以 stamp rebuild 为准；verify 失败即退出 |
-| 全量 `--no-cache` 极慢 | LibreOffice 走 `deb.debian.org` | `Dockerfile.cn` 改阿里云 apt；例行更新只靠 `DEPLOY_SHA` 失效 app 层 |
+| 全量 `--no-cache` 极慢 | LibreOffice 走 `deb.debian.org` | `backend/Dockerfile.cn` 改阿里云 apt；例行更新只靠 `DEPLOY_SHA` 失效 app 层 |
 | 维度「已过目」仍挡确认 | 系统预勾选的 `needs_review` 未写入 ack | 展开模块即确认已勾选待确认项；状态列显示待确认/已确认 |
 | scp 要 password | pem 权限过宽 | `icacls` 收紧 |
 | Workbench 传不了大文件 | 单文件限制 | scp / 分片 / OSS |

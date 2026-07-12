@@ -57,6 +57,7 @@ bash scripts/deploy-aliyun-staging.sh
 ```
 
 - Compose：`docker-compose.aliyun-staging.yml`（pgvector + worker + `qwen2.5:32b`，`MOCK_*=false`）
+- 部署后：`bash scripts/verify-staging-deploy.sh`（对账 `deploy_sha`）
 - 文档：[docs/aliyun-staging-deploy.md](docs/aliyun-staging-deploy.md)
 - **客户内网离线包：** staging 验通后 `bash scripts/package-offline-delivery.sh` → 见 [docs/offline-customer-deploy.md](docs/offline-customer-deploy.md)
 - **本分支变更摘要：** [docs/R1/feat-r1-aliyun-staging-summary.md](docs/R1/feat-r1-aliyun-staging-summary.md)
