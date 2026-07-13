@@ -133,6 +133,21 @@ if grep -q "change_me_jwt_before_deploy" "$ENV_FILE" 2>/dev/null; then
   fi
 fi
 
+# Staging must never run as local "dev" (KB Debug UI). Force regardless of leftover .env.
+upsert_env() {
+  local key="$1" val="$2"
+  if grep -qE "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+  else
+    printf '\n%s=%s\n' "$key" "$val" >> "$ENV_FILE"
+  fi
+}
+upsert_env ARIA_UI_PROFILE r1
+upsert_env KB_DEBUG_ENABLED false
+# NEXT_PUBLIC_* is build-time; strip accidental local overrides from runtime .env
+sed -i '/^NEXT_PUBLIC_ARIA_UI_PROFILE=/d' "$ENV_FILE" 2>/dev/null || true
+echo "==> Staging UI gate: ARIA_UI_PROFILE=r1 KB_DEBUG_ENABLED=false"
+
 line="$(grep -E '^ARIA_DATA_ROOT=' "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '\r" ' || true)"
 [[ -n "$line" ]] && DATA_ROOT="$line"
 
@@ -317,8 +332,16 @@ bash "$ARIA_ROOT/scripts/seed-staging-users.sh" || {
   echo "WARN: user seed failed — run: bash scripts/seed-staging-users.sh" >&2
 }
 
-echo "==> Post-deploy verification..."
-bash "$ARIA_ROOT/scripts/verify-staging-deploy.sh"
+echo "==> Post-deploy verification (containers + /api/v1/health)..."
+if ! bash "$ARIA_ROOT/scripts/verify-staging-deploy.sh"; then
+  echo "ERROR: post-deploy health-check failed — see messages above." >&2
+  echo "  Re-run: cd $ARIA_ROOT && bash scripts/verify-staging-deploy.sh" >&2
+  echo "  Health: curl -s http://127.0.0.1/api/v1/health | python3 -m json.tool" >&2
+  exit 1
+fi
+
+echo "==> Health snapshot:"
+curl -sf --max-time 5 http://127.0.0.1/api/v1/health | python3 -m json.tool || true
 
 PUBLIC_IP=$(curl -sf --max-time 2 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/null || true)
 echo ""
@@ -326,6 +349,7 @@ echo "================================================"
 echo " Deploy complete — ARIA R1 staging (Aliyun)"
 echo " Mode: MOCK_LLM=false, MOCK_RAG=false, ARIA_UI_PROFILE=r1"
 echo " deploy_sha: ${DEPLOY_SHA}"
+echo " Health-check: PASSED"
 echo " Model: ${OLLAMA_MODEL} + ${EMBEDDING_MODEL}"
 if [ -n "$PUBLIC_IP" ]; then
   echo " URL:  http://${PUBLIC_IP}/"

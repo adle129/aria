@@ -48,7 +48,7 @@ df -h /data
 
 ## 3. 部署（Workbench 小包 + scp 大文件）
 
-**一键（推荐）：** 本机 `.\scripts\push-and-deploy-aliyun-staging.ps1 -TargetHost <IP> -KeyPath <密钥.pem>`（内部调用 package → scp → `deploy-aliyun-staging.sh` → verify）。
+**一键（推荐）：** 本机 `.\scripts\push-and-deploy-aliyun-staging.ps1 -TargetHost <IP> -KeyPath <密钥.pem>`（内部调用 package → scp → `deploy-aliyun-staging.sh` → **远端 verify（含 `/health`）** → **本机再打一枪公网 `/api/v1/health`**；任一步失败脚本非 0 退出）。
 
 **手工：**
 
@@ -136,6 +136,7 @@ COMPOSE_FILE=docker-compose.aliyun-staging.yml bash deploy/scripts/stop.sh
 | 解包/部署后仍是旧行为 | 只更新了 `/opt/aria`，镜像未按新 SHA rebuild；或 `docker cp` 被 recreate 冲掉 | `DEPLOY_SHA` bake + `verify-staging-deploy.sh`；日常增量 build，勿 `--no-cache` |
 | `compose up frontend` 后 backend 回退 | recreate 拉回旧镜像，热修丢失 | 以 stamp rebuild 为准；verify 失败即退出 |
 | 全量 `--no-cache` 极慢 | LibreOffice 走 `deb.debian.org` | `backend/Dockerfile.cn` 改阿里云 apt；例行更新只靠 `DEPLOY_SHA` 失效 app 层 |
+| 侧栏出现「知识库 · Debug」/ health `aria_ui_profile=dev` | 本机 `.env`（dev）被打进 tar | 打包排除 `.env`；deploy 强制 `ARIA_UI_PROFILE=r1` + `KB_DEBUG_ENABLED=false`；verify 失败即退出 |
 | 维度「已过目」仍挡确认 | 系统预勾选的 `needs_review` 未写入 ack | 展开模块即确认已勾选待确认项；状态列显示待确认/已确认 |
 | scp 要 password | pem 权限过宽 | `icacls` 收紧 |
 | Workbench 传不了大文件 | 单文件限制 | scp / 分片 / OSS |

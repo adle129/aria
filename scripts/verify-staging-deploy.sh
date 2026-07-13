@@ -92,11 +92,19 @@ if docker ps --format '{{.Names}}' | grep -qx aria-frontend; then
 fi
 
 # --- health API ---
+json_field() {
+  local key="$1" default="${2:-}"
+  printf '%s' "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); v=d.get('$key', None); print('' if v is None else v)" 2>/dev/null || printf '%s' "$default"
+}
+
 BODY=""
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+echo "==> Waiting for health: $HEALTH_URL"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   if BODY="$(curl -sf --max-time 5 "$HEALTH_URL" 2>/dev/null)"; then
+    echo "    health HTTP OK (attempt $i)"
     break
   fi
+  echo "    health not ready yet (attempt $i/15)..."
   sleep 2
 done
 
@@ -104,10 +112,20 @@ if [[ -z "$BODY" ]]; then
   echo "ERROR: health unreachable: $HEALTH_URL" >&2
   FAIL=1
 else
-  HEALTH_SHA="$(printf '%s' "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("deploy_sha",""))' 2>/dev/null || true)"
-  MOCK_LLM="$(printf '%s' "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("mock_llm", True))' 2>/dev/null || true)"
-  MOCK_RAG="$(printf '%s' "$BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("mock_rag", True))' 2>/dev/null || true)"
-  echo "    health deploy_sha=$HEALTH_SHA mock_llm=$MOCK_LLM mock_rag=$MOCK_RAG"
+  HEALTH_STATUS="$(json_field status)"
+  HEALTH_SHA="$(json_field deploy_sha)"
+  MOCK_LLM="$(json_field mock_llm true)"
+  MOCK_RAG="$(json_field mock_rag true)"
+  OLLAMA_OK="$(json_field ollama_reachable false)"
+  MODEL_OK="$(json_field ollama_model_ready false)"
+  EMBED_OK="$(json_field embedding_model_ready false)"
+  echo "    health status=$HEALTH_STATUS deploy_sha=$HEALTH_SHA"
+  echo "    health mock_llm=$MOCK_LLM mock_rag=$MOCK_RAG"
+  echo "    health ollama_reachable=$OLLAMA_OK model_ready=$MODEL_OK embed_ready=$EMBED_OK"
+  if [[ "$HEALTH_STATUS" != "ok" ]]; then
+    echo "ERROR: /health status='$HEALTH_STATUS' (expected ok)" >&2
+    FAIL=1
+  fi
   if [[ "$HEALTH_SHA" != "$EXPECTED_SHA" ]]; then
     echo "ERROR: /health deploy_sha='$HEALTH_SHA' != stamp '$EXPECTED_SHA'" >&2
     echo "  Images were not rebuilt with this package. Re-run deploy (incremental build, not --no-cache)." >&2
@@ -119,6 +137,31 @@ else
   fi
   if [[ "$MOCK_RAG" != "False" && "$MOCK_RAG" != "false" ]]; then
     echo "ERROR: staging requires MOCK_RAG=false (got $MOCK_RAG)" >&2
+    FAIL=1
+  fi
+  UI_PROFILE="$(json_field aria_ui_profile)"
+  KB_DEBUG="$(json_field kb_debug_enabled true)"
+  echo "    health aria_ui_profile=$UI_PROFILE kb_debug_enabled=$KB_DEBUG"
+  if [[ "$UI_PROFILE" != "r1" ]]; then
+    echo "ERROR: staging requires aria_ui_profile=r1 (got $UI_PROFILE) — check .env was not a local dev copy" >&2
+    FAIL=1
+  fi
+  if [[ "$KB_DEBUG" == "True" || "$KB_DEBUG" == "true" || "$KB_DEBUG" == "1" ]]; then
+    echo "ERROR: staging requires kb_debug_enabled=false (got $KB_DEBUG)" >&2
+    FAIL=1
+  fi
+  # Accept Python True/true for bool JSON
+  is_true() { [[ "$1" == "True" || "$1" == "true" || "$1" == "1" ]]; }
+  if ! is_true "$OLLAMA_OK"; then
+    echo "ERROR: staging requires ollama_reachable=true (got $OLLAMA_OK)" >&2
+    FAIL=1
+  fi
+  if ! is_true "$MODEL_OK"; then
+    echo "ERROR: staging requires ollama_model_ready=true (got $MODEL_OK)" >&2
+    FAIL=1
+  fi
+  if ! is_true "$EMBED_OK"; then
+    echo "ERROR: staging requires embedding_model_ready=true (got $EMBED_OK)" >&2
     FAIL=1
   fi
 fi

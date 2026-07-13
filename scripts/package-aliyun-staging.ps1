@@ -89,12 +89,16 @@ Write-Host "    normalized $normalized file(s)"
 
 Write-Host "==> Packaging R1 staging to $OutFile"
 Write-Host "    deploy_sha=$deploySha"
+# Never ship local secrets / dev UI profile into staging (gitignored .env is still on disk)
 tar -czf $OutFile `
     --exclude=node_modules `
     --exclude=.git `
     --exclude=.next `
     --exclude=__pycache__ `
     --exclude=.venv `
+    --exclude=.env `
+    --exclude=.env.local `
+    --exclude=.env.docker `
     --exclude=backend/data/chroma_db `
     --exclude=backend/data/uploads `
     --exclude=backend/data/outputs `
