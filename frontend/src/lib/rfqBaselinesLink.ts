@@ -13,7 +13,7 @@ export function resolveEngagementId(
 }
 
 export function buildBaselinesKnowledgeHref(engagementId: string): string {
-  return `/knowledge?tab=baselines&engagement_id=${encodeURIComponent(engagementId)}`;
+  return `/knowledge?tab=baselines&engagement_id=${encodeURIComponent(engagementId)}#manpower-baselines-engagement`;
 }
 
 export function resolveProjectBaselinesEngagementIds(

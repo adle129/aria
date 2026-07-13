@@ -543,15 +543,21 @@ export default function KnowledgePage() {
                       {
                         title: "说明",
                         key: "notes",
-                        ellipsis: true,
+                        ellipsis: { showTitle: false },
                         render: (_: unknown, row: KnowledgeDocument) => {
-                          if (row.error) return row.error;
-                          if (row.metadata_summary) return row.metadata_summary;
-                          return formatEngagementMetadataSummary({
-                            customer: row.customer,
-                            year: row.year,
-                            functions: row.functions,
-                          });
+                          const text = row.error
+                            ? row.error
+                            : row.metadata_summary ||
+                              formatEngagementMetadataSummary({
+                                customer: row.customer,
+                                year: row.year,
+                                functions: row.functions,
+                              });
+                          return (
+                            <Tooltip placement="topLeft" title={text === "—" ? undefined : text}>
+                              <span>{text}</span>
+                            </Tooltip>
+                          );
                         },
                       },
                     ]}

@@ -115,6 +115,16 @@ export default function ManpowerBaselinesPanel({ engagementId }: { engagementId?
     return rows;
   }, [projects]);
 
+  useEffect(() => {
+    if (!engagementId || loading) return;
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById("manpower-baselines-engagement")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [engagementId, loading, projects.length]);
+
   return (
     <div>
       {engagementId && (
@@ -147,7 +157,11 @@ export default function ManpowerBaselinesPanel({ engagementId }: { engagementId?
         )}
       </Card>
 
-      <Card title="Engagement 汇总" style={{ marginBottom: 16 }}>
+      <Card
+        id="manpower-baselines-engagement"
+        title="Engagement 汇总"
+        style={{ marginBottom: 16, scrollMarginTop: 72 }}
+      >
         <Table
           rowKey="engagement_id"
           size="small"

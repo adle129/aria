@@ -28,7 +28,7 @@ describe("resolveEngagementId", () => {
 describe("buildBaselinesKnowledgeHref", () => {
   it("builds knowledge baselines deep link", () => {
     expect(buildBaselinesKnowledgeHref("eng-42")).toBe(
-      "/knowledge?tab=baselines&engagement_id=eng-42",
+      "/knowledge?tab=baselines&engagement_id=eng-42#manpower-baselines-engagement",
     );
   });
 });
