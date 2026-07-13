@@ -174,7 +174,7 @@ function WorkSectionBlock({ section }: { section: WorkSection }) {
           pagination={false}
           rowKey={(row, index) => `${row.section_id || row.module_name || "row"}-${index}`}
           dataSource={section.categories.flatMap((c) => c.rows)}
-          columns={clauseColumns()}
+          columns={columns}
         />
       )}
     </div>

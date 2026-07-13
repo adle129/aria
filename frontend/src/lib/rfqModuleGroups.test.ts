@@ -53,7 +53,9 @@ describe("rfqModuleGroups", () => {
     expect(sectionUsesWorkItemColumns("tech_requirements", true)).toBe(false);
     expect(sectionUsesWorkItemColumns("quality", true)).toBe(false);
     expect(sectionUsesWorkItemColumns("work_content", false)).toBe(true);
+    expect(sectionUsesWorkItemColumns("work_content", true)).toBe(true);
     expect(sectionUsesWorkItemColumns("other", true)).toBe(true);
+    expect(sectionUsesWorkItemColumns("other", false)).toBe(false);
   });
 
   it("normalizes deliverable groups by category", () => {
