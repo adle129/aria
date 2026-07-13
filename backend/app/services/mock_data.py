@@ -100,7 +100,8 @@ MOCK_COMPARISON_TABLE = {
 
 MOCK_RAG_HITS = [
     {
-        "content": "HOZON MEB Chassis Module — PM + Chassis, MacPherson front suspension",
+        "chunk_id": "mock_project_1::platform",
+        "content": "四、工作内容 > 4.1 底盘 > 平台类型\nMEB 平台底盘模块，MacPherson 前悬架开发",
         "metadata": {
             "project_name": "HOZON MEB Chassis Module (2023)",
             "doc_type": "rfq",
@@ -109,11 +110,32 @@ MOCK_RAG_HITS = [
             "year": 2023,
             "customer": "HOZON",
             "engagement_id": "mock_project_1",
+            "section_path": "四、工作内容 > 4.1 底盘 > 平台类型",
+            "chunk_chapter": "平台类型",
+            "chunk_index": 0,
         },
         "similarity_score": 0.92,
     },
     {
-        "content": "Mock EV Platform Chassis — BEV platform, multi-link rear",
+        "chunk_id": "mock_project_1::material",
+        "content": "四、工作内容 > 车身材料\n全钢车身结构，底盘支架钢制",
+        "metadata": {
+            "project_name": "HOZON MEB Chassis Module (2023)",
+            "doc_type": "rfq",
+            "source_doc": "mock_project_1/RFQ.docx",
+            "functions": ["PM", "Chassis"],
+            "year": 2023,
+            "customer": "HOZON",
+            "engagement_id": "mock_project_1",
+            "section_path": "四、工作内容 > 车身材料",
+            "chunk_chapter": "车身材料",
+            "chunk_index": 1,
+        },
+        "similarity_score": 0.88,
+    },
+    {
+        "chunk_id": "mock_project_2::platform",
+        "content": "工作内容 > 平台类型\nBEV 平台，多连杆后悬架",
         "metadata": {
             "project_name": "Mock EV Platform Chassis (2022)",
             "doc_type": "rfq",
@@ -122,11 +144,15 @@ MOCK_RAG_HITS = [
             "year": 2022,
             "customer": "Mock Auto",
             "engagement_id": "mock_project_2",
+            "section_path": "工作内容 > 平台类型",
+            "chunk_chapter": "平台类型",
+            "chunk_index": 0,
         },
         "similarity_score": 0.78,
     },
     {
-        "content": "Compact SUV Chassis — similar milestone P1-SOP structure",
+        "chunk_id": "mock_project_3::material",
+        "content": "工作内容 > 车身材料\n全钢 Compact SUV 底盘，里程碑 P1-SOP 结构相似",
         "metadata": {
             "project_name": "Compact SUV Chassis Development (2021)",
             "doc_type": "rfq",
@@ -135,6 +161,9 @@ MOCK_RAG_HITS = [
             "year": 2021,
             "customer": "Compact OEM",
             "engagement_id": "mock_project_3",
+            "section_path": "工作内容 > 车身材料",
+            "chunk_chapter": "车身材料",
+            "chunk_index": 0,
         },
         "similarity_score": 0.71,
     },

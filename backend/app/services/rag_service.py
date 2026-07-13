@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import time
@@ -23,6 +24,50 @@ logger = logging.getLogger(__name__)
 
 class RAGProductionError(RuntimeError):
     """Raised when a Demo-only RAG path is invoked in production (MOCK_RAG=false)."""
+
+
+def _sha256_file(path: Path) -> str | None:
+    try:
+        if not path.is_file():
+            return None
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _same_source_by_rfq_bytes(
+    kb_root: Path,
+    uploaded_rfq: Path,
+) -> dict[str, dict[str, str]]:
+    """Map engagement_id → {source_doc, project_name} when RFQ file bytes match upload."""
+    from app.services.engagement_manifest_service import (
+        ManifestLoadError,
+        resolve_manifest,
+    )
+
+    digest = _sha256_file(uploaded_rfq)
+    if not digest or not kb_root.is_dir():
+        return {}
+    matches: dict[str, dict[str, str]] = {}
+    for folder in kb_root.iterdir():
+        if not folder.is_dir() or folder.name.startswith("."):
+            continue
+        try:
+            manifest = resolve_manifest(folder)
+        except (ManifestLoadError, ValueError, json.JSONDecodeError):
+            continue
+        for doc in manifest.documents:
+            if doc.doc_type != "rfq":
+                continue
+            candidate = folder / doc.path
+            if _sha256_file(candidate) == digest:
+                rel = f"{folder.name}/{doc.path}".replace("\\", "/")
+                matches[manifest.engagement_id] = {
+                    "source_doc": f"knowledge_base/{rel}",
+                    "project_name": manifest.project_name,
+                }
+                break
+    return matches
 
 
 def calculate_overall_confidence(similarity_scores: list[float]) -> str:
@@ -125,6 +170,12 @@ def _group_similarity_score(
     if score_mode == "mean_top_m":
         use = scores[: max(1, score_top_m)]
         return sum(use) / len(use)
+    if score_mode == "hybrid_top_m":
+        # Prefer best chunk, lightly blend mean of top-m to damp title spikes.
+        top = scores[0]
+        use = scores[: max(1, score_top_m)]
+        mean = sum(use) / len(use)
+        return 0.7 * top + 0.3 * mean
     return scores[0]
 
 
@@ -140,7 +191,8 @@ def group_hits_by_engagement(
 
     score_mode:
       - max: project score = best chunk (knowledge search / default)
-      - mean_top_m: mean of top-m chunk scores (RFQ similar-project ranking)
+      - mean_top_m: mean of top-m chunk scores
+      - hybrid_top_m: 0.7*max + 0.3*mean_top_m (RFQ similar-project ranking)
     """
     buckets: dict[str, list[dict[str, Any]]] = {}
     order: list[str] = []
@@ -212,12 +264,31 @@ class RAGService:
         )
 
     def is_insufficient_evidence(self, hits: list[dict[str, Any]]) -> bool:
+        """Refuse only when recall evidence is weak.
+
+        Prefer ``metadata.vector_score`` (chunk/project recall) over fused
+        ``similarity_score`` so empty structured labels cannot wipe Top-N.
+        """
         if self.settings.mock_rag:
             return False
         if not hits:
             return True
-        max_score = max(float(h.get("similarity_score") or 0.0) for h in hits)
-        return max_score < float(self.settings.rag_similarity_threshold)
+        threshold = float(self.settings.rag_similarity_threshold)
+
+        def _evidence_score(hit: dict[str, Any]) -> float:
+            meta = hit.get("metadata") or {}
+            if meta.get("same_source") is True:
+                return 1.0
+            vector = meta.get("vector_score")
+            fused = hit.get("similarity_score")
+            scores = []
+            if vector is not None:
+                scores.append(float(vector))
+            if fused is not None:
+                scores.append(float(fused))
+            return max(scores) if scores else 0.0
+
+        return max(_evidence_score(h) for h in hits) < threshold
 
     def search_similar_projects(
         self,
@@ -230,14 +301,27 @@ class RAGService:
         cancel_check: Callable[[], None] | None = None,
         rfq_modules: dict[str, Any] | None = None,
         draft: dict[str, Any] | None = None,
+        source_file_path: str | Path | None = None,
     ) -> list[dict[str, Any]]:
         """Return one representative hit per engagement for RFQ Top-N.
 
-        Project rank uses mean of top-3 chunk scores, then optional structured
-        fusion (functions / scope titles / name) when rfq_modules is provided.
-        Defaults to RFQ chunks only; pass doc_type_filter to override.
+        Project rank uses hybrid top-chunk scores, then optional structured
+        fusion when rfq_modules is provided. Same-bytes RFQ files in the KB
+        are short-circuited to score 1.0. Layer-2 fills dimension excerpts when
+        draft is provided without rewriting Layer-1 order (unless same-source).
         """
+        from app.services.rfq_section_align import (
+            apply_same_source_layer2_shortcircuit,
+            apply_section_align_to_groups,
+        )
         from app.services.rfq_structured_similarity import rerank_similar_groups
+
+        same_source = {}
+        if source_file_path and not self.settings.mock_rag:
+            same_source = _same_source_by_rfq_bytes(
+                Path(self.knowledge_base_path),
+                Path(source_file_path),
+            )
 
         recall_projects = max(top_k * 3, 10) if rfq_modules is not None else top_k
         groups = self.search_grouped(
@@ -248,18 +332,33 @@ class RAGService:
             request_type=request_type,
             cancel_check=cancel_check,
             citations_per_group=5,
-            score_mode="mean_top_m",
+            score_mode="hybrid_top_m",
             score_top_m=3,
         )
         if rfq_modules is not None:
+            layer1_window = max(top_k * 3, 10)
             groups = rerank_similar_groups(
                 groups,
                 rfq_modules,
                 draft=draft,
-                top_k=top_k,
+                top_k=layer1_window if draft is not None else top_k,
             )
+            if draft is not None:
+                groups = apply_section_align_to_groups(
+                    groups,
+                    draft,
+                    fetch_chunks=self._fetch_engagement_chunks,
+                    top_k=max(top_k, len(same_source) or top_k),
+                    rerank=False,
+                )
+            else:
+                groups = groups[: max(top_k, len(same_source) or top_k)]
         else:
             groups = groups[:top_k]
+
+        groups = self._apply_same_source_boost(groups, same_source, top_k=top_k)
+        if draft is not None:
+            groups = apply_same_source_layer2_shortcircuit(groups, draft)
 
         results: list[dict[str, Any]] = []
         for group in groups:
@@ -273,9 +372,114 @@ class RAGService:
                 meta["vector_score"] = group.get("vector_score")
             if group.get("structured_score") is not None:
                 meta["structured_score"] = group.get("structured_score")
+            if group.get("section_coverage") is not None:
+                meta["section_coverage"] = group.get("section_coverage")
+            if group.get("section_content_mean") is not None:
+                meta["section_content_mean"] = group.get("section_content_mean")
+            if group.get("same_source") is not None:
+                meta["same_source"] = group.get("same_source")
+            aligned_dims = group.get("aligned_dimensions")
+            if isinstance(aligned_dims, dict):
+                meta["dimensions"] = aligned_dims
             hit["metadata"] = meta
             results.append(hit)
         return results
+
+    def _apply_same_source_boost(
+        self,
+        groups: list[dict[str, Any]],
+        same_source: dict[str, dict[str, str]],
+        *,
+        top_k: int,
+    ) -> list[dict[str, Any]]:
+        if not same_source:
+            return groups[:top_k]
+
+        by_id = {
+            str(g.get("engagement_id") or (g.get("metadata") or {}).get("engagement_id") or ""): g
+            for g in groups
+        }
+        boosted: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for eid, info in same_source.items():
+            group = by_id.get(eid)
+            if group is None:
+                group = {
+                    "engagement_id": eid,
+                    "project_name": info.get("project_name") or eid,
+                    "similarity_score": 1.0,
+                    "vector_score": 1.0,
+                    "structured_score": 1.0,
+                    "same_source": True,
+                    "source_doc": info.get("source_doc"),
+                    "metadata": {
+                        "engagement_id": eid,
+                        "project_name": info.get("project_name") or eid,
+                        "source_doc": info.get("source_doc"),
+                        "doc_type": "rfq",
+                        "same_source": True,
+                    },
+                    "hits": [
+                        {
+                            "content": "同源 RFQ 文件（字节一致）",
+                            "similarity_score": 1.0,
+                            "metadata": {
+                                "engagement_id": eid,
+                                "project_name": info.get("project_name") or eid,
+                                "source_doc": info.get("source_doc"),
+                                "doc_type": "rfq",
+                                "same_source": True,
+                            },
+                        }
+                    ],
+                }
+            else:
+                group = dict(group)
+                group["same_source"] = True
+                group["vector_score"] = 1.0
+                group["similarity_score"] = 1.0
+                if group.get("structured_score") is None:
+                    group["structured_score"] = 1.0
+                meta = dict(group.get("metadata") or {})
+                meta["same_source"] = True
+                group["metadata"] = meta
+            boosted.append(group)
+            seen.add(eid)
+
+        for group in groups:
+            eid = str(
+                group.get("engagement_id")
+                or (group.get("metadata") or {}).get("engagement_id")
+                or ""
+            )
+            if eid in seen:
+                continue
+            boosted.append(group)
+            seen.add(eid)
+        return boosted[:top_k]
+
+    def _fetch_engagement_chunks(
+        self,
+        engagement_id: Any,
+        source_doc: Any,
+    ) -> list[dict[str, Any]]:
+        if self.settings.mock_rag:
+            eid = str(engagement_id or "")
+            src = str(source_doc or "")
+            hits: list[dict[str, Any]] = []
+            for hit in MOCK_RAG_HITS:
+                meta = hit.get("metadata") or {}
+                if eid and str(meta.get("engagement_id") or "") == eid:
+                    hits.append(dict(hit))
+                elif (not eid) and src and str(meta.get("source_doc") or "") == src:
+                    hits.append(dict(hit))
+            return hits
+
+        index = self._index_service()
+        return index.list_chunks_by_engagement(
+            str(engagement_id) if engagement_id else None,
+            source_doc=str(source_doc) if source_doc else None,
+        )
 
     def search_grouped(
         self,
@@ -481,19 +685,31 @@ class RAGService:
                     continue
 
             # Production: build project entry from real chunk metadata.
+            dims = meta.get("dimensions")
+            if not isinstance(dims, dict):
+                dims = {}
             projects.append(
                 {
                     "project_name": name,
                     "similarity_score": hit.get("similarity_score", 0.5),
+                    "vector_score": meta.get("vector_score"),
+                    "structured_score": meta.get("structured_score"),
+                    "same_source": bool(meta.get("same_source")),
                     "source_doc": meta.get("source_doc", ""),
                     "engagement_id": engagement_id,
                     "customer": meta.get("customer", ""),
                     "year": meta.get("year"),
                     "functions": list(meta.get("functions") or []),
-                    "dimensions": {},
+                    "dimensions": dims,
                     "actual_man_days": "—",
                     "deviation_rate": "—",
-                    "summary": (hit.get("content") or "")[:120],
+                    "summary": (
+                        "同源 RFQ（文件内容一致）"
+                        if meta.get("same_source")
+                        else (hit.get("content") or "")[:120]
+                    ),
+                    "section_coverage": meta.get("section_coverage"),
+                    "section_content_mean": meta.get("section_content_mean"),
                 }
             )
 
@@ -605,12 +821,25 @@ class RAGService:
                         else "pending"
                     )
                 doc_path = folder / doc.path
+                summary_parts = [
+                    p
+                    for p in (
+                        (manifest.customer or "").strip() or None,
+                        str(manifest.year) if manifest.year is not None else None,
+                        " / ".join(manifest.functions) if manifest.functions else None,
+                    )
+                    if p
+                ]
                 entry: dict[str, Any] = {
                     "path": rel_path,
                     "project_name": manifest.project_name,
                     "engagement_id": manifest.engagement_id,
                     "doc_type": doc.doc_type,
                     "status": status,
+                    "customer": manifest.customer,
+                    "year": manifest.year,
+                    "functions": list(manifest.functions or []),
+                    "metadata_summary": " · ".join(summary_parts) if summary_parts else None,
                 }
                 if doc_path.is_file():
                     entry["file_size_bytes"] = doc_path.stat().st_size

@@ -12,6 +12,9 @@ export interface MatrixHistoryCell {
   source_doc?: string;
   value?: string | number;
   match?: boolean | null;
+  section_path?: string | null;
+  chunk_id?: string | null;
+  content_score?: number | null;
 }
 
 export interface MatrixRow {
@@ -100,7 +103,13 @@ export function ComparisonMatrix({
                 <MatchIcon match={cell.match} />{" "}
               </>
             )}
-            {cell.value ?? "—"}
+            {cell.section_path ? (
+              <Tooltip title={`来源章节：${cell.section_path}`}>
+                <span>{cell.value ?? "—"}</span>
+              </Tooltip>
+            ) : (
+              (cell.value ?? "—")
+            )}
           </span>
         );
       },

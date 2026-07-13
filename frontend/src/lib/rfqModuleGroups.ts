@@ -68,6 +68,20 @@ export function isUnknownFunction(value?: string | null): boolean {
   return !text || text === "未知";
 }
 
+/** Tech/quality clauses are not Function-scoped work packages. */
+export function isClauseWorkSectionKind(kind?: string | null): boolean {
+  return kind === "tech_requirements" || kind === "quality";
+}
+
+/** Work-content tables show domain + complexity; clause sections only show requirement text. */
+export function sectionUsesWorkItemColumns(
+  kind?: string | null,
+  hasCategories = false,
+): boolean {
+  if (isClauseWorkSectionKind(kind)) return false;
+  return Boolean(hasCategories) || kind === "work_content";
+}
+
 export function computeModuleQualityStats(modules: RfqModuleRow[]): ModuleQualityStats {
   const total = modules.length;
   let knownFunction = 0;

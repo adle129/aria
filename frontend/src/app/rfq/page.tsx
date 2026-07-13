@@ -10,6 +10,7 @@ import {
   Space,
   Spin,
   Table,
+  Tag,
   Typography,
   message,
 } from "antd";
@@ -992,19 +993,65 @@ export default function RfqPage() {
               expandable={{
                 expandedRowRender: (row: Record<string, unknown>) => {
                   const dimensions = (row.dimensions as Record<string, Record<string, unknown>>) || {};
+                  const dimEntries = Object.entries(dimensions).filter(
+                    ([, cell]) => cell && String(cell.value || "") && String(cell.value) !== "未知",
+                  );
                   const rowName = String(row.project_name || "");
                   const similarHit = (task.similar_projects || []).find((s) => {
                     const meta = s.metadata as Record<string, unknown> | undefined;
                     return String(meta?.project_name || s.project_name || "") === rowName;
                   });
                   const chunkText = similarHit?.content ? String(similarHit.content).slice(0, 300) : "";
+                  const coverage =
+                    row.section_coverage ??
+                    (similarHit?.metadata as Record<string, unknown> | undefined)?.section_coverage;
                   return (
                     <div style={{ padding: "8px 0" }}>
                       <Paragraph>
                         <Text strong>摘要：</Text>
                         {String(row.summary || "—")}
                       </Paragraph>
-                      {chunkText ? (
+                      {coverage != null ? (
+                        <Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                          章节对齐覆盖率：{Math.round(Number(coverage) * 100)}%
+                          {row.same_source ? "（同源文件，已按一致处理）" : ""}
+                        </Paragraph>
+                      ) : null}
+                      {dimEntries.length > 0 ? (
+                        <div style={{ marginBottom: 12 }}>
+                          <Text strong>维度对齐摘录：</Text>
+                          <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+                            {dimEntries.slice(0, 8).map(([dimName, cell]) => (
+                              <li key={dimName} style={{ marginBottom: 6 }}>
+                                <Text strong>{dimName}</Text>
+                                {cell.match === true ? (
+                                  <Tag
+                                    color="success"
+                                    style={{ marginLeft: 6 }}
+                                  >
+                                    {row.same_source || cell.same_source
+                                      ? "同源一致"
+                                      : "匹配"}
+                                  </Tag>
+                                ) : cell.match === false ? (
+                                  <Tag color="error" style={{ marginLeft: 6 }}>
+                                    差异
+                                  </Tag>
+                                ) : null}
+                                <div style={{ color: "rgba(0,0,0,0.65)" }}>
+                                  {String(cell.value).slice(0, 200)}
+                                  {String(cell.value).length > 200 ? "…" : ""}
+                                </div>
+                                {cell.section_path ? (
+                                  <Text type="secondary" style={{ fontSize: 12 }}>
+                                    {String(cell.section_path)}
+                                  </Text>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : chunkText ? (
                         <Paragraph>
                           <Text strong>检索片段：</Text>
                           {chunkText}
@@ -1032,9 +1079,48 @@ export default function RfqPage() {
               columns={[
                 { title: "项目", dataIndex: "project_name" },
                 {
-                  title: "相似度",
+                  title: "参考指数",
                   dataIndex: "similarity_score",
-                  render: (v: number) => `${Math.round(v * 100)}%`,
+                  width: 200,
+                  render: (v: number, row: Record<string, unknown>) => {
+                    const pct = `${Math.round(Number(v || 0) * 100)}%`;
+                    if (row.same_source) {
+                      return (
+                        <Space size={4} wrap>
+                          <Tag color="success">同源 100%</Tag>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            文件内容一致
+                          </Text>
+                        </Space>
+                      );
+                    }
+                    const vector =
+                      row.vector_score != null
+                        ? Math.round(Number(row.vector_score) * 100)
+                        : null;
+                    const structured =
+                      row.structured_score != null
+                        ? Math.round(Number(row.structured_score) * 100)
+                        : null;
+                    const coverage =
+                      row.section_coverage != null
+                        ? Math.round(Number(row.section_coverage) * 100)
+                        : null;
+                    return (
+                      <Space direction="vertical" size={0}>
+                        <Text strong>{pct}</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {[
+                            vector != null ? `召回 ${vector}%` : null,
+                            structured != null ? `标签 ${structured}%` : null,
+                            coverage != null ? `章节 ${coverage}%` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "综合参考分"}
+                        </Text>
+                      </Space>
+                    );
+                  },
                 },
                 { title: "来源", dataIndex: "source_doc" },
                 { title: "摘要", dataIndex: "summary" },

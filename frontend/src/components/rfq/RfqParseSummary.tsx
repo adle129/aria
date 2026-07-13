@@ -18,10 +18,12 @@ import { buildMilestoneGroupViews } from "@/lib/rfqMilestoneGroups";
 import {
   computeModuleQualityStats,
   countDeliverableItems,
+  isClauseWorkSectionKind,
   isUnassessedComplexity,
   isUnknownFunction,
   normalizeDeliverableGroups,
   resolveWorkSections,
+  sectionUsesWorkItemColumns,
   workSectionCategoryLabel,
   type DeliverableGroup,
   type RfqModuleRow,
@@ -94,10 +96,19 @@ function workItemColumns(): ColumnsType<RfqModuleRow> {
 function clauseColumns(): ColumnsType<RfqModuleRow> {
   return [
     {
-      title: "条目",
+      title: "要求",
       dataIndex: "module_name",
-      render: (value: string | undefined) => (
-        <Text style={{ whiteSpace: "normal", wordBreak: "break-word" }}>{value || "—"}</Text>
+      render: (value: string | undefined, row) => (
+        <div>
+          <Text style={{ whiteSpace: "normal", wordBreak: "break-word" }}>{value || "—"}</Text>
+          {row.section_path ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {row.section_path}
+              </Text>
+            </div>
+          ) : null}
+        </div>
       ),
     },
   ];
@@ -105,8 +116,10 @@ function clauseColumns(): ColumnsType<RfqModuleRow> {
 
 function WorkSectionBlock({ section }: { section: WorkSection }) {
   const hasCategories = section.categories.some((c) => c.key !== "_all" && c.label);
-  const columns = hasCategories || section.kind === "work_content" ? workItemColumns() : clauseColumns();
-  const defaultKeys = section.categories.slice(0, hasCategories ? 4 : 1).map((c) => c.key);
+  const clauseSection = isClauseWorkSectionKind(section.kind);
+  const columns = sectionUsesWorkItemColumns(section.kind, hasCategories)
+    ? workItemColumns()
+    : clauseColumns();
 
   return (
     <div style={{ marginTop: 16 }}>
@@ -123,13 +136,14 @@ function WorkSectionBlock({ section }: { section: WorkSection }) {
       {hasCategories ? (
         <Collapse
           size="small"
-          defaultActiveKey={defaultKeys}
+          defaultActiveKey={[]}
           items={section.categories.map((group) => ({
             key: group.key,
             label: (
               <Space size={8}>
                 <span>{workSectionCategoryLabel(group)}</span>
-                {group.function &&
+                {!clauseSection &&
+                group.function &&
                 workSectionCategoryLabel(group) !==
                   formatFunctionLabel(String(group.function)) ? (
                   <Text type="secondary" style={{ fontSize: 12 }}>
@@ -273,7 +287,7 @@ export default function RfqParseSummary({ task, defaultExpanded = false }: RfqPa
                   </Space>
                   <Collapse
                     size="small"
-                    defaultActiveKey={deliverableGroups.slice(0, 3).map((g) => g.category)}
+                    defaultActiveKey={[]}
                     items={deliverableGroups.map((group) => ({
                       key: group.category,
                       label: (

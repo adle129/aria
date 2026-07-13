@@ -53,6 +53,11 @@ class KnowledgeDocumentItem(BaseModel):
     status: str
     file_size_bytes: int | None = None
     error: str | None = None
+    engagement_id: str | None = None
+    customer: str | None = None
+    year: int | None = None
+    functions: list[str] = Field(default_factory=list)
+    metadata_summary: str | None = None
 
 
 class KnowledgeDocumentsResponse(BaseModel):
@@ -69,6 +74,9 @@ class EngagementCompletenessData(BaseModel):
 class EngagementUploadPackResult(EngagementCompletenessData):
     engagement_id: str
     project_name: str | None = None
+    customer: str | None = None
+    year: int | None = None
+    functions: list[str] = Field(default_factory=list)
     status: Literal["stored"]
     stored: bool
     path: str
@@ -114,6 +122,9 @@ class KnowledgeImportBatchItem(BaseModel):
 class EngagementAuditItem(BaseModel):
     engagement_id: str
     project_name: str
+    customer: str | None = None
+    year: int | None = None
+    functions: list[str] = Field(default_factory=list)
     tier: str | None = None
     index_status: str
     content_hash: str | None = None
@@ -122,6 +133,16 @@ class EngagementAuditItem(BaseModel):
     last_indexed_at: str | None = None
     last_error: str | None = None
     folder_path: str
+    metadata_complete: bool = False
+
+
+class EngagementMetadataUpdate(BaseModel):
+    """Full business metadata update (all fields required for RFQ ranking quality)."""
+
+    project_name: str = Field(..., min_length=1, max_length=256)
+    customer: str = Field(..., min_length=1, max_length=256)
+    year: int = Field(..., ge=1990, le=2100)
+    functions: list[str] = Field(..., min_length=1)
 
 
 class KnowledgeStatsResponse(BaseModel):

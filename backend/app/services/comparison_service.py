@@ -52,6 +52,9 @@ def build_comparison_matrix(
                     "source_doc": project.get("source_doc"),
                     "value": dim_data.get("value", "未知"),
                     "match": dim_data.get("match"),
+                    "section_path": dim_data.get("section_path"),
+                    "chunk_id": dim_data.get("chunk_id"),
+                    "content_score": dim_data.get("content_score"),
                 }
             )
         matrix_rows.append(row)

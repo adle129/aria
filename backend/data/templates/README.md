@@ -1,5 +1,15 @@
 # 模板归档说明
 
+## Engagement 项目包（IT 批量入库）
+
+| 文件 | 用途 |
+|------|------|
+| [`manifest.template.json`](manifest.template.json) | 每套历史项目目录内 `manifest.json` 的填写模板 |
+
+复制为 `knowledge_base/<engagement_id>/manifest.json` 后按实填改；字段说明见 [用户手册 §5.2a](../../docs/user-manual.md) 与 [rag-design §5.2](../../docs/supplementary/rag-design.md)。
+
+## 报价 / Q&A Excel
+
 请将客户提供的 EDAG 模板文件复制到此目录：
 
 | 源文件（客户资料） | 归档文件名 |

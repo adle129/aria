@@ -418,6 +418,7 @@ class RFQAnalysisService:
                 cancel_check=phase2_cancel,
                 rfq_modules=task.rfq_modules,
                 draft=draft,
+                source_file_path=str(task.file_path) if task.file_path else None,
             )
             db.refresh(task)
             if task.processing_status == "cancelling":

@@ -322,6 +322,111 @@ class PgVectorStore:
                 continue
             by_engagement.setdefault(str(engagement_id), set()).add(str(source_doc))
         return by_engagement
+
+    def list_chunks_by_engagement(
+        self,
+        engagement_id: str,
+        *,
+        namespace: str | None = None,
+        generation_id: str | None = None,
+        doc_type: str | None = "rfq",
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Return all indexed chunks for one engagement (Layer-2 section align)."""
+        self._require_pg()
+        eid = str(engagement_id or "").strip()
+        if not eid:
+            return []
+        ns = namespace or self.namespace
+        generation_id = generation_id or self.generations.get_active_id(ns)
+        if generation_id is None:
+            return []
+        params: dict[str, Any] = {
+            "ns": ns,
+            "generation_id": generation_id,
+            "engagement_id": eid,
+            "limit": max(1, min(int(limit), 2000)),
+        }
+        doc_clause = ""
+        if doc_type:
+            doc_clause = "AND metadata->>'doc_type' = :doc_type"
+            params["doc_type"] = str(doc_type)
+        sql = text(
+            f"""
+            SELECT chunk_id, content, metadata
+            FROM knowledge_chunks
+            WHERE namespace = :ns
+              AND generation_id = :generation_id
+              AND metadata->>'engagement_id' = :engagement_id
+              {doc_clause}
+            ORDER BY COALESCE((metadata->>'chunk_index')::int, 0), chunk_id
+            LIMIT :limit
+            """
+        )
+        with Session(engine) as session:
+            rows = session.execute(sql, params).all()
+        return [
+            {
+                "chunk_id": chunk_id,
+                "content": content,
+                "metadata": dict(metadata or {}),
+                "similarity_score": 0.0,
+            }
+            for chunk_id, content, metadata in rows
+        ]
+
+    def list_chunks_by_source_doc(
+        self,
+        source_doc: str,
+        *,
+        namespace: str | None = None,
+        generation_id: str | None = None,
+        doc_type: str | None = "rfq",
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Fallback when engagement_id is missing."""
+        self._require_pg()
+        src = str(source_doc or "").strip()
+        if not src:
+            return []
+        ns = namespace or self.namespace
+        generation_id = generation_id or self.generations.get_active_id(ns)
+        if generation_id is None:
+            return []
+        params: dict[str, Any] = {
+            "ns": ns,
+            "generation_id": generation_id,
+            "source_doc": src,
+            "limit": max(1, min(int(limit), 2000)),
+        }
+        doc_clause = ""
+        if doc_type:
+            doc_clause = "AND metadata->>'doc_type' = :doc_type"
+            params["doc_type"] = str(doc_type)
+        sql = text(
+            f"""
+            SELECT chunk_id, content, metadata
+            FROM knowledge_chunks
+            WHERE namespace = :ns
+              AND generation_id = :generation_id
+              AND metadata->>'source_doc' = :source_doc
+              {doc_clause}
+            ORDER BY COALESCE((metadata->>'chunk_index')::int, 0), chunk_id
+            LIMIT :limit
+            """
+        )
+        with Session(engine) as session:
+            rows = session.execute(sql, params).all()
+        return [
+            {
+                "chunk_id": chunk_id,
+                "content": content,
+                "metadata": dict(metadata or {}),
+                "similarity_score": 0.0,
+            }
+            for chunk_id, content, metadata in rows
+        ]
+
     def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
         self._require_pg()
         generation_id = self.generations.get_active_id(self.namespace)

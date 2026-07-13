@@ -228,6 +228,32 @@ class KnowledgeIndexService:
         except PgVectorUnavailableError:
             return {}
 
+    def list_chunks_by_engagement(
+        self,
+        engagement_id: str | None,
+        *,
+        source_doc: str | None = None,
+        doc_type: str | None = "rfq",
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        """Load RFQ chunks for Layer-2 section alignment."""
+        try:
+            if engagement_id:
+                return self._store.list_chunks_by_engagement(
+                    str(engagement_id),
+                    doc_type=doc_type,
+                    limit=limit,
+                )
+            if source_doc:
+                return self._store.list_chunks_by_source_doc(
+                    str(source_doc),
+                    doc_type=doc_type,
+                    limit=limit,
+                )
+        except PgVectorUnavailableError:
+            return []
+        return []
+
     def index_chunks(
         self,
         chunks: list[dict[str, Any]],

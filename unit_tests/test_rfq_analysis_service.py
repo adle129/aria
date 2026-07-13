@@ -120,8 +120,9 @@ def test_confirm_dimensions_generates_matrix(db_session, analysis_service, monke
     assert task.comparison_table is not None
     assert task.comparison_table.get("matrix_rows")
     assert task.similar_projects is not None
-    assert "工作内容及要求" in str(captured.get("query"))
+    assert "工作内容及要求" not in str(captured.get("query"))
     assert "MEB Chassis MacPherson" in str(captured.get("query"))
+    assert "Chassis" in str(captured.get("query"))
     assert captured.get("doc_type_filter") == ["rfq"]
     assert isinstance(captured.get("rfq_modules"), dict)
     assert captured["rfq_modules"].get("project_name") == "MEB Chassis MacPherson"

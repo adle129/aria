@@ -203,6 +203,13 @@ def test_confirm_dimensions_then_matrix(client, sample_rfq_bytes):
     task = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
     assert task["comparison_table"] is not None
     assert task["similar_projects"] is not None
+    projects = task["comparison_table"].get("projects") or []
+    assert projects
+    dims = projects[0].get("dimensions") or {}
+    assert dims, "comparison projects must expose per-dimension values"
+    sample_dim = next(iter(dims.values()))
+    assert "value" in sample_dim
+    assert "match" in sample_dim
 
 
 def test_update_task_comparison_and_confirm(client, sample_rfq_bytes):

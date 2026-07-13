@@ -167,28 +167,50 @@
 
 ### 5.2 导入历史文档
 
-**Demo（当前）：** 将历史 **`.docx`** 放入 `knowledge_base/<项目名>/`，在本页 **更新知识库索引**。同一文件夹下的多份 docx 视为同一项目的弱关联。
+**R1 双路径：**
 
-**Phase 2（R1 起）：** **Engagement 项目包** — `manifest.json` 关联 RFQ、Q_A、报价三件套；支持 **Web ≤5 套/次** 或 IT 目录批量。
+1. **IT 目录批量（推荐 ≥10 套）：** 见下方 **§5.2a**。
+2. **Web 小批量：** 知识库页上传 ZIP/多文件（单次最多 5 套）→ 填写项目信息（显示名、客户、年份、工程领域 **必填**）→ **为本批建立检索索引**。缺 Q&A/报价仍可入库并提示缺件。
 
-**推荐目录结构（Phase 2 目标）：**
+**Demo 过渡：** 仅放 `.docx` 到 `knowledge_base/<项目名>/` 后更新索引时，系统可推断文档角色；批量正式库请使用完整 `manifest.json`。
+
+#### 5.2a IT 批量入库清单（manifest）
+
+**模板文件：** 仓库 [`backend/data/templates/manifest.template.json`](../backend/data/templates/manifest.template.json)（复制改名即可）。  
+**完整 schema：** [rag-design.md §5.2](supplementary/rag-design.md)。  
+**路径注意：** [customer-it-infrastructure.md §6.2](customer-it-infrastructure.md)（仅 POSIX 相对路径 `/`，勿写盘符）。
+
+**目录约定（生产宿主机 `${ARIA_DATA_ROOT}/app/knowledge_base/`）：**
 
 ```
 knowledge_base/
-└── <项目名>/
-    ├── manifest.json
-    ├── rfq.docx
-    ├── qa.xlsx
-    ├── quote.xlsx
-    └── proposal.docx
+└── <engagement_id>/
+    ├── manifest.json      ← 由模板复制并填写
+    ├── rfq.docx           ← 或 .doc；至少有 RFQ
+    ├── qa.xlsx            ← 可缺
+    └── quote.xlsx         ← 可缺；须为 .xlsx
 ```
 
-**操作步骤（Demo）：**
+**`manifest.json` 必填业务字段（与网页表单一致）：**
 
-1. 将 `.docx` 放入服务器 `knowledge_base/<项目名>/`（生产见 [deployment-guide.md](deployment-guide.md)）
-2. 进入 **平台 → 知识库** → **更新知识库索引**
-3. 在 **文档清单** 确认状态；若有失败，查看错误说明
-4. 在 **检索实验室** 验证关键词能否命中预期片段
+| 字段 | 说明 |
+|------|------|
+| `engagement_id` | 与文件夹名一致 |
+| `project_name` | 界面显示名 |
+| `customer` | 客户 |
+| `year` | 年份（整数） |
+| `functions` | 工程领域数组，至少一项（如 `Chassis`、`PM`） |
+| `documents[]` | `path` + `doc_type`：`rfq` / `qa` / `quote_manpower` / `summary` |
+
+**操作步骤：**
+
+1. 按上表为每套历史项目建目录并放入 RFQ（及可选 Q&A、报价）
+2. 复制 `manifest.template.json` → 各目录 `manifest.json`，改字段与文件名
+3. 同步到内网数据盘 `knowledge_base/`
+4. 资料库管理员打开 **平台 → 知识库** → **更新知识库索引**
+5. 在 **文档清单** 核对状态与「说明」中的客户 · 年 · 领域；在 **历史资料检索** 抽检
+
+无 `manifest.json` 时系统仍可按文件名推断文档类型并索引，但客户/年份/领域为空，相似比对结构加分会变差——正式批量请勿省略。
 
 ### 5.3 客户 Demo 演示脚本
 

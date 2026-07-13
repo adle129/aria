@@ -26,7 +26,7 @@ def test_build_query_includes_scope_and_in_scope_dimensions():
         file_name="RFQ_客户A.doc",
     )
     assert "客户A整车项目" in query
-    assert "工作内容及要求" in query
+    assert "工作内容及要求" not in query  # generic outline title dropped
     assert "整车总布置开发" in query
     assert "前后悬架系统设计" in query
     assert "MacPherson + 多连杆" in query

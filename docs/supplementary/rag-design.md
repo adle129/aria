@@ -101,11 +101,21 @@ flowchart TB
 
 **RFQ 切块层级（R1-K11）：** 按编号切开叶块；`section_path` 为祖先标题面包屑（**不**复制上级正文）。索引 embedding / 入库 `content` = `section_path + "\\n" + 正文`。chunk schema 版本 `rfqa_v4`（变更须全量 reindex）。
 
-**检索聚合（R1-K11）：** 先召回多 chunk，再按 `engagement_id`（缺则 `source_doc`）分组；`/knowledge` 组分为 `max(similarity_score)`；RFQ Top-N 组分为 **top-m chunk 均分**（默认 m=3），减轻单章标题虚高。`top_k` = **历史项目数**。`POST /knowledge/search` 返回 `groups[]`（项目 + 最多 3 条 citation）与展平的 `results`。
+**检索聚合（R1-K11）：** 先召回多 chunk，再按 `engagement_id`（缺则 `source_doc`）分组；`/knowledge` 组分为 `max(similarity_score)`；RFQ Top-N 组分为 **hybrid**（`0.7×max + 0.3×mean_top_m`，默认 m=3）。`top_k` = **历史项目数**。`POST /knowledge/search` 返回 `groups[]`（项目 + 最多 3 条 citation）与展平的 `results`。
 
-**RFQ 相似检索 query（确认维度后）：** 由 `build_rfq_similarity_query` 组装：`project_name`（或文件名）+ customer/platform + `functions_in_scope` + `development_scope` 标题 + 已确认 `in_scope` 维度名/`work_content`；并默认 `doc_type_filter=["rfq"]`。**不是**整份 RFQ 全文 embedding，也不是整章展开比对。
+**RFQ 相似检索 query（确认维度后）：** 由 `build_rfq_similarity_query` 组装：`project_name`（或文件名）+ customer/platform + `functions_in_scope` + **非泛化** `development_scope` 标题 + 已确认 `in_scope` 维度名/`work_content`；并默认 `doc_type_filter=["rfq"]`。**不是**整份 RFQ 全文 embedding。泛化标题（如「工作内容及要求」）会被丢弃以免稀释 embedding。
 
-**RFQ 项目重排（结构化融合）：** 向量召回扩大候选（约 `top_k×3`）后，用 `structured_similarity_score`（Function Jaccard、scope 标题 vs 命中 `section_path`、项目名/客户/平台）与切块聚合分线性融合（默认向量权重 0.65），再截断为 Top-3。命中 metadata 可含 `vector_score` / `structured_score` 便于排查。
+**RFQ 项目重排 Layer 1（结构化融合）：** 向量召回扩大候选（约 `top_k×3`）后，用 `structured_similarity_score`（Function Jaccard、scope 标题 vs 命中 `section_path`、项目名/客户/平台）与切块聚合分线性融合（默认向量权重 0.65）。命中 metadata 可含 `vector_score` / `structured_score`。
+
+**RFQ 章节对齐 Layer 2（关键细比填表 · 非全文 diff）：** 在 Layer 1 候选窗内，当传入 `dimension_draft` 时：
+
+1. 按 `engagement_id`（缺则 `source_doc`）拉取该历史 RFQ 全部切片（`list_chunks_by_engagement`）
+2. 对每个已确认 `in_scope` 维度：规范化标题将 `name` 与历史 `section_path` / `chunk_chapter` 软匹配；一对多时取与 `work_content` 文本重叠最高的叶块（P0 不做额外 embedding 调用）
+3. 写入 `project.dimensions[dim] = { value, match, section_path, chunk_id, content_score }`；失败则 `value=未知`、`match=null`，**禁止编造**
+4. P0 **只填表不改序**（最终仍截断 Layer1 Top-3）；排序轻量回写属后续增强
+5. **同源短路（字节一致）：** 若上传 RFQ 与库内 RFQ `SHA256` 相同，则 Layer‑2 不再用软匹配阈值否决：`section_coverage=1.0`，各 in_scope 维度 `match=true`（保留已挂上的章节摘录；未挂上则写「同源 RFQ…」说明）。**不同源**仍走步骤 2–4，行为不变。
+
+**明确不做：** 无界整章/全文 diff、跨模型整章 rewrite、全库逐章节二次检索、上传中新 RFQ 入库向量。
 
 **出处（locator）规则（R1）：**
 
@@ -115,7 +125,7 @@ flowchart TB
 | `qa` | `{ "sheet": "Sheet1", "row": 12, "area": "Chassis" }` |
 | `quote_manpower` | 不进向量主检索；baselines 中 `{ "sheet": "PM", "row": 5 }` |
 
-**拒答门控（R1）：** Top-K 为空或 `max(similarity_score) < 阈值`（默认约 0.65，可调）→ 返回 `insufficient_evidence: true`，**禁止**回退 Mock 项目或编造对比表人天。
+**拒答门控（R1）：** Top-K 为空，或 `max(vector_score, similarity_score) < 阈值`（默认 **0.55**，`RAG_SIMILARITY_THRESHOLD`）→ `insufficient_evidence: true`。**优先看向量召回分**，结构融合分不得单独否决展示。同源 RFQ（上传文件与库内 RFQ **字节一致**）短路为 1.0 并置顶，且视为充足证据。
 
 | 字段 | Demo | Phase 2 | 说明 |
 |------|------|---------|------|
@@ -193,7 +203,19 @@ flowchart TB
 - 人力报价（Excel）
 - 技术方案 / SOW（可选）
 
-### 5.2 manifest.json（批量入库主路径）
+### 5.2 manifest.json（系统落盘契约 · IT 可选自带）
+
+**产品约定：** `manifest.json` 是机器可读的项目说明书，**默认由系统**在 Web 上传时生成与合并；资料管理员也可在表单中填写后由 API 写回。**IT 批量入库**请自带完整 manifest（与表单同一 schema）。
+
+**填写模板（可复制）：** [`backend/data/templates/manifest.template.json`](../../backend/data/templates/manifest.template.json) · 操作步骤见 [用户手册 §5.2a](../user-manual.md)。
+
+| 字段 | 主责 | 必填 | 缺省影响 |
+|------|------|------|----------|
+| `documents` / `doc_type` | 系统按文件类型推断 | 有 RFQ 即可索引 | 缺件→金/银/铜提示 |
+| `engagement_id` | 系统或散文件表单 ID | 稳定 ID | 无则无法成套 |
+| `project_name` | 默认=目录名；表单可改 | 建议有 | 展示名变差 |
+| `customer` / `year` | 表单必填 | **必填** | 参与弱身份匹配 |
+| `functions` | 表单必填（后续可自动推断预填） | **必填** | 结构加分与领域过滤；空标签会拉低融合分 |
 
 ```json
 {
@@ -387,8 +409,10 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 - RFQ 对标：**Top-3**（A/B/C）；N&lt;3 时 1–2 个 + UI Warning
 - 检索 query：解析字段 + 确认后的 in_scope 维度摘要（见 §3.1），**非**仅文件名
 - 项目分：同 engagement 召回 chunk 的 **top-3 均分**，再与 **结构化重叠分** 融合后取 Top-3
-- R1 评测：≥15 条 query；**不含** M5 方案模块生成题
-- **R1 不含：** Hybrid、Rerank cross-encoder（§7 路径 3–4 为 Phase 2 可选）；整章/全文 diff；独立 engagement 全文向量主排序
+- 对比矩阵历史列：优先来自 Layer 2 关键维度对齐抽取的 `dimensions`（含 `section_path`/`chunk_id`）；对齐失败为「未知」，禁止编造
+- R1 评测：≥15 条 query；**不含** M5 方案模块生成题；矩阵填充率为附加指标
+- **R1 不含：** Hybrid、Rerank cross-encoder（§7 路径 3–4 为 Phase 2 可选）；无界整章/全文 diff；独立 engagement 全文向量主排序
+- **R1 允许：** 候选项目内有界章节标题对齐 + 叶块正文抽取填表（§3.1 Layer 2；P0 不改排序）
 
 ### 11.3 manpower_baselines（R1 硬交付）
 
