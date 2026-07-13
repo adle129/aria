@@ -322,7 +322,9 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
       .catch(() => setHealth(null));
   }, []);
 
-  const profile = resolveUiProfile(health?.aria_ui_profile);
+  const profile = health
+    ? resolveUiProfile(health.aria_ui_profile)
+    : resolveUiProfile("r1");
   const formalDelivery = !showDemoChrome(profile);
 
   useEffect(() => {

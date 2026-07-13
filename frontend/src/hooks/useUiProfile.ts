@@ -12,6 +12,8 @@ import {
 export function useUiProfile() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [profile, setProfile] = useState<UiProfile>(() => resolveUiProfile());
+  /** Until /health returns, do not enable Demo chrome (avoids /demo/* calls under r1). */
+  const [healthReady, setHealthReady] = useState(false);
 
   useEffect(() => {
     fetchHealth()
@@ -19,13 +21,15 @@ export function useUiProfile() {
         setHealth(h);
         setProfile(resolveUiProfile(h.aria_ui_profile));
       })
-      .catch(() => setHealth(null));
+      .catch(() => setHealth(null))
+      .finally(() => setHealthReady(true));
   }, []);
 
   return {
     health,
-    profile,
-    showDemoChrome: showDemoChrome(profile),
-    isFormalDelivery: isFormalDeliveryProfile(profile),
+    profile: healthReady ? profile : "r1",
+    healthReady,
+    showDemoChrome: healthReady && showDemoChrome(profile),
+    isFormalDelivery: healthReady ? isFormalDeliveryProfile(profile) : true,
   };
 }

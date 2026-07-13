@@ -151,7 +151,7 @@ export default function RfqPage() {
             download_url: string;
           }>;
         };
-      }>("/demo/rfq-samples")
+      }>("/demo/rfq-samples", { silentError: true })
       .then((resp) => setDemoSamples(resp.data.data?.samples ?? []))
       .catch(() => setDemoSamples([]));
   }, [showDemoChrome]);
