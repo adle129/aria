@@ -169,11 +169,14 @@ function AdminExplainer({ showDemoChrome }: { showDemoChrome: boolean }) {
 
       <Text strong>项目资料包</Text>
       <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 8 }}>
-        一套完整项目通常包含 RFQ、问答清单、人力报价 Excel。用项目目录与清单文件关联后：RFQ
+        一套完整项目通常包含 RFQ、问答清单、人力报价 Excel。用项目目录关联后：RFQ
         与问答可供相似检索，报价表解析为人天基线。
         {showDemoChrome
           ? " Demo 环境部分能力为占位；正式环境支持本页上传与 IT 目录批量入库。"
           : " 支持 IT 目录批量入库与本页 Web 上传（单次最多 5 套）。"}
+        {" "}
+        <Text code>manifest.json</Text>
+        由系统根据上传文件自动生成，一般无需手工上传；客户/年份/工程领域须在上传后表单中填写。
       </Paragraph>
       <Paragraph
         type="secondary"
@@ -188,7 +191,7 @@ function AdminExplainer({ showDemoChrome }: { showDemoChrome: boolean }) {
         }}
       >
         {`knowledge_base/<项目目录>/
-  ├── manifest.json
+  ├── manifest.json   # 系统生成
   ├── RFQ_xxx.docx
   ├── Q_A_xxx.xlsx
   └── Quote_xxx.xlsx`}

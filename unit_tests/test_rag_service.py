@@ -85,8 +85,94 @@ def test_search_similar_projects_applies_structured_rerank(monkeypatch):
     assert "vector_score" in hits[0]["metadata"]
 
 
+def test_search_similar_projects_layer2_fills_dimensions(monkeypatch):
+    rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
+
+    def fake_grouped(*_args, **_kwargs):
+        return [
+            {
+                "engagement_id": "eng_a",
+                "project_name": "MEB Chassis",
+                "similarity_score": 0.80,
+                "source_doc": "a/rfq.docx",
+                "metadata": {
+                    "engagement_id": "eng_a",
+                    "project_name": "MEB Chassis",
+                    "functions": ["Chassis"],
+                    "doc_type": "rfq",
+                    "source_doc": "a/rfq.docx",
+                },
+                "hits": [
+                    {
+                        "content": "hit",
+                        "similarity_score": 0.80,
+                        "metadata": {
+                            "engagement_id": "eng_a",
+                            "project_name": "MEB Chassis",
+                            "functions": ["Chassis"],
+                            "doc_type": "rfq",
+                            "source_doc": "a/rfq.docx",
+                            "section_path": "工作内容 > 平台类型",
+                        },
+                    }
+                ],
+            }
+        ]
+
+    def fake_fetch(_engagement_id, _source_doc):
+        return [
+            {
+                "chunk_id": "a::platform",
+                "content": "工作内容 > 平台类型\nMEB 平台底盘模块开发",
+                "metadata": {
+                    "engagement_id": "eng_a",
+                    "section_path": "工作内容 > 平台类型",
+                    "chunk_chapter": "平台类型",
+                    "doc_type": "rfq",
+                },
+            }
+        ]
+
+    monkeypatch.setattr(rag, "search_grouped", fake_grouped)
+    monkeypatch.setattr(rag, "_fetch_engagement_chunks", fake_fetch)
+    draft = {
+        "items": [
+            {"name": "平台类型", "in_scope": True, "work_content": "MEB 平台底盘"},
+            {"name": "缺失维度", "in_scope": True, "work_content": "无对应章节"},
+        ]
+    }
+    hits = rag.search_similar_projects(
+        "ignored",
+        top_k=1,
+        rfq_modules={"project_name": "MEB Chassis", "functions_in_scope": ["Chassis"]},
+        draft=draft,
+    )
+    assert len(hits) == 1
+    dims = hits[0]["metadata"]["dimensions"]
+    assert dims["平台类型"]["value"] != "未知"
+    assert dims["平台类型"]["section_path"]
+    assert dims["缺失维度"]["value"] == "未知"
+    assert "section_coverage" in hits[0]["metadata"]
+
+    table = rag.build_comparison_table_from_draft(
+        {"functions_in_scope": ["Chassis"]},
+        hits,
+        draft,
+    )
+    project = table["projects"][0]
+    assert project["dimensions"]["平台类型"]["value"] != "未知"
+    history_vals = [
+        cell["value"]
+        for row in table["matrix_rows"]
+        if row["dimension"] == "平台类型"
+        for cell in row["history"]
+    ]
+    assert history_vals and history_vals[0] != "未知"
+    assert table["matrix_rows"][0]["history"][0].get("section_path")
+
+
 def test_knowledge_and_rfq_share_same_search_pipeline():
-    """Without structured rerank, RFQ hits match grouped mean_top_m + rfq filter."""
+    """Without structured rerank, RFQ hits match grouped hybrid_top_m + rfq filter."""
     rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
     query = "MEB chassis suspension"
     rfq_hits = rag.search_similar_projects(query, top_k=3, doc_type_filter=["rfq"])
@@ -95,7 +181,7 @@ def test_knowledge_and_rfq_share_same_search_pipeline():
         top_k=3,
         doc_type_filter=["rfq"],
         citations_per_group=5,
-        score_mode="mean_top_m",
+        score_mode="hybrid_top_m",
         score_top_m=3,
     )
     assert [g["hits"][0]["metadata"]["engagement_id"] for g in groups] == [
@@ -286,18 +372,107 @@ def test_build_comparison_table_propagates_engagement_id():
     assert table["projects"][0]["engagement_id"] == "mock_project_1"
 
 
-def test_insufficient_evidence_when_empty_or_low_score():
-    rag = RAGService(
-        Settings(mock_rag=False, rag_similarity_threshold=0.65, knowledge_base_path="./data/knowledge_base")
+def test_group_hybrid_score_blends_max_and_mean():
+    from app.services.rag_service import _group_similarity_score
+
+    hits = [
+        {"similarity_score": 0.9},
+        {"similarity_score": 0.6},
+        {"similarity_score": 0.3},
+    ]
+    hybrid = _group_similarity_score(hits, score_mode="hybrid_top_m", score_top_m=3)
+    mean = (0.9 + 0.6 + 0.3) / 3
+    assert hybrid == pytest.approx(0.7 * 0.9 + 0.3 * mean)
+
+
+def test_same_source_boost_pins_matching_engagement(tmp_path, monkeypatch):
+    kb = tmp_path / "kb"
+    eng = kb / "twin"
+    eng.mkdir(parents=True)
+    rfq = eng / "RFQ.docx"
+    rfq.write_bytes(b"identical-rfq-bytes")
+    (eng / "manifest.json").write_text(
+        json.dumps(
+            {
+                "engagement_id": "twin",
+                "project_name": "Twin Project",
+                "documents": [{"path": "RFQ.docx", "doc_type": "rfq"}],
+            }
+        ),
+        encoding="utf-8",
     )
-    assert rag.is_insufficient_evidence([]) is True
-    assert rag.is_insufficient_evidence([{"similarity_score": 0.5}]) is True
-    assert rag.is_insufficient_evidence([{"similarity_score": 0.8}]) is False
+    upload = tmp_path / "upload.doc"
+    upload.write_bytes(b"identical-rfq-bytes")
+
+    rag = RAGService(Settings(mock_rag=False, knowledge_base_path=str(kb)))
+    monkeypatch.setattr(
+        rag,
+        "search_grouped",
+        lambda *a, **k: [
+            {
+                "engagement_id": "other",
+                "project_name": "Other",
+                "similarity_score": 0.7,
+                "vector_score": 0.7,
+                "metadata": {"engagement_id": "other", "project_name": "Other"},
+                "hits": [
+                    {
+                        "content": "x",
+                        "similarity_score": 0.7,
+                        "metadata": {"engagement_id": "other"},
+                    }
+                ],
+            }
+        ],
+    )
+    hits = rag.search_similar_projects(
+        "query",
+        top_k=3,
+        source_file_path=str(upload),
+    )
+    assert hits[0]["metadata"]["same_source"] is True
+    assert hits[0]["similarity_score"] == 1.0
+    assert hits[0]["metadata"]["engagement_id"] == "twin"
+
+
+def test_insufficient_evidence_uses_vector_score_not_only_fused():
+    rag = RAGService(
+        Settings(mock_rag=False, rag_similarity_threshold=0.55, knowledge_base_path="./data/knowledge_base")
+    )
+    # Fused score below threshold, vector recall above → still sufficient.
+    assert (
+        rag.is_insufficient_evidence(
+            [
+                {
+                    "similarity_score": 0.40,
+                    "metadata": {"vector_score": 0.62},
+                }
+            ]
+        )
+        is False
+    )
+    assert (
+        rag.is_insufficient_evidence(
+            [
+                {
+                    "similarity_score": 0.40,
+                    "metadata": {"vector_score": 0.40},
+                }
+            ]
+        )
+        is True
+    )
+    assert (
+        rag.is_insufficient_evidence(
+            [{"similarity_score": 0.2, "metadata": {"same_source": True}}]
+        )
+        is False
+    )
 
 
 def test_build_comparison_table_insufficient_evidence_no_mock_projects():
     rag = RAGService(
-        Settings(mock_rag=False, rag_similarity_threshold=0.65, knowledge_base_path="./data/knowledge_base")
+        Settings(mock_rag=False, rag_similarity_threshold=0.55, knowledge_base_path="./data/knowledge_base")
     )
     rfq_data = {"project_name": "test", "functions_in_scope": ["PM"]}
     table = rag.build_comparison_table(rfq_data, [])
@@ -476,6 +651,7 @@ def test_list_documents_production_from_manifest(tmp_path, monkeypatch):
     assert docs[0]["status"] == "indexed"
     assert docs[0]["engagement_id"] == "eng_001"
     assert docs[0]["doc_type"] == "rfq"
+    assert docs[0].get("metadata_summary") is None
 
 
 def test_list_documents_matches_legacy_basename_source_doc(tmp_path, monkeypatch):

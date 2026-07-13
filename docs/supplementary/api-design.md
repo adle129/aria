@@ -482,7 +482,30 @@ POST /api/v1/rfq/tasks/{task_id}/confirm-dimensions
 }
 ```
 
-**流程：** 上传 → `parsing` → 匹配基准库 → `dimension_draft` → `dimension_review` → **本接口** → RAG Top-3 → 矩阵 → `completed`。详见 [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md)。
+**流程：** 上传 → `parsing` → 匹配基准库 → `dimension_draft` → `dimension_review` → **本接口** → RAG Layer1 Top-N → Layer2 关键维度对齐填 `dimensions` → Top-3 矩阵 → `completed`。详见 [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [rag-design.md](rag-design.md) §3.1。
+
+**`comparison_table.projects[].dimensions`（Layer 2）：**
+
+```json
+{
+  "前悬架开发": {
+    "value": "历史叶块正文摘要…",
+    "match": true,
+    "section_path": "四、工作内容 > 4.1 底盘 > 4.1.1 前悬架",
+    "chunk_id": "eng::uuid",
+    "content_score": 0.72
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `value` | 对齐叶块正文截断；失败为 `"未知"`（禁止编造） |
+| `match` | `true` / `false` / `null` |
+| `section_path` / `chunk_id` | 溯源；可选 |
+| `content_score` | 0..1 文本重叠；可选 |
+
+矩阵 `matrix_rows[].history[]` 可含上述 `section_path` / `chunk_id` / `content_score`。P0 不因 Layer2 改写项目排序。
 
 **400：** 非 `dimension_review` 状态；无任何 `in_scope=true` 项。
 
@@ -749,6 +772,14 @@ POST /api/v1/knowledge/engagements/upload
 同 ID 已存在且未明确 `replace_existing=true` 时返回 `409`；替换不合并旧文件，仅在新包包含可解析 RFQ 且校验通过后原子替换，失败保留原目录。
 
 上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
+
+**完善项目信息（Web 表单 · 系统写回 manifest）：**
+
+```
+PATCH /api/v1/knowledge/engagements/{engagement_id}/metadata
+```
+
+请求体（均必填）：`project_name`、`customer`、`year`、`functions[]`（至少一项）。写入 `knowledge_base/<id>/manifest.json` 并同步 `engagements` 表。不改动资料文件；工程领域进入向量 metadata 需随后更新索引。`GET /knowledge/engagements` 额外返回 `customer` / `year` / `functions` / `metadata_complete`。`GET /knowledge/documents` 每条含同项目 `metadata_summary`（客户 · 年 · 领域）。
 
 **容量错误：**
 

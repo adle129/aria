@@ -3,9 +3,11 @@ import {
   computeModuleQualityStats,
   countDeliverableItems,
   groupModulesByFunction,
+  isClauseWorkSectionKind,
   isUnassessedComplexity,
   normalizeDeliverableGroups,
   resolveWorkSections,
+  sectionUsesWorkItemColumns,
   workSectionCategoryLabel,
 } from "./rfqModuleGroups";
 
@@ -42,6 +44,16 @@ describe("rfqModuleGroups", () => {
   it("treats 未评估 as unassessed complexity", () => {
     expect(isUnassessedComplexity("未评估")).toBe(true);
     expect(isUnassessedComplexity("高")).toBe(false);
+  });
+
+  it("treats tech/quality as clause sections without domain columns", () => {
+    expect(isClauseWorkSectionKind("tech_requirements")).toBe(true);
+    expect(isClauseWorkSectionKind("quality")).toBe(true);
+    expect(isClauseWorkSectionKind("work_content")).toBe(false);
+    expect(sectionUsesWorkItemColumns("tech_requirements", true)).toBe(false);
+    expect(sectionUsesWorkItemColumns("quality", true)).toBe(false);
+    expect(sectionUsesWorkItemColumns("work_content", false)).toBe(true);
+    expect(sectionUsesWorkItemColumns("other", true)).toBe(true);
   });
 
   it("normalizes deliverable groups by category", () => {

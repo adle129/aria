@@ -91,3 +91,55 @@ def test_manifest_rejects_legacy_xls_with_conversion_guidance():
                 ],
             }
         )
+
+
+def test_update_manifest_metadata_writes_business_fields(tmp_path):
+    from app.services.engagement_manifest_service import (
+        metadata_fields_complete,
+        resolve_manifest,
+        update_manifest_metadata,
+    )
+
+    folder = tmp_path / "meta_eng"
+    folder.mkdir()
+    (folder / "RFQ_sample.docx").write_bytes(b"fake")
+    updated = update_manifest_metadata(
+        folder,
+        project_name="Meta Project",
+        customer="OEM-B",
+        year=2024,
+        functions=["Chassis", "chassis", "PM"],
+    )
+    assert updated.project_name == "Meta Project"
+    assert updated.customer == "OEM-B"
+    assert updated.year == 2024
+    assert updated.functions == ["Chassis", "PM"]
+    assert metadata_fields_complete(updated) is True
+    reloaded = resolve_manifest(folder)
+    assert reloaded.functions == ["Chassis", "PM"]
+    assert (folder / "manifest.json").is_file()
+
+
+def test_update_manifest_metadata_can_clear_optional_fields(tmp_path):
+    from app.services.engagement_manifest_service import update_manifest_metadata
+
+    folder = tmp_path / "clear_eng"
+    folder.mkdir()
+    (folder / "RFQ_sample.docx").write_bytes(b"fake")
+    update_manifest_metadata(
+        folder,
+        project_name="Keep Name",
+        customer="OEM",
+        year=2023,
+        functions=["PM"],
+    )
+    cleared = update_manifest_metadata(
+        folder,
+        customer=None,
+        year=None,
+        functions=[],
+    )
+    assert cleared.project_name == "Keep Name"
+    assert cleared.customer is None
+    assert cleared.year is None
+    assert cleared.functions == []

@@ -38,10 +38,11 @@ import {
   knowledgePageIntro,
   knowledgeSearchHint,
 } from "@/lib/knowledgePageVisibility";
+import { ENGAGEMENT_FUNCTION_OPTIONS, formatEngagementMetadataSummary } from "@/lib/engagementMetadata";
 
 const { Paragraph, Text, Title } = Typography;
 
-const FUNCTION_OPTIONS = ["PM", "Chassis", "BIW", "CAE", "EE", "Interior", "GI", "PS", "Test validation"];
+const FUNCTION_OPTIONS = [...ENGAGEMENT_FUNCTION_OPTIONS];
 const DOC_TYPE_OPTIONS = [
   { value: "rfq", label: "RFQ" },
   { value: "qa", label: "QA 清单" },
@@ -79,6 +80,11 @@ interface KnowledgeDocument {
   status: string;
   file_size_bytes?: number;
   error?: string;
+  engagement_id?: string;
+  customer?: string | null;
+  year?: number | null;
+  functions?: string[];
+  metadata_summary?: string | null;
 }
 
 interface RAGHitRow {
@@ -311,14 +317,14 @@ export default function KnowledgePage() {
             items={[
               {
                 title: "准备项目资料",
-                description: "目录落盘或 Web 上传",
+                description: "上传或目录落盘",
+              },
+              {
+                title: "完善项目信息",
+                description: "必填客户/领域",
               },
               {
                 title: "更新索引",
-                description: "扫描并写入向量库",
-              },
-              {
-                title: "查看清单",
                 description: `${indexedCount}/${documents.length} 已索引`,
               },
               {
@@ -331,12 +337,12 @@ export default function KnowledgePage() {
             <Text strong>R1 入库方式：</Text>
             <Text strong>（A）</Text> IT 将项目包放入服务器{" "}
             <Text code>knowledge_base/&lt;项目名&gt;/</Text>
-            （100+ 推荐）→ 点击「更新知识库索引」；
+            （100+ 推荐）→ 可选完善项目信息 →「更新知识库索引」；
             <Text strong>（B）</Text> 本页「上传项目包」— 单套 ZIP/多文件，或一次最多{" "}
-            <Text strong>5 套</Text> → 查看缺件提示 → 更新索引。
+            <Text strong>5 套</Text> → 填写项目信息（必填）→ 更新索引。
           </Paragraph>
           <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            资料不完整（缺 Q&A 或报价）仍可入库，系统会提示哪些自动化环节不可用。运营级拖拽整目录上传不含于当前里程碑。
+            资料不完整（缺 Q&A 或报价）仍可入库；项目信息（客户/年份/领域）为必填，用于相似比对结构加分与领域过滤。运营级拖拽整目录上传不含于当前里程碑。
           </Paragraph>
         </Card>
       )}
@@ -349,9 +355,10 @@ export default function KnowledgePage() {
           onUploaded={() => {
             setWizardStep(1);
             void loadDocuments();
+            setImportHistoryRefresh((n) => n + 1);
           }}
           onRequestIndex={() => {
-            setWizardStep(1);
+            setWizardStep(2);
             setIndexStartSignal((n) => n + 1);
           }}
         />
@@ -372,7 +379,11 @@ export default function KnowledgePage() {
       )}
 
       {visibility.showEngagementInventory && (
-        <EngagementInventoryPanel refreshToken={importHistoryRefresh} />
+        <EngagementInventoryPanel
+          refreshToken={importHistoryRefresh}
+          canEdit={visibility.canWriteKb}
+          writeProtected={writeProtected}
+        />
       )}
 
       <Tabs
@@ -531,9 +542,17 @@ export default function KnowledgePage() {
                       },
                       {
                         title: "说明",
-                        dataIndex: "error",
+                        key: "notes",
                         ellipsis: true,
-                        render: (v: string) => v || "—",
+                        render: (_: unknown, row: KnowledgeDocument) => {
+                          if (row.error) return row.error;
+                          if (row.metadata_summary) return row.metadata_summary;
+                          return formatEngagementMetadataSummary({
+                            customer: row.customer,
+                            year: row.year,
+                            functions: row.functions,
+                          });
+                        },
                       },
                     ]}
                   />

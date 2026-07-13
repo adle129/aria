@@ -66,6 +66,36 @@ def test_record_upload_persists_audit_fields(audit_session):
     assert row.content_hash
 
 
+def test_update_metadata_writes_manifest_and_db(audit_session):
+    if not SAMPLE_RFQ.exists():
+        pytest.skip("sample rfq missing")
+    session, kb = audit_session
+    folder = kb / "meta_eng"
+    folder.mkdir()
+    shutil.copyfile(SAMPLE_RFQ, folder / "RFQ.docx")
+    settings = get_settings()
+    service = EngagementAuditService(settings, session)
+    service.record_upload(folder, uploaded_by="user-1", tier="copper")
+    data = service.update_metadata(
+        "meta_eng",
+        project_name="Updated Name",
+        customer="OEM-Z",
+        year=2025,
+        functions=["BIW", "PM"],
+    )
+    assert data["project_name"] == "Updated Name"
+    assert data["customer"] == "OEM-Z"
+    assert data["year"] == 2025
+    assert data["functions"] == ["BIW", "PM"]
+    assert data["metadata_complete"] is True
+    manifest = resolve_manifest(folder)
+    assert manifest.customer == "OEM-Z"
+    row = EngagementRepository(session).get_by_id("meta_eng")
+    assert row is not None
+    assert row.project_name == "Updated Name"
+    assert row.functions == ["BIW", "PM"]
+
+
 def test_record_upload_preserves_last_indexed_at(audit_session):
     if not SAMPLE_RFQ.exists():
         pytest.skip("sample rfq missing")

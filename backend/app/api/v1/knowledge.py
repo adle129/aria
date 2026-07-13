@@ -8,8 +8,16 @@ from app.api.deps import get_current_user, require_kb_admin
 from app.config import get_settings
 from app.database import get_db
 from app.repositories.engagement_repository import EngagementRepository
-from app.schemas.knowledge import EngagementUploadPackResult, KnowledgeSearchRequest
-from app.services.engagement_audit_service import EngagementAuditService
+from app.schemas.knowledge import (
+    EngagementMetadataUpdate,
+    EngagementUploadPackResult,
+    KnowledgeSearchRequest,
+)
+from app.services.engagement_audit_service import (
+    EngagementAuditError,
+    EngagementAuditNotFound,
+    EngagementAuditService,
+)
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
 from app.services.disk_guard_service import (
     DiskCapacityError,
@@ -362,21 +370,40 @@ def knowledge_engagements(
     _user=Depends(get_current_user),
 ):
     """Read-only inventory for any authenticated user (engineers included)."""
-    repo = EngagementRepository(db)
+    settings = get_settings()
+    audit = EngagementAuditService(settings, db)
     items = []
-    for row in repo.list_all():
-        items.append(
-            {
-                "engagement_id": row.id,
-                "project_name": row.project_name,
-                "tier": row.tier,
-                "index_status": row.index_status,
-                "content_hash": row.content_hash,
-                "uploaded_at": to_api_utc_iso(row.uploaded_at),
-                "uploaded_by": row.uploaded_by,
-                "last_indexed_at": to_api_utc_iso(row.last_indexed_at),
-                "last_error": row.last_error,
-                "folder_path": row.folder_path,
-            }
-        )
+    for row in EngagementRepository(db).list_all():
+        data = audit.serialize_engagement(row)
+        data["uploaded_at"] = to_api_utc_iso(data.get("uploaded_at"))
+        data["last_indexed_at"] = to_api_utc_iso(data.get("last_indexed_at"))
+        items.append(data)
     return {"code": 200, "data": {"engagements": items}}
+
+
+@router.patch("/engagements/{engagement_id}/metadata")
+def knowledge_engagement_metadata(
+    engagement_id: str,
+    body: EngagementMetadataUpdate,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Update business metadata on manifest + engagements row (no file re-upload)."""
+    _ = admin
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(required_bytes=4096)
+        fields = body.model_dump()
+        data = EngagementAuditService(settings, db).update_metadata(
+            engagement_id,
+            **fields,
+        )
+    except EngagementAuditNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementAuditError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    data["uploaded_at"] = to_api_utc_iso(data.get("uploaded_at"))
+    data["last_indexed_at"] = to_api_utc_iso(data.get("last_indexed_at"))
+    return {"code": 200, "data": data}

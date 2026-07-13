@@ -11,6 +11,7 @@ from app.services.rfq_parse_spike import (
     is_scope_chapter,
     merge_rfq_parse_parts,
     select_chunks_for_pass,
+    summarize_module_functions,
     truncate_rfq_text,
     validate_rfq_parse_result,
 )
@@ -139,6 +140,54 @@ def test_merge_rfq_parse_parts():
     assert merged["milestones"]["M1"] == "2022-04-30"
     assert merged["deliverable_groups"][0]["category"] == "整车总布置交付物"
     assert merged["work_sections"][0]["title"] == "工作内容"
+
+
+def test_summarize_module_functions_detects_name_collisions():
+    diag = summarize_module_functions(
+        [
+            {"function": "未知", "module_name": "Package", "function_source": "unknown"},
+            {"function": "GI", "module_name": "Package", "function_source": "llm"},
+            {"function": "BIW", "module_name": "Body", "function_source": "keyword"},
+        ]
+    )
+    assert diag["total"] == 3
+    assert diag["known"] == 2
+    assert diag["unknown"] == 1
+    assert diag["name_collisions"] == [
+        {"module_name": "Package", "functions": ["GI", "未知"]}
+    ]
+
+
+def test_merge_keeps_both_when_same_name_different_function():
+    """Current merge key is (function, module_name) — collision stays until product fix."""
+    merged = merge_rfq_parse_parts(
+        [
+            {
+                "modules": [
+                    {
+                        "function": "未知",
+                        "module_name": "Package",
+                        "function_source": "unknown",
+                        "l2_title": "工作内容",
+                        "section_kind": "work_content",
+                    }
+                ]
+            },
+            {
+                "modules": [
+                    {
+                        "function": "GI",
+                        "module_name": "Package",
+                        "function_source": "llm",
+                        "l2_title": "工作内容",
+                        "section_kind": "work_content",
+                    }
+                ]
+            },
+        ]
+    )
+    assert len(merged["modules"]) == 2
+    assert {m["function"] for m in merged["modules"]} == {"未知", "GI"}
 
 
 def test_validate_ok_sample():

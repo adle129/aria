@@ -6,11 +6,13 @@ import {
   Button,
   Card,
   Checkbox,
+  Collapse,
   Input,
   Modal,
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
   Upload,
   message,
@@ -19,11 +21,13 @@ import type { UploadFile } from "antd/es/upload/interface";
 import axios from "axios";
 import { useMemo, useState } from "react";
 import { apiClient } from "@/api/client";
+import EngagementMetadataForm from "@/components/EngagementMetadataForm";
 import {
   ENGAGEMENT_TIER_COLOR,
   ENGAGEMENT_TIER_LABEL,
   type EngagementTier,
 } from "@/lib/engagementCompleteness";
+import { isEngagementMetadataComplete } from "@/lib/engagementMetadata";
 import {
   formatUploadPackStatus,
   summarizeUploadPacks,
@@ -37,6 +41,10 @@ const { Paragraph, Text } = Typography;
 export interface EngagementPackResult {
   engagement_id: string;
   project_name?: string;
+  customer?: string | null;
+  year?: number | null;
+  functions?: string[];
+  metadata_complete?: boolean;
   status: string;
   stored: boolean;
   tier: EngagementTier;
@@ -159,7 +167,15 @@ export default function EngagementUploadPanel({
       }>("/knowledge/engagements/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const packs = resp.data.data.packs;
+      const packs = resp.data.data.packs.map((pack) => ({
+        ...pack,
+        metadata_complete: isEngagementMetadataComplete({
+          project_name: pack.project_name,
+          customer: pack.customer,
+          year: pack.year,
+          functions: pack.functions,
+        }),
+      }));
       setLastResults(packs);
       const counts = summarizeUploadPacks(packs);
       if (counts.failed > 0) {
@@ -189,10 +205,9 @@ export default function EngagementUploadPanel({
   return (
     <Card title="上传项目包" style={{ marginBottom: 16 }} size="small">
       <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        单套：上传 <Text strong>ZIP</Text>（推荐，目录内含 RFQ / Q_A / 报价 Excel），或填写{" "}
+        单套：上传 <Text strong>ZIP</Text>（推荐，目录内含 RFQ / Q&A / 报价 Excel），或填写{" "}
         <Text strong>Engagement ID</Text> 后一次选择多文件。单次最多 <Text strong>5</Text> 个
-        ZIP，单个上传文件最多 100MB；ZIP 内单文件最多 50MB、解压总量最多
-        500MB，异常压缩比和不安全路径会被拒绝。散文件模式每次 1 套。
+        ZIP。落盘后须填写项目信息（显示名、客户、年份、工程领域）再建立索引。
       </Paragraph>
 
       {selectionError && (
@@ -242,11 +257,28 @@ export default function EngagementUploadPanel({
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
-        <p className="ant-upload-text">点击或拖拽 ZIP / RFQ / Q_A / 报价 Excel / manifest.json</p>
+        <p className="ant-upload-text">点击或拖拽 ZIP，或 RFQ / Q&A / 报价文件</p>
         <p className="ant-upload-hint" id="engagement-upload-hint">
-          ZIP 无需填 ID；散文件须先填 Engagement ID
+          ZIP 无需填 ID；散文件须先填 Engagement ID。项目说明由系统自动生成。
         </p>
       </Upload.Dragger>
+
+      <Collapse
+        ghost
+        style={{ marginTop: 8 }}
+        items={[
+          {
+            key: "advanced",
+            label: <Text type="secondary">高级：自带项目说明文件（可选）</Text>,
+            children: (
+              <Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                IT 批量包可包含 <Text code>manifest.json</Text>
+                ；日常上传无需准备。若上传了该文件，将与系统推断结果合并。
+              </Paragraph>
+            ),
+          },
+        ]}
+      />
 
       <Space style={{ marginTop: 16 }}>
         <Button
@@ -287,6 +319,7 @@ export default function EngagementUploadPanel({
             style={{ marginTop: 16 }}
             aria-live="polite"
             message={`本批结果：成功落盘 ${summary.stored}，可索引 ${summary.indexable}，资料不完整 ${summary.incomplete}，失败 ${summary.failed}`}
+            description="展开行完善项目信息（必填）后，再为本批建立检索索引。"
           />
           <Table
             style={{ marginTop: 12 }}
@@ -296,8 +329,9 @@ export default function EngagementUploadPanel({
             scroll={{ x: "max-content" }}
             dataSource={lastResults}
             expandable={{
+              defaultExpandAllRows: true,
               expandedRowRender: (row) => (
-                <Space direction="vertical" size={4}>
+                <Space direction="vertical" size={12} style={{ width: "100%" }}>
                   {row.path ? <Text type="secondary">路径：{row.path}</Text> : null}
                   {row.files?.length ? (
                     <Text type="secondary">文件：{row.files.join("、")}</Text>
@@ -310,7 +344,38 @@ export default function EngagementUploadPanel({
                         .join("；")}
                     </Text>
                   ) : null}
-                  {!row.files?.length && !row.errors?.length && !row.path ? (
+                  {row.stored ? (
+                    <EngagementMetadataForm
+                      engagementId={row.engagement_id}
+                      compact
+                      disabled={writeProtected}
+                      initial={{
+                        project_name: row.project_name,
+                        customer: row.customer,
+                        year: row.year,
+                        functions: row.functions,
+                      }}
+                      onSaved={(next) => {
+                        setLastResults((prev) =>
+                          (prev || []).map((item) =>
+                            item.engagement_id === row.engagement_id
+                              ? {
+                                  ...item,
+                                  project_name: next.project_name,
+                                  customer: next.customer,
+                                  year: next.year,
+                                  functions: next.functions,
+                                  metadata_complete:
+                                    next.metadata_complete ??
+                                    isEngagementMetadataComplete(next),
+                                }
+                              : item,
+                          ),
+                        );
+                        onUploaded?.();
+                      }}
+                    />
+                  ) : !row.files?.length && !row.errors?.length && !row.path ? (
                     <Text type="secondary">无更多详情</Text>
                   ) : null}
                 </Space>
@@ -328,6 +393,21 @@ export default function EngagementUploadPanel({
                     {ENGAGEMENT_TIER_LABEL[row.tier]}
                   </Tag>
                 ),
+              },
+              {
+                title: "项目信息",
+                key: "metadata",
+                width: 120,
+                render: (_: unknown, row: EngagementPackResult) =>
+                  row.stored && !row.metadata_complete ? (
+                    <Tooltip title="请填写客户、年份与工程领域后再建立索引">
+                      <Tag color="warning">待完善</Tag>
+                    </Tooltip>
+                  ) : row.stored ? (
+                    <Tag color="success">已完善</Tag>
+                  ) : (
+                    "—"
+                  ),
               },
               {
                 title: "状态",
@@ -362,25 +442,37 @@ export default function EngagementUploadPanel({
       )}
 
       {showPostUploadActions && summary && summary.stored > 0 ? (
-        <Space style={{ marginTop: 16 }}>
-          <Button
-            type="primary"
-            disabled={writeProtected}
-            onClick={() => {
-              setShowPostUploadActions(false);
-              onRequestIndex?.();
-            }}
-          >
-            为本批建立检索索引
-          </Button>
-          <Button onClick={() => setShowPostUploadActions(false)}>稍后处理</Button>
+        <Space style={{ marginTop: 16 }} direction="vertical" size={8}>
+          {lastResults?.some((p) => p.stored && !p.metadata_complete) ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="请先保存每套项目的完整项目信息（客户、年份、工程领域），再建立索引"
+            />
+          ) : null}
+          <Space>
+            <Button
+              type="primary"
+              disabled={
+                writeProtected ||
+                Boolean(lastResults?.some((p) => p.stored && !p.metadata_complete))
+              }
+              onClick={() => {
+                setShowPostUploadActions(false);
+                onRequestIndex?.();
+              }}
+            >
+              为本批建立检索索引
+            </Button>
+            <Button onClick={() => setShowPostUploadActions(false)}>稍后处理</Button>
+          </Space>
         </Space>
       ) : (
         <Alert
           type="info"
           showIcon
           style={{ marginTop: 16 }}
-          message="上传后须建立检索索引方可检索"
+          message="上传并完善项目信息后，须建立检索索引方可检索"
         />
       )}
     </Card>

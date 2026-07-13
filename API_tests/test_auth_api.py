@@ -221,6 +221,16 @@ def test_engineer_can_list_engagements_readonly(auth_client):
     assert "engagements" in resp.json()["data"]
 
 
+def test_engineer_cannot_patch_engagement_metadata(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.patch(
+        "/api/v1/knowledge/engagements/any_id/metadata",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"customer": "OEM"},
+    )
+    assert resp.status_code == 403
+
+
 def test_engineer_still_cannot_reindex(auth_client):
     token = _login(auth_client, "eng01", "pass123")
     resp = auth_client.post(

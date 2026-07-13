@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import time
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -18,6 +18,7 @@ from app.services.rfq_parse_spike import (
     merge_rfq_parse_parts,
     resolve_rfq_path,
     select_chunks_for_pass,
+    summarize_module_functions,
     validate_rfq_parse_result,
     _run_single_pass,
 )
@@ -28,6 +29,8 @@ from app.services.rfq_rules_extractor import (
     needs_overview_llm,
     needs_scope_llm,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _prompt_root(settings: Settings) -> Path:
@@ -76,6 +79,22 @@ def run_parse_report(
     assert_looks_like_rfq(raw_text, rules_stats)
     assert_rfq_parse_quality(rules_stats)
 
+    rules_fn = summarize_module_functions(list(rules_result.get("modules") or []))
+    logger.info(
+        "rfq_rules_functions file=%s loader=%s mock_llm=%s modules=%d known=%d unknown=%d "
+        "with_deliverables=%s by_function=%s by_source=%s unknown_samples=%s",
+        path.name,
+        loader,
+        settings.mock_llm,
+        rules_fn["total"],
+        rules_fn["known"],
+        rules_fn["unknown"],
+        rules_stats.get("modules_with_deliverables"),
+        rules_fn["by_function"],
+        rules_fn["by_source"],
+        rules_fn["unknown_samples"],
+    )
+
     prompt_root = _prompt_root(settings)
     llm = LLMService(settings)
 
@@ -87,6 +106,7 @@ def run_parse_report(
             "milestones_count": rules_stats.get("milestones_count", 0),
             "modules_count": rules_stats.get("modules_count", 0),
             "development_scope_count": rules_stats.get("development_scope_count", 0),
+            "modules_unknown_function": rules_stats.get("modules_unknown_function"),
         }
     ]
     total_ms = 0
@@ -111,13 +131,31 @@ def run_parse_report(
         else:
             pass_logs.append({"pass": "milestones", "skipped": True, "reason": "no milestone chunks"})
 
-    if needs_scope_llm(rules_result):
+    scope_needed = needs_scope_llm(rules_result)
+    modules_n = len(rules_result.get("modules") or [])
+    with_deliv = int(rules_stats.get("modules_with_deliverables") or 0)
+    min_with_deliv = max(2, modules_n // 4) if modules_n else 2
+    if scope_needed:
         table_42 = [c for c in chunks if is_deliverable_table_chunk(c)]
         selected = table_42[:4] if table_42 else select_chunks_for_pass(chunks, "scope")[:6]
+        scope_reason = (
+            f"modules={modules_n}<5"
+            if modules_n < 5
+            else f"deliverables={with_deliv}<{min_with_deliv}"
+        )
         if selected:
-            llm_plan.append(("scope", selected, "rules missing modules/deliverables enrichment"))
+            llm_plan.append(("scope", selected, f"rules gap: {scope_reason}"))
+            logger.info(
+                "rfq_scope_llm_planned file=%s reason=%s chunk_source=%s chunks=%d mock_llm=%s",
+                path.name,
+                scope_reason,
+                "deliverable_table" if table_42 else "scope_chapter",
+                len(selected),
+                settings.mock_llm,
+            )
         else:
             pass_logs.append({"pass": "scope", "skipped": True, "reason": "no scope chunks"})
+            logger.info("rfq_scope_llm_skipped file=%s reason=no_scope_chunks", path.name)
     else:
         pass_logs.append(
             {
@@ -125,6 +163,12 @@ def run_parse_report(
                 "skipped_llm": True,
                 "reason": f"rules extracted {rules_stats.get('modules_count', 0)} modules",
             }
+        )
+        logger.info(
+            "rfq_scope_llm_skipped file=%s reason=rules_sufficient modules=%d with_deliverables=%d",
+            path.name,
+            modules_n,
+            with_deliv,
         )
 
     for parse_pass, selected, reason in llm_plan:
@@ -138,6 +182,23 @@ def run_parse_report(
             bundle_max_chars=bundle_max_chars,
             cancel_check=cancel_check,
         )
+        for part, log in zip(parts, logs):
+            part_mods = list(part.get("modules") or []) if isinstance(part, dict) else []
+            part_fn = summarize_module_functions(part_mods)
+            logger.info(
+                "rfq_llm_pass file=%s pass=%s batch=%s mock_llm=%s parse_error=%s "
+                "reason=%s modules=%d known=%d unknown=%d by_function=%s",
+                path.name,
+                parse_pass,
+                log.get("batch"),
+                settings.mock_llm,
+                bool(isinstance(part, dict) and part.get("parse_error")),
+                reason,
+                part_fn["total"],
+                part_fn["known"],
+                part_fn["unknown"],
+                part_fn["by_function"],
+            )
         all_parts.extend(parts)
         pass_logs.extend(logs)
         total_ms += elapsed
@@ -146,6 +207,19 @@ def run_parse_report(
     from app.services.rfq_rules_extractor import enrich_unknown_module_functions
 
     enrich_unknown_module_functions(result.get("modules") or [])
+    final_fn = summarize_module_functions(list(result.get("modules") or []))
+    logger.info(
+        "rfq_parse_functions_final file=%s mock_llm=%s modules=%d known=%d unknown=%d "
+        "by_function=%s by_source=%s collisions=%s",
+        path.name,
+        settings.mock_llm,
+        final_fn["total"],
+        final_fn["known"],
+        final_fn["unknown"],
+        final_fn["by_function"],
+        final_fn["by_source"],
+        final_fn["name_collisions"][:5],
+    )
     validation = validate_rfq_parse_result(result)
     used_chars = sum(len(str(c.get("content") or "")) for c in chunks)
     llm_batches = sum(1 for log in pass_logs if "batch" in log)
@@ -160,6 +234,7 @@ def run_parse_report(
         "ollama_llm_timeout_seconds": settings.ollama_llm_timeout_seconds,
         "rules_stats": rules_stats,
         "llm_batches": llm_batches,
+        "function_diag": final_fn,
         "text_stats": {
             "char_count_raw": len(raw_text),
             "char_count_used": used_chars,

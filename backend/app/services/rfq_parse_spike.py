@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import sys
 import time
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -15,6 +17,8 @@ from app.services.ingest.rfq_chunker import chunk_rfq_text
 from app.services.ingest.rfq_document_loader import count_word_table_cells, load_rfq_text
 from app.services.llm_service import LLMService
 from app.services.rfq_parser import RFQParser
+
+logger = logging.getLogger(__name__)
 
 KNOWN_FUNCTIONS = frozenset(
     {"PM", "BIW", "Chassis", "CAE", "EE", "GI", "Interior", "Test validation", "Closure", "Simulation"}
@@ -184,6 +188,44 @@ def _dedupe_dicts(items: list[dict[str, Any]], key_fields: tuple[str, ...]) -> l
     return out
 
 
+def summarize_module_functions(modules: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compact function-recognition stats for parse diagnostics."""
+    by_fn: Counter[str] = Counter()
+    by_source: Counter[str] = Counter()
+    unknown_samples: list[str] = []
+    name_to_fns: dict[str, set[str]] = defaultdict(set)
+    for mod in modules:
+        if not isinstance(mod, dict):
+            continue
+        fn = str(mod.get("function") or "").strip() or "未知"
+        by_fn[fn] += 1
+        src = str(mod.get("function_source") or "").strip() or "—"
+        by_source[src] += 1
+        name = str(mod.get("module_name") or "").strip()
+        if name:
+            name_to_fns[name].add(fn)
+        if fn in {"", "未知"} and len(unknown_samples) < 5:
+            unknown_samples.append(name[:80] or str(mod.get("section_id") or "?"))
+    name_collisions = sorted(
+        [
+            {"module_name": name, "functions": sorted(fns)}
+            for name, fns in name_to_fns.items()
+            if len(fns) > 1
+        ],
+        key=lambda row: row["module_name"],
+    )[:8]
+    unknown = by_fn.get("未知", 0) + by_fn.get("", 0)
+    return {
+        "total": sum(by_fn.values()),
+        "known": sum(by_fn.values()) - unknown,
+        "unknown": unknown,
+        "by_function": dict(by_fn.most_common(12)),
+        "by_source": dict(by_source),
+        "unknown_samples": unknown_samples,
+        "name_collisions": name_collisions,
+    }
+
+
 def merge_rfq_parse_parts(parts: list[dict[str, Any]]) -> dict[str, Any]:
     merged: dict[str, Any] = {
         "project_name": "未知",
@@ -235,6 +277,8 @@ def merge_rfq_parse_parts(parts: list[dict[str, Any]]) -> dict[str, Any]:
     merged["functions_in_scope"] = _dedupe_strings(merged["functions_in_scope"])
     merged["special_requirements"] = _dedupe_strings(merged["special_requirements"])
     merged["development_scope"] = _dedupe_dicts(merged["development_scope"], ("id", "title"))
+    pre_dedupe = [m for m in merged["modules"] if isinstance(m, dict)]
+    pre_diag = summarize_module_functions(pre_dedupe)
     merged["modules"] = _dedupe_dicts(merged["modules"], ("function", "module_name"))
     from app.services.rfq_rules_extractor import (
         build_display_work_sections,
@@ -243,17 +287,51 @@ def merge_rfq_parse_parts(parts: list[dict[str, Any]]) -> dict[str, Any]:
     )
 
     enrich_unknown_module_functions(merged["modules"])
+    post_diag = summarize_module_functions(merged["modules"])
     # Keep canonical modules; rebuild folded work_sections for UI only.
     prior_sections = list(merged.get("work_sections") or [])
     clause_rows: list[dict[str, Any]] = []
+    clause_by_kind: Counter[str] = Counter()
+    clause_unknown = 0
     for section in prior_sections:
         kind = str(section.get("kind") or "")
         if kind in {"tech_requirements", "quality", "other"}:
             for cat in section.get("categories") or []:
-                clause_rows.extend(list(cat.get("rows") or []))
+                rows = list(cat.get("rows") or [])
+                clause_rows.extend(rows)
+                clause_by_kind[kind] += len(rows)
+                clause_unknown += sum(
+                    1
+                    for r in rows
+                    if str(r.get("function") or "").strip() in {"", "未知"}
+                )
     merged["work_sections"] = build_display_work_sections(merged["modules"], clause_rows)
     if not merged.get("milestone_groups"):
         merged["milestone_groups"] = build_milestone_groups(merged["milestones"])
+    logger.info(
+        "rfq_merge_functions parts=%d pre_modules=%d post_modules=%d "
+        "known=%d unknown=%d collisions=%d clause_rows=%d clause_unknown=%d "
+        "by_function=%s by_source=%s clause_by_kind=%s collision_samples=%s",
+        len(parts),
+        pre_diag["total"],
+        post_diag["total"],
+        post_diag["known"],
+        post_diag["unknown"],
+        len(pre_diag["name_collisions"]),
+        len(clause_rows),
+        clause_unknown,
+        post_diag["by_function"],
+        post_diag["by_source"],
+        dict(clause_by_kind),
+        pre_diag["name_collisions"][:3],
+    )
+    if pre_diag["name_collisions"]:
+        logger.warning(
+            "rfq_merge_name_collisions count=%d samples=%s "
+            "(same module_name with different function — often rules+LLM merge)",
+            len(pre_diag["name_collisions"]),
+            pre_diag["name_collisions"][:5],
+        )
     return merged
 
 

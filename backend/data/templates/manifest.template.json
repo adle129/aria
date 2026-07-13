@@ -1,0 +1,24 @@
+{
+  "engagement_id": "2023_chassis_oem_a",
+  "project_name": "2023 Chassis Integration",
+  "customer": "OEM-A",
+  "year": 2023,
+  "functions": ["Chassis", "PM"],
+  "documents": [
+    {
+      "path": "rfq.docx",
+      "doc_type": "rfq",
+      "original_filename": "RFQ_OEM-A_2023.docx"
+    },
+    {
+      "path": "qa.xlsx",
+      "doc_type": "qa",
+      "original_filename": "Q_A_OEM-A.xlsx"
+    },
+    {
+      "path": "quote.xlsx",
+      "doc_type": "quote_manpower",
+      "original_filename": "报价人力_OEM-A.xlsx"
+    }
+  ]
+}

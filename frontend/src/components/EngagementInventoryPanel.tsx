@@ -1,20 +1,38 @@
 "use client";
 
-import { InfoCircleOutlined } from "@ant-design/icons";
-import { Card, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { EditOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Card,
+  Drawer,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "@/api/client";
+import EngagementMetadataForm from "@/components/EngagementMetadataForm";
 import { parseApiTimestamp } from "@/lib/apiTime";
 import {
   formatEngagementIndexStatus,
   formatEngagementTier,
 } from "@/lib/engagementCompleteness";
+import {
+  formatEngagementMetadataSummary,
+  isEngagementMetadataComplete,
+} from "@/lib/engagementMetadata";
 
 const { Text } = Typography;
 
 interface EngagementAuditRow {
   engagement_id: string;
   project_name: string;
+  customer?: string | null;
+  year?: number | null;
+  functions?: string[];
+  metadata_complete?: boolean;
   tier?: string | null;
   index_status: string;
   content_hash?: string | null;
@@ -43,13 +61,18 @@ function ColumnTitle({ title, tip }: { title: string; tip: string }) {
 
 interface EngagementInventoryPanelProps {
   refreshToken?: number;
+  canEdit?: boolean;
+  writeProtected?: boolean;
 }
 
 export default function EngagementInventoryPanel({
   refreshToken = 0,
+  canEdit = false,
+  writeProtected = false,
 }: EngagementInventoryPanelProps) {
   const [rows, setRows] = useState<EngagementAuditRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<EngagementAuditRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,7 +98,7 @@ export default function EngagementInventoryPanel({
       style={{ marginBottom: 16 }}
       extra={
         <Text type="secondary" style={{ fontSize: 12 }}>
-          完整度在上传或更新索引后自动评估
+          资料完整度看文件齐套；项目信息（客户/年份/领域）须完善
         </Text>
       }
     >
@@ -85,6 +108,7 @@ export default function EngagementInventoryPanel({
         loading={loading}
         dataSource={rows}
         pagination={{ pageSize: 8, hideOnSinglePage: true }}
+        scroll={{ x: "max-content" }}
         expandable={{
           expandedRowRender: (row) => (
             <Space direction="vertical" size={4}>
@@ -129,6 +153,37 @@ export default function EngagementInventoryPanel({
             },
           },
           {
+            title: (
+              <ColumnTitle
+                title="项目信息"
+                tip="客户、年份、工程领域；参与相似项目结构加分与领域过滤。"
+              />
+            ),
+            key: "metadata",
+            render: (_: unknown, row: EngagementAuditRow) => {
+              const complete =
+                row.metadata_complete ??
+                isEngagementMetadataComplete({
+                  project_name: row.project_name,
+                  customer: row.customer,
+                  year: row.year,
+                  functions: row.functions,
+                });
+              return (
+                <Space size={4} wrap>
+                  {!complete ? (
+                    <Tooltip title="请完善客户、年份与工程领域">
+                      <Tag color="warning">待完善</Tag>
+                    </Tooltip>
+                  ) : null}
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {formatEngagementMetadataSummary(row)}
+                  </Text>
+                </Space>
+              );
+            },
+          },
+          {
             title: "索引状态",
             dataIndex: "index_status",
             render: (status: string) => {
@@ -146,8 +201,53 @@ export default function EngagementInventoryPanel({
             dataIndex: "last_indexed_at",
             render: formatApiTime,
           },
+          ...(canEdit
+            ? [
+                {
+                  title: "操作",
+                  key: "actions",
+                  width: 110,
+                  render: (_: unknown, row: EngagementAuditRow) => (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<EditOutlined />}
+                      disabled={writeProtected}
+                      onClick={() => setEditing(row)}
+                    >
+                      完善信息
+                    </Button>
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
+
+      <Drawer
+        title={editing ? `完善项目信息 · ${editing.engagement_id}` : "完善项目信息"}
+        open={Boolean(editing)}
+        onClose={() => setEditing(null)}
+        width={Math.min(480, typeof window !== "undefined" ? window.innerWidth - 24 : 480)}
+        destroyOnClose
+      >
+        {editing ? (
+          <EngagementMetadataForm
+            engagementId={editing.engagement_id}
+            disabled={writeProtected}
+            initial={{
+              project_name: editing.project_name,
+              customer: editing.customer,
+              year: editing.year,
+              functions: editing.functions,
+            }}
+            onSaved={() => {
+              setEditing(null);
+              void load();
+            }}
+          />
+        ) : null}
+      </Drawer>
     </Card>
   );
 }

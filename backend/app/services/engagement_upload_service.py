@@ -490,6 +490,9 @@ class EngagementUploadService:
         return {
             "engagement_id": engagement_id,
             "project_name": manifest.project_name,
+            "customer": manifest.customer,
+            "year": manifest.year,
+            "functions": list(manifest.functions or []),
             "status": "stored",
             "stored": True,
             "missing": missing,
