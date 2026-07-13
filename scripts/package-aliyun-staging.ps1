@@ -53,6 +53,40 @@ compose=docker-compose.aliyun-staging.yml
 "@
 [System.IO.File]::WriteAllText($stampPath, ($stamp -replace "`r`n", "`n"))
 
+# Windows core.autocrlf=true can leave CRLF in the working tree; ECS bash rejects them
+# (e.g. seed-runtime-data.sh: set: pipefail). Force LF before packing.
+Write-Host "==> Normalizing shell scripts to LF..."
+$shDirs = @(
+    (Join-Path $Root "scripts"),
+    (Join-Path $Root "deploy\scripts")
+)
+$entrypoint = Join-Path $Root "backend\docker-entrypoint.sh"
+$normalized = 0
+foreach ($dir in $shDirs) {
+    if (-not (Test-Path $dir)) { continue }
+    Get-ChildItem -Path $dir -Filter "*.sh" -File -Recurse | ForEach-Object {
+        $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+        $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+        if ($text.Contains("`r")) {
+            $lf = $text -replace "`r`n", "`n" -replace "`r", "`n"
+            $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+            [System.IO.File]::WriteAllText($_.FullName, $lf, $utf8NoBom)
+            $normalized++
+        }
+    }
+}
+if (Test-Path $entrypoint) {
+    $bytes = [System.IO.File]::ReadAllBytes($entrypoint)
+    $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+    if ($text.Contains("`r")) {
+        $lf = $text -replace "`r`n", "`n" -replace "`r", "`n"
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($entrypoint, $lf, $utf8NoBom)
+        $normalized++
+    }
+}
+Write-Host "    normalized $normalized file(s)"
+
 Write-Host "==> Packaging R1 staging to $OutFile"
 Write-Host "    deploy_sha=$deploySha"
 tar -czf $OutFile `
