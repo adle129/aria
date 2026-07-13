@@ -66,14 +66,32 @@ def test_milestones_merge_chunks_without_wiping():
     assert ms["SOP"] == "2023-08-30"
 
 
-def test_milestones_wide_separator_x07():
-    text = (
-        "开发进度\n"
-        "M0数据\x072022.02.25\n"
-        "P1\x072022年6月30日\n"
-        "P4\x072023.03.15\n"
-    )
-    ms = extract_milestones_rules(text)
+def test_milestones_classified_acceptance_vs_data():
+    text = """
+3.2.3开发进度
+主要数据节点如下表
+序号 | 数据主要节点 | 日期
+1 | M0数据 | 2022.02.25
+2 | EM1数据 | 2022.03.25
+3 | M1数据 | 2022.04.30
+4 | EM2数据 | 2022.06.30
+5 | M2数据 | 2022.08.30
+
+3.2.10.7 验收阶段
+根据双方约定分 3 个阶段验收：
+阶段 | 节点名称 | 交付物提交完成时间
+第一阶段 | P2节点 | 2022年6月30日
+第二阶段 | P3节点 | 2022年10月15日
+第三阶段 | P5节点 | 2023年5月30日
+"""
+    from app.services.rfq_rules_extractor import extract_milestones_bundle
+
+    bundle = extract_milestones_bundle(text)
+    ms = bundle["milestones"]
+    groups = bundle["milestone_groups"]
+    assert ms["P2"] == "2022-06-30"
     assert ms["M0"] == "2022-02-25"
-    assert ms["P1"] == "2022-06-30"
-    assert ms["P4"] == "2023-03-15"
+    assert set(groups["acceptance"]) == {"P2", "P3", "P5"}
+    assert set(groups["data"]) >= {"M0", "EM1", "M1", "EM2", "M2"}
+    assert "P2" not in groups["data"]
+    assert "M0" not in groups["acceptance"]

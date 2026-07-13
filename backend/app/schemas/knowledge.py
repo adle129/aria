@@ -12,6 +12,8 @@ class RAGHitMetadata(BaseModel):
     customer: str | None = None
     engagement_id: str | None = None
     chunk_chapter: str | None = None
+    section_path: str | None = None
+    section_depth: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -22,6 +24,15 @@ class RAGHit(BaseModel):
     similarity_score: float = Field(..., ge=0.0, le=1.0)
 
 
+class KnowledgeSearchGroup(BaseModel):
+    engagement_id: str | None = None
+    project_name: str
+    similarity_score: float = Field(..., ge=0.0, le=1.0)
+    source_doc: str | None = None
+    metadata: RAGHitMetadata | dict[str, Any] = Field(default_factory=dict)
+    hits: list[RAGHit] = Field(default_factory=list)
+
+
 class KnowledgeSearchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=500)
     top_k: int = Field(default=5, ge=1, le=20)
@@ -30,7 +41,9 @@ class KnowledgeSearchRequest(BaseModel):
 
 
 class KnowledgeSearchResponse(BaseModel):
-    results: list[RAGHit]
+    groups: list[KnowledgeSearchGroup] = Field(default_factory=list)
+    results: list[RAGHit] = Field(default_factory=list)
+    insufficient_evidence: bool = False
 
 
 class KnowledgeDocumentItem(BaseModel):

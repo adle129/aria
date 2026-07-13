@@ -15,6 +15,7 @@ import {
   resolveEvidenceDisplay,
   type ReviewSummary,
 } from "@/lib/dimensionReview";
+import { formatFunctionLabel } from "@/lib/functionLabels";
 import {
   Alert,
   Button,
@@ -451,7 +452,7 @@ export default function DimensionBaselineReview({
       key: code,
       label: (
         <Space wrap>
-          <Text strong>{label}</Text>
+          <Text strong>{formatFunctionLabel(code) || label}</Text>
           <Text type="secondary">{statusLabel}</Text>
           <Text type="secondary">
             （{scoped}/{moduleItems.length} 已勾选）

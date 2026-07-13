@@ -13,6 +13,7 @@ from app.models.engagement import Engagement
 from app.repositories.engagement_repository import EngagementRepository
 from app.services.engagement_completeness import classify_engagement
 from app.services.engagement_content_hash import compute_engagement_content_hash
+from app.schemas.engagement import EngagementManifest
 from app.services.engagement_manifest_service import resolve_manifest
 from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only, summarize_doc_type_counts
 from app.services.ingest.engagement_preview import build_engagement_preview
@@ -72,9 +73,12 @@ class EngagementIngestService:
             return
         rel = str(folder.relative_to(self.kb_root)).replace("\\", "/")
         repo = EngagementRepository(self.db)
-        now = datetime.now(UTC) if index_status == "indexed" else None
         existing = repo.get_by_id(manifest.engagement_id)
         completeness = classify_engagement([])
+        if index_status == "indexed":
+            last_indexed_at = datetime.now(UTC)
+        else:
+            last_indexed_at = existing.last_indexed_at if existing else None
         repo.upsert(
             Engagement(
                 id=manifest.engagement_id,
@@ -89,7 +93,7 @@ class EngagementIngestService:
                 content_hash=compute_engagement_content_hash(folder),
                 uploaded_at=existing.uploaded_at if existing else None,
                 uploaded_by=existing.uploaded_by if existing else None,
-                last_indexed_at=now,
+                last_indexed_at=last_indexed_at,
                 last_error=error,
             )
         )
@@ -201,6 +205,7 @@ class EngagementIngestService:
                     and existing.content_hash == content_hash
                     and existing.index_status == "indexed"
                 ):
+                    # Unchanged + already indexed: keep vectors; do not bump last_indexed_at.
                     skipped += 1
                     carry_engagement_ids.append(manifest.engagement_id)
                     engagement_reports.append(

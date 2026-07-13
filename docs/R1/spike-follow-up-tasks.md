@@ -46,7 +46,7 @@
 | SPK-F03 | P0-1 | **解析迁入 worker + 状态机** | R1-I03, R1-F06 | 上传立即返回 task_id；`parsing` → `dimension_review` | 待开始 |
 | SPK-F04 | P0-3 | **统一 Word 读入 + chunker** | R1-F04 | `rfq_document_loader` + `rfq_chunker` 与 spike 同路径；弃 Demo 单文件截断 | 待开始 |
 | SPK-F05 | P1 | **里程碑规则补全** | R1-F04 | P1/P4/SOP 等表行；规则失败才 milestones LLM | 待开始 |
-| SPK-F06 | P1 | **§4.2 交付物表规则解析** | R1-F04 | `deliverable_tables` 覆盖 4.2.1–4.2.7；attach 到 modules | 待开始 |
+| SPK-F06 | P1 | **§4.2 交付物表规则解析** | R1-F04 | 7 表 + CAE 编号表；`deliverable_groups` + 节点标签 | **已完成** |
 | SPK-F07 | P0-3 | **rules_first 测试门禁** | R1-F10 | `unit_tests/test_rfq_rules_extractor.py` + API mock；客户模板 fixture | 待开始 |
 | SPK-F08 | P0-3 | **维度匹配（下一步）** | R1-F01–F05 | 规则 keywords + module batch LLM；见 rfq-parse-closure §5 | 待开始 |
 

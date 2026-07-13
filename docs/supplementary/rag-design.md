@@ -80,7 +80,7 @@ flowchart TB
 
 ```json
 {
-  "content": "底盘集成验证内容...",
+  "content": "四、工作内容及要求 > 4.1 工作内容 > 4.1.1 整车总布置\n底盘集成验证内容...",
   "metadata": {
     "project_name": "2023_chassis",
     "source_doc": "knowledge_base/2023_chassis/rfq.docx",
@@ -89,13 +89,23 @@ flowchart TB
     "functions": ["Chassis"],
     "year": 2023,
     "customer": "OEM-A",
-    "chunk_chapter": "3.2 Scope",
+    "chunk_chapter": "4.1.1 整车总布置",
+    "section_path": "四、工作内容及要求 > 4.1 工作内容 > 4.1.1 整车总布置",
+    "section_depth": 3,
     "locator": { "sheet": null, "row": null, "area": null }
   },
   "similarity_score": 0.85,
   "chunk_id": "uuid-or-stable-id"
 }
 ```
+
+**RFQ 切块层级（R1-K11）：** 按编号切开叶块；`section_path` 为祖先标题面包屑（**不**复制上级正文）。索引 embedding / 入库 `content` = `section_path + "\\n" + 正文`。chunk schema 版本 `rfqa_v4`（变更须全量 reindex）。
+
+**检索聚合（R1-K11）：** 先召回多 chunk，再按 `engagement_id`（缺则 `source_doc`）分组；`/knowledge` 组分为 `max(similarity_score)`；RFQ Top-N 组分为 **top-m chunk 均分**（默认 m=3），减轻单章标题虚高。`top_k` = **历史项目数**。`POST /knowledge/search` 返回 `groups[]`（项目 + 最多 3 条 citation）与展平的 `results`。
+
+**RFQ 相似检索 query（确认维度后）：** 由 `build_rfq_similarity_query` 组装：`project_name`（或文件名）+ customer/platform + `functions_in_scope` + `development_scope` 标题 + 已确认 `in_scope` 维度名/`work_content`；并默认 `doc_type_filter=["rfq"]`。**不是**整份 RFQ 全文 embedding，也不是整章展开比对。
+
+**RFQ 项目重排（结构化融合）：** 向量召回扩大候选（约 `top_k×3`）后，用 `structured_similarity_score`（Function Jaccard、scope 标题 vs 命中 `section_path`、项目名/客户/平台）与切块聚合分线性融合（默认向量权重 0.65），再截断为 Top-3。命中 metadata 可含 `vector_score` / `structured_score` 便于排查。
 
 **出处（locator）规则（R1）：**
 
@@ -109,12 +119,14 @@ flowchart TB
 
 | 字段 | Demo | Phase 2 | 说明 |
 |------|------|---------|------|
-| `content` | ✓ | ✓ | chunk 文本 |
+| `content` | ✓ | ✓ | chunk 文本（RFQ 含 section_path 前缀） |
 | `metadata.project_name` | ✓ | ✓ | 项目标识 |
 | `metadata.source_doc` | ✓ | ✓ | 相对路径，供 UI 展示来源 |
 | `metadata.doc_type` | ✓ | ✓ | `rfq` / `qa` / `quote_manpower` / `summary` |
 | `metadata.functions[]` | Mock 扩展 | ✓ | 用于 Function 过滤与缺口检测 |
 | `metadata.engagement_id` | null | ✓ | 历史项目包 ID |
+| `metadata.section_path` | — | ✓ | RFQ 章节面包屑（K11） |
+| `metadata.section_depth` | — | ✓ | 编号层级深度（K11） |
 | `metadata.locator` | — | ✓ | 文档内位置（章节/行/Area） |
 | `chunk_id` | — | ✓ | 稳定 chunk 标识，供溯源与反馈 |
 | `similarity_score` | ✓ | ✓ | 统一字段名，禁止混用 `similarity` |
@@ -237,8 +249,9 @@ API 契约见 [api-design.md §2.3.4](api-design.md)。
 | 问题 | Demo 现状 | R1 目标 |
 |------|-----------|---------|
 | 向量库 | Chroma 嵌入式 `chroma_db/` | **PostgreSQL pgvector**（`pgvector/pgvector:pg16`） |
-| 切块 | 1 docx = 1 chunk | RFQ **按章节**；Q_A **按行**；报价 **Sheet→baselines**（不进向量） |
-| metadata | project_name / source_doc / doc_type | §3.1 全量 + **locator** + engagement_id |
+| 切块 | 1 docx = 1 chunk | RFQ **按章节** + `section_path` 面包屑进 embedding（K11）；Q_A **按行**；报价 **Sheet→baselines**（不进向量） |
+| metadata | project_name / source_doc / doc_type | §3.1 全量 + **locator** + engagement_id + **section_path** |
+| 检索聚合 | chunk 平铺 | 按 engagement 聚合；`top_k`=项目数；同文档多出处折叠（K11） |
 | engagement | 文件夹名当 project | **manifest.json** + `engagements` 表 |
 | embedding | Chroma 默认 ONNX | **Ollama `nomic-embed-text`** → 写入 pgvector；**批量 `/api/embed`**（Ollama ≥0.3）+ 超长截断（≈2400 字符） |
 | pgvector 写入 | 逐条 insert | **分批 upsert**（200 条/批，`ON CONFLICT`） |
@@ -372,8 +385,10 @@ LLM 负责**有上下文**的语义合成（RFQ JSON、qa_dedupe）；检索质�
 ### 11.2 检索与对标
 
 - RFQ 对标：**Top-3**（A/B/C）；N&lt;3 时 1–2 个 + UI Warning
+- 检索 query：解析字段 + 确认后的 in_scope 维度摘要（见 §3.1），**非**仅文件名
+- 项目分：同 engagement 召回 chunk 的 **top-3 均分**，再与 **结构化重叠分** 融合后取 Top-3
 - R1 评测：≥15 条 query；**不含** M5 方案模块生成题
-- **R1 不含：** Hybrid、Rerank（§7 路径 3–4 为 Phase 2 可选）
+- **R1 不含：** Hybrid、Rerank cross-encoder（§7 路径 3–4 为 Phase 2 可选）；整章/全文 diff；独立 engagement 全文向量主排序
 
 ### 11.3 manpower_baselines（R1 硬交付）
 

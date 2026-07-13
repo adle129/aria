@@ -16,7 +16,8 @@ MOCK_RFQ_PARSE_RESULT = {
             "module_name": "Project Management",
             "description": "项目协调与里程碑管理",
             "deliverables": ["Project plan", "Status reports"],
-            "estimated_complexity": "中",
+            "estimated_complexity": "未评估",
+            "function_source": "keyword",
         },
         {
             "function": "Chassis",
@@ -24,6 +25,7 @@ MOCK_RFQ_PARSE_RESULT = {
             "description": "前悬架结构设计开发",
             "deliverables": ["M1/M2 3D data", "DMU check report"],
             "estimated_complexity": "高",
+            "function_source": "keyword",
         },
         {
             "function": "Chassis",
@@ -101,8 +103,8 @@ MOCK_RAG_HITS = [
         "content": "HOZON MEB Chassis Module — PM + Chassis, MacPherson front suspension",
         "metadata": {
             "project_name": "HOZON MEB Chassis Module (2023)",
-            "doc_type": "summary",
-            "source_doc": "mock_project_1/summary.docx",
+            "doc_type": "rfq",
+            "source_doc": "mock_project_1/RFQ.docx",
             "functions": ["PM", "Chassis"],
             "year": 2023,
             "customer": "HOZON",
@@ -114,8 +116,8 @@ MOCK_RAG_HITS = [
         "content": "Mock EV Platform Chassis — BEV platform, multi-link rear",
         "metadata": {
             "project_name": "Mock EV Platform Chassis (2022)",
-            "doc_type": "summary",
-            "source_doc": "mock_project_2/summary.docx",
+            "doc_type": "rfq",
+            "source_doc": "mock_project_2/RFQ.docx",
             "functions": ["Chassis", "CAE"],
             "year": 2022,
             "customer": "Mock Auto",
@@ -127,8 +129,8 @@ MOCK_RAG_HITS = [
         "content": "Compact SUV Chassis — similar milestone P1-SOP structure",
         "metadata": {
             "project_name": "Compact SUV Chassis Development (2021)",
-            "doc_type": "summary",
-            "source_doc": "mock_project_3/summary.docx",
+            "doc_type": "rfq",
+            "source_doc": "mock_project_3/RFQ.docx",
             "functions": ["Chassis"],
             "year": 2021,
             "customer": "Compact OEM",

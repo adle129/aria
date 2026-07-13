@@ -3,17 +3,230 @@ import json
 import pytest
 
 from app.config import Settings
-from app.services.rag_service import RAGProductionError, RAGService, compute_function_coverage
+from app.services.rag_service import (
+    RAGProductionError,
+    RAGService,
+    compute_function_coverage,
+    group_hits_by_engagement,
+)
+
+
+def test_search_similar_projects_applies_structured_rerank(monkeypatch):
+    rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
+
+    def fake_grouped(*_args, **_kwargs):
+        return [
+            {
+                "engagement_id": "eng_a",
+                "project_name": "MEB Chassis",
+                "similarity_score": 0.70,
+                "metadata": {
+                    "engagement_id": "eng_a",
+                    "project_name": "MEB Chassis",
+                    "customer": "HOZON",
+                    "functions": ["Chassis", "PM"],
+                    "doc_type": "rfq",
+                },
+                "hits": [
+                    {
+                        "content": "chassis",
+                        "similarity_score": 0.70,
+                        "metadata": {
+                            "engagement_id": "eng_a",
+                            "project_name": "MEB Chassis",
+                            "customer": "HOZON",
+                            "functions": ["Chassis", "PM"],
+                            "section_path": "工作内容及要求 > 底盘",
+                            "doc_type": "rfq",
+                        },
+                    }
+                ],
+            },
+            {
+                "engagement_id": "eng_b",
+                "project_name": "Interior Only",
+                "similarity_score": 0.95,
+                "metadata": {
+                    "engagement_id": "eng_b",
+                    "project_name": "Interior Only",
+                    "functions": ["Interior"],
+                    "doc_type": "rfq",
+                },
+                "hits": [
+                    {
+                        "content": "interior",
+                        "similarity_score": 0.95,
+                        "metadata": {
+                            "engagement_id": "eng_b",
+                            "project_name": "Interior Only",
+                            "functions": ["Interior"],
+                            "section_path": "内饰",
+                            "doc_type": "rfq",
+                        },
+                    }
+                ],
+            },
+        ]
+
+    monkeypatch.setattr(rag, "search_grouped", fake_grouped)
+    hits = rag.search_similar_projects(
+        "ignored",
+        top_k=1,
+        rfq_modules={
+            "project_name": "MEB Chassis",
+            "customer": "HOZON",
+            "functions_in_scope": ["Chassis", "PM"],
+            "development_scope": [{"title": "工作内容及要求"}],
+        },
+    )
+    assert len(hits) == 1
+    assert hits[0]["metadata"]["engagement_id"] == "eng_a"
+    assert "structured_score" in hits[0]["metadata"]
+    assert "vector_score" in hits[0]["metadata"]
 
 
 def test_knowledge_and_rfq_share_same_search_pipeline():
-    """RFQ 对标与 POST /knowledge/search 共用 search_similar_projects（同源契约）。"""
+    """Without structured rerank, RFQ hits match grouped mean_top_m + rfq filter."""
     rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
     query = "MEB chassis suspension"
-    rfq_hits = rag.search_similar_projects(query, top_k=3)
-    kb_hits = rag.search_similar_projects(query, top_k=3)
-    assert rfq_hits == kb_hits
-    assert rfq_hits[0]["metadata"]["source_doc"] == kb_hits[0]["metadata"]["source_doc"]
+    rfq_hits = rag.search_similar_projects(query, top_k=3, doc_type_filter=["rfq"])
+    groups = rag.search_grouped(
+        query,
+        top_k=3,
+        doc_type_filter=["rfq"],
+        citations_per_group=5,
+        score_mode="mean_top_m",
+        score_top_m=3,
+    )
+    assert [g["hits"][0]["metadata"]["engagement_id"] for g in groups] == [
+        (h.get("metadata") or {}).get("engagement_id") for h in rfq_hits
+    ]
+    assert rfq_hits[0]["similarity_score"] == groups[0]["similarity_score"]
+
+
+def test_group_hits_mean_top_m_softens_single_chunk_spike():
+    hits = [
+        {
+            "content": "a",
+            "similarity_score": 0.99,
+            "metadata": {"engagement_id": "eng_a", "project_name": "A", "doc_type": "rfq"},
+        },
+        {
+            "content": "b",
+            "similarity_score": 0.50,
+            "metadata": {"engagement_id": "eng_a", "project_name": "A", "doc_type": "rfq"},
+        },
+        {
+            "content": "c",
+            "similarity_score": 0.50,
+            "metadata": {"engagement_id": "eng_a", "project_name": "A", "doc_type": "rfq"},
+        },
+        {
+            "content": "d",
+            "similarity_score": 0.80,
+            "metadata": {"engagement_id": "eng_b", "project_name": "B", "doc_type": "rfq"},
+        },
+        {
+            "content": "e",
+            "similarity_score": 0.79,
+            "metadata": {"engagement_id": "eng_b", "project_name": "B", "doc_type": "rfq"},
+        },
+        {
+            "content": "f",
+            "similarity_score": 0.78,
+            "metadata": {"engagement_id": "eng_b", "project_name": "B", "doc_type": "rfq"},
+        },
+    ]
+    by_max = group_hits_by_engagement(hits, top_k=2, score_mode="max")
+    by_mean = group_hits_by_engagement(hits, top_k=2, score_mode="mean_top_m", score_top_m=3)
+    assert by_max[0]["engagement_id"] == "eng_a"
+    assert by_mean[0]["engagement_id"] == "eng_b"
+    assert by_mean[0]["similarity_score"] == round((0.80 + 0.79 + 0.78) / 3, 3)
+
+
+def test_group_hits_by_engagement_dedupes_same_project():
+    hits = [
+        {
+            "content": "a",
+            "similarity_score": 0.9,
+            "metadata": {
+                "engagement_id": "eng_a",
+                "project_name": "A",
+                "source_doc": "a/rfq.docx",
+                "doc_type": "rfq",
+                "functions": ["Chassis"],
+            },
+        },
+        {
+            "content": "b",
+            "similarity_score": 0.8,
+            "metadata": {
+                "engagement_id": "eng_a",
+                "project_name": "A",
+                "source_doc": "a/rfq.docx",
+                "doc_type": "rfq",
+                "functions": ["Chassis"],
+                "section_path": "四、工作内容 > 4.1",
+            },
+        },
+        {
+            "content": "c",
+            "similarity_score": 0.7,
+            "metadata": {
+                "engagement_id": "eng_b",
+                "project_name": "B",
+                "source_doc": "b/rfq.docx",
+                "doc_type": "rfq",
+                "functions": ["PM"],
+            },
+        },
+    ]
+    groups = group_hits_by_engagement(hits, top_k=5, citations_per_group=3)
+    assert len(groups) == 2
+    assert groups[0]["engagement_id"] == "eng_a"
+    assert groups[0]["similarity_score"] == 0.9
+    assert len(groups[0]["hits"]) == 2
+    assert groups[1]["engagement_id"] == "eng_b"
+
+
+def test_projects_from_hits_dedupes_engagement():
+    rag = RAGService(Settings(mock_rag=False, knowledge_base_path="./data/knowledge_base"))
+    hits = [
+        {
+            "content": "one",
+            "similarity_score": 0.91,
+            "metadata": {
+                "engagement_id": "eng_a",
+                "project_name": "A",
+                "source_doc": "a/rfq.docx",
+                "functions": ["Chassis"],
+            },
+        },
+        {
+            "content": "two",
+            "similarity_score": 0.88,
+            "metadata": {
+                "engagement_id": "eng_a",
+                "project_name": "A",
+                "source_doc": "a/rfq.docx",
+                "functions": ["Chassis"],
+            },
+        },
+        {
+            "content": "three",
+            "similarity_score": 0.7,
+            "metadata": {
+                "engagement_id": "eng_b",
+                "project_name": "B",
+                "source_doc": "b/rfq.docx",
+                "functions": ["PM"],
+            },
+        },
+    ]
+    projects = rag._projects_from_hits(hits)
+    assert len(projects) == 2
+    assert projects[0]["engagement_id"] == "eng_a"
+    assert projects[1]["engagement_id"] == "eng_b"
 
 
 def test_mock_search_returns_top_k():

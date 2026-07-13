@@ -78,25 +78,41 @@ def test_confirm_dimensions_generates_matrix(db_session, analysis_service, monke
         {
             "project_name": "MEB Chassis MacPherson",
             "functions_in_scope": ["Chassis"],
-            "modules": [
-                {
-                    "function": "Chassis",
-                    "module_name": "Front suspension MacPherson layout",
-                    "deliverables": ["Suspension CAD"],
-                }
-            ],
+            "platform_type": "MEB",
+            "development_scope": [{"id": "4.1", "title": "工作内容及要求"}],
         }
     )
     task = RFQTask(
-        file_name="mock.docx",
-        file_path="/tmp/mock.docx",
+        file_name="meb.docx",
+        file_path="/tmp/meb.docx",
         processing_status="dimension_review",
-        rfq_modules={"project_name": "MEB", "functions_in_scope": ["Chassis"], "platform_type": "MEB"},
+        rfq_modules={
+            "project_name": "MEB Chassis MacPherson",
+            "functions_in_scope": ["Chassis"],
+            "platform_type": "MEB",
+            "development_scope": [{"id": "4.1", "title": "工作内容及要求"}],
+        },
         dimension_draft=draft,
     )
     db_session.add(task)
     db_session.commit()
 
+    captured: dict[str, object] = {}
+    original_search = analysis_service.rag.search_similar_projects
+
+    def fake_search(query, top_k=3, **kwargs):
+        captured["query"] = query
+        captured["doc_type_filter"] = kwargs.get("doc_type_filter")
+        captured["rfq_modules"] = kwargs.get("rfq_modules")
+        return original_search(
+            query,
+            top_k=top_k,
+            doc_type_filter=kwargs.get("doc_type_filter"),
+            rfq_modules=kwargs.get("rfq_modules"),
+            draft=kwargs.get("draft"),
+        )
+
+    monkeypatch.setattr(analysis_service.rag, "search_similar_projects", fake_search)
     analysis_service.confirm_dimensions(db_session, task, {})
     db_session.refresh(task)
 
@@ -104,6 +120,11 @@ def test_confirm_dimensions_generates_matrix(db_session, analysis_service, monke
     assert task.comparison_table is not None
     assert task.comparison_table.get("matrix_rows")
     assert task.similar_projects is not None
+    assert "工作内容及要求" in str(captured.get("query"))
+    assert "MEB Chassis MacPherson" in str(captured.get("query"))
+    assert captured.get("doc_type_filter") == ["rfq"]
+    assert isinstance(captured.get("rfq_modules"), dict)
+    assert captured["rfq_modules"].get("project_name") == "MEB Chassis MacPherson"
 
 
 def test_confirm_dimensions_marks_failed_on_lease_timeout(

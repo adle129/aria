@@ -23,14 +23,20 @@ def test_knowledge_stats_mock_has_coverage_values(client):
 def test_knowledge_search(client):
     response = client.post("/api/v1/knowledge/search", json={"query": "MEB chassis", "top_k": 3})
     assert response.status_code == 200
-    results = response.json()["data"]["results"]
-    assert len(results) == 3
+    data = response.json()["data"]
+    results = data["results"]
+    groups = data["groups"]
+    assert len(groups) == 3
+    assert len(results) >= 3
     hit = results[0]
     assert "content" in hit
     assert "similarity_score" in hit
     assert "metadata" in hit
     assert "project_name" in hit["metadata"]
     assert "source_doc" in hit["metadata"]
+    assert groups[0]["project_name"]
+    assert groups[0]["hits"]
+    assert groups[0]["similarity_score"] >= groups[-1]["similarity_score"]
 
 
 def test_knowledge_search_empty_query_rejected(client):
@@ -47,7 +53,7 @@ def test_knowledge_search_returns_503_when_ollama_lease_times_out(
     def fail_busy(*_args, **_kwargs):
         raise OllamaLeaseTimeout("internal holder detail")
 
-    monkeypatch.setattr(RAGService, "search_similar_projects", fail_busy)
+    monkeypatch.setattr(RAGService, "search_grouped", fail_busy)
     response = client.post(
         "/api/v1/knowledge/search",
         json={"query": "chassis history", "top_k": 3},
@@ -70,6 +76,8 @@ def test_knowledge_search_function_filter(client):
     results = response.json()["data"]["results"]
     for hit in results:
         assert "PM" in hit["metadata"].get("functions", [])
+    for group in response.json()["data"]["groups"]:
+        assert "PM" in (group.get("metadata") or {}).get("functions", [])
 
 
 def test_knowledge_import(client):

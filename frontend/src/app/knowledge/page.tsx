@@ -89,7 +89,19 @@ interface RAGHitRow {
     source_doc?: string;
     doc_type?: string;
     functions?: string[];
+    engagement_id?: string;
+    chunk_chapter?: string;
+    section_path?: string;
   };
+}
+
+interface SearchGroupRow {
+  engagement_id?: string | null;
+  project_name: string;
+  similarity_score: number;
+  source_doc?: string | null;
+  metadata?: RAGHitRow["metadata"];
+  hits: RAGHitRow[];
 }
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -136,6 +148,7 @@ export default function KnowledgePage() {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [results, setResults] = useState<RAGHitRow[]>([]);
+  const [groups, setGroups] = useState<SearchGroupRow[]>([]);
   const [query, setQuery] = useState("MEB 底盘 悬架");
   const [topK, setTopK] = useState(5);
   const [functionFilter, setFunctionFilter] = useState<string[]>([]);
@@ -218,7 +231,11 @@ export default function KnowledgePage() {
     try {
       const resp = await apiClient.post<{
         code: number;
-        data: { results: RAGHitRow[]; insufficient_evidence?: boolean };
+        data: {
+          groups?: SearchGroupRow[];
+          results: RAGHitRow[];
+          insufficient_evidence?: boolean;
+        };
       }>(
         "/knowledge/search",
         {
@@ -228,10 +245,12 @@ export default function KnowledgePage() {
           doc_type_filter: docTypeFilter.length ? docTypeFilter : undefined,
         },
       );
-      setResults(resp.data.data.results);
+      const nextGroups = resp.data.data.groups ?? [];
+      setGroups(nextGroups);
+      setResults(resp.data.data.results ?? []);
       setInsufficientEvidence(resp.data.data.insufficient_evidence ?? null);
       setWizardStep(3);
-      if (resp.data.data.results.length === 0) {
+      if (nextGroups.length === 0 && (resp.data.data.results ?? []).length === 0) {
         message.info("未找到匹配结果，可调整关键词或先更新知识库索引");
       }
     } catch {
@@ -533,8 +552,8 @@ export default function KnowledgePage() {
                       onPressEnter={() => void runSearch()}
                     />
                     <Space>
-                      <Tooltip title="最多返回多少条相似结果">
-                        <Text type="secondary">返回条数</Text>
+                      <Tooltip title="最多返回多少个历史项目（按 Engagement 聚合，非 chunk 条数）">
+                        <Text type="secondary">返回项目数</Text>
                       </Tooltip>
                       <InputNumber min={1} max={20} value={topK} onChange={(v) => setTopK(v ?? 5)} />
                     </Space>
@@ -572,17 +591,62 @@ export default function KnowledgePage() {
                   )}
 
                   <Table
-                    rowKey={(_, i) => String(i)}
+                    rowKey={(row, i) =>
+                      String(row.engagement_id || row.project_name || row.source_doc || i)
+                    }
                     size="small"
                     loading={searchLoading}
-                    dataSource={results}
+                    dataSource={groups.length ? groups : results.map((hit, i) => ({
+                      engagement_id: hit.metadata?.engagement_id,
+                      project_name: hit.metadata?.project_name || "—",
+                      similarity_score: hit.similarity_score,
+                      source_doc: hit.metadata?.source_doc,
+                      metadata: hit.metadata,
+                      hits: [hit],
+                    }))}
                     pagination={false}
                     locale={{ emptyText: "输入关键词后点击检索" }}
+                    expandable={{
+                      expandedRowRender: (row: SearchGroupRow) => (
+                        <Table
+                          size="small"
+                          pagination={false}
+                          rowKey={(_, i) => String(i)}
+                          dataSource={row.hits || []}
+                          columns={[
+                            {
+                              title: "章节路径",
+                              width: 280,
+                              render: (_, hit: RAGHitRow) =>
+                                hit.metadata?.section_path || hit.metadata?.chunk_chapter || "—",
+                            },
+                            {
+                              title: "相似度",
+                              dataIndex: "similarity_score",
+                              width: 80,
+                              render: (v: number) => `${Math.round(v * 100)}%`,
+                            },
+                            {
+                              title: "类型",
+                              width: 72,
+                              render: (_, hit: RAGHitRow) => hit.metadata?.doc_type || "—",
+                            },
+                            {
+                              title: "内容片段",
+                              dataIndex: "content",
+                              ellipsis: true,
+                            },
+                          ]}
+                        />
+                      ),
+                      rowExpandable: (row: SearchGroupRow) => (row.hits?.length || 0) > 0,
+                    }}
                     columns={[
                       {
                         title: "历史项目",
                         width: 220,
-                        render: (_, row) => row.metadata?.project_name || "—",
+                        render: (_, row: SearchGroupRow) =>
+                          row.project_name || row.metadata?.project_name || "—",
                       },
                       {
                         title: "相似度",
@@ -593,22 +657,27 @@ export default function KnowledgePage() {
                       {
                         title: "类型",
                         width: 88,
-                        render: (_, row) => row.metadata?.doc_type || "—",
+                        render: (_, row: SearchGroupRow) =>
+                          row.metadata?.doc_type || row.hits?.[0]?.metadata?.doc_type || "—",
                       },
                       {
                         title: "来源文档",
                         width: 200,
-                        render: (_, row) => row.metadata?.source_doc || "—",
+                        render: (_, row: SearchGroupRow) =>
+                          row.source_doc || row.metadata?.source_doc || "—",
                       },
                       {
                         title: "工程领域",
                         width: 120,
-                        render: (_, row) => (row.metadata?.functions || []).join("、") || "—",
+                        render: (_, row: SearchGroupRow) =>
+                          (row.metadata?.functions || row.hits?.[0]?.metadata?.functions || []).join(
+                            "、",
+                          ) || "—",
                       },
                       {
-                        title: "内容片段",
-                        dataIndex: "content",
-                        ellipsis: true,
+                        title: "命中出处",
+                        width: 88,
+                        render: (_, row: SearchGroupRow) => `${row.hits?.length || 0} 条`,
                       },
                     ]}
                   />

@@ -26,11 +26,20 @@ logger = logging.getLogger(__name__)
 
 
 def _chunk_content(item: dict[str, Any]) -> str:
+    """Body text; RFQ section_path is prepended for embedding (R1-K11)."""
     content = item.get("content") or item.get("preview") or ""
+    meta = item.get("metadata") or {}
     if not str(content).strip():
-        meta = item.get("metadata") or {}
         content = meta.get("question") or meta.get("chunk_chapter") or "empty"
-    return str(content).strip()
+    body = str(content).strip()
+    section_path = (
+        item.get("section_path")
+        or meta.get("section_path")
+        or ""
+    ).strip()
+    if section_path and not body.startswith(section_path):
+        return f"{section_path}\n{body}"
+    return body
 
 
 def flatten_preview_chunks(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -42,6 +51,10 @@ def flatten_preview_chunks(report: dict[str, Any]) -> list[dict[str, Any]]:
         meta.setdefault("chunk_id", item.get("chunk_id"))
         meta.setdefault("chunk_type", item.get("chunk_type"))
         meta.setdefault("chunk_chapter", item.get("chunk_chapter"))
+        if item.get("section_path"):
+            meta["section_path"] = item["section_path"]
+        if item.get("section_depth") is not None:
+            meta["section_depth"] = item["section_depth"]
         meta.setdefault("source_doc", rfq.get("path"))
         meta.setdefault("project_name", "validation_corpus")
         meta.setdefault(
@@ -54,6 +67,7 @@ def flatten_preview_chunks(report: dict[str, Any]) -> list[dict[str, Any]]:
                 "content": _chunk_content(item),
                 "chunk_type": item.get("chunk_type"),
                 "chunk_chapter": item.get("chunk_chapter"),
+                "section_path": item.get("section_path") or meta.get("section_path"),
                 "metadata": meta,
             }
         )
@@ -119,6 +133,10 @@ def flatten_engagement_chunks(
         meta.update(base_meta)
         meta.setdefault("doc_type", "rfq")
         meta.setdefault("chunk_id", item.get("chunk_id"))
+        if item.get("section_path"):
+            meta["section_path"] = item["section_path"]
+        if item.get("section_depth") is not None:
+            meta["section_depth"] = item["section_depth"]
         source = rfq.get("path") or "rfq.docx"
         # Always overwrite: preview/chunkers may set basename-only source_doc.
         meta["source_doc"] = canonical_knowledge_source_doc(rel_folder, source)
@@ -129,6 +147,7 @@ def flatten_engagement_chunks(
                 "content": _chunk_content(item),
                 "chunk_type": item.get("chunk_type"),
                 "chunk_chapter": item.get("chunk_chapter"),
+                "section_path": item.get("section_path") or meta.get("section_path"),
                 "metadata": meta,
             }
         )
@@ -423,7 +442,9 @@ class KnowledgeIndexService:
             request_type=request_type,
             cancel_check=cancel_check,
         )[0]
-        hits = self._store.search_by_embedding(query_vec, top_k=top_k * 3)
+        # Recall extra chunks; RAGService groups by engagement and applies top_k.
+        recall_k = min(max(top_k * 10, 30), 100)
+        hits = self._store.search_by_embedding(query_vec, top_k=recall_k)
         for hit in hits:
             meta = hit.get("metadata") or {}
             funcs = meta.get("functions")
@@ -434,7 +455,7 @@ class KnowledgeIndexService:
 
         hits = _filter_hits_by_functions(hits, function_filter)
         hits = _filter_hits_by_doc_type(hits, doc_type_filter)
-        return hits[:top_k]
+        return hits
 
     def get_chunk(self, chunk_id: str) -> dict[str, Any] | None:
         try:

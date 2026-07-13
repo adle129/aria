@@ -70,7 +70,7 @@ describe("knowledge page copy helpers", () => {
   it("softens coverage and search hints for read-only users", () => {
     expect(knowledgeCoverageHint(false)).toMatch(/人工核对/);
     expect(knowledgeCoverageHint(false)).not.toMatch(/优先补充/);
-    expect(knowledgeSearchHint(false)).toMatch(/试检索/);
-    expect(knowledgeSearchHint(true)).toMatch(/验证/);
+    expect(knowledgeSearchHint(false)).toMatch(/聚合/);
+    expect(knowledgeSearchHint(true)).toMatch(/聚合/);
   });
 });

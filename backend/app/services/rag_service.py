@@ -98,6 +98,106 @@ def _filter_hits_by_doc_type(
     return filtered
 
 
+def _engagement_group_key(hit: dict[str, Any]) -> str:
+    meta = hit.get("metadata") or {}
+    eid = meta.get("engagement_id")
+    if eid:
+        return f"eng:{eid}"
+    source = meta.get("source_doc") or ""
+    if source:
+        return f"src:{source}"
+    name = meta.get("project_name") or "unknown"
+    return f"name:{name}"
+
+
+def _group_similarity_score(
+    group_hits: list[dict[str, Any]],
+    *,
+    score_mode: str = "max",
+    score_top_m: int = 3,
+) -> float:
+    scores = sorted(
+        (float(h.get("similarity_score") or 0.0) for h in group_hits),
+        reverse=True,
+    )
+    if not scores:
+        return 0.0
+    if score_mode == "mean_top_m":
+        use = scores[: max(1, score_top_m)]
+        return sum(use) / len(use)
+    return scores[0]
+
+
+def group_hits_by_engagement(
+    hits: list[dict[str, Any]],
+    *,
+    top_k: int,
+    citations_per_group: int = 3,
+    score_mode: str = "max",
+    score_top_m: int = 3,
+) -> list[dict[str, Any]]:
+    """Aggregate chunk hits into engagement groups (R1-K11).
+
+    score_mode:
+      - max: project score = best chunk (knowledge search / default)
+      - mean_top_m: mean of top-m chunk scores (RFQ similar-project ranking)
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    order: list[str] = []
+    for hit in hits:
+        key = _engagement_group_key(hit)
+        if key not in buckets:
+            buckets[key] = []
+            order.append(key)
+        buckets[key].append(hit)
+
+    groups: list[dict[str, Any]] = []
+    for key in order:
+        group_hits = sorted(
+            buckets[key],
+            key=lambda h: float(h.get("similarity_score") or 0.0),
+            reverse=True,
+        )
+        citations = group_hits[:citations_per_group]
+        best = citations[0]
+        meta = best.get("metadata") or {}
+        groups.append(
+            {
+                "engagement_id": meta.get("engagement_id"),
+                "project_name": meta.get("project_name") or "未知项目",
+                "similarity_score": round(
+                    _group_similarity_score(
+                        group_hits,
+                        score_mode=score_mode,
+                        score_top_m=score_top_m,
+                    ),
+                    3,
+                ),
+                "source_doc": meta.get("source_doc"),
+                "metadata": {
+                    "project_name": meta.get("project_name"),
+                    "source_doc": meta.get("source_doc"),
+                    "doc_type": meta.get("doc_type"),
+                    "functions": list(meta.get("functions") or []),
+                    "year": meta.get("year"),
+                    "customer": meta.get("customer"),
+                    "engagement_id": meta.get("engagement_id"),
+                },
+                "hits": citations,
+            }
+        )
+
+    groups.sort(key=lambda g: float(g.get("similarity_score") or 0.0), reverse=True)
+    return groups[:top_k]
+
+
+def flatten_group_hits(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flat: list[dict[str, Any]] = []
+    for group in groups:
+        flat.extend(group.get("hits") or [])
+    return flat
+
+
 class RAGService:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -128,12 +228,80 @@ class RAGService:
         *,
         request_type: str = "query",
         cancel_check: Callable[[], None] | None = None,
+        rfq_modules: dict[str, Any] | None = None,
+        draft: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        """Return one representative hit per engagement for RFQ Top-N.
+
+        Project rank uses mean of top-3 chunk scores, then optional structured
+        fusion (functions / scope titles / name) when rfq_modules is provided.
+        Defaults to RFQ chunks only; pass doc_type_filter to override.
+        """
+        from app.services.rfq_structured_similarity import rerank_similar_groups
+
+        recall_projects = max(top_k * 3, 10) if rfq_modules is not None else top_k
+        groups = self.search_grouped(
+            query,
+            top_k=recall_projects,
+            function_filter=function_filter,
+            doc_type_filter=["rfq"] if doc_type_filter is None else doc_type_filter,
+            request_type=request_type,
+            cancel_check=cancel_check,
+            citations_per_group=5,
+            score_mode="mean_top_m",
+            score_top_m=3,
+        )
+        if rfq_modules is not None:
+            groups = rerank_similar_groups(
+                groups,
+                rfq_modules,
+                draft=draft,
+                top_k=top_k,
+            )
+        else:
+            groups = groups[:top_k]
+
+        results: list[dict[str, Any]] = []
+        for group in groups:
+            hits = group.get("hits") or []
+            if not hits:
+                continue
+            hit = dict(hits[0])
+            hit["similarity_score"] = group.get("similarity_score")
+            meta = dict(hit.get("metadata") or {})
+            if group.get("vector_score") is not None:
+                meta["vector_score"] = group.get("vector_score")
+            if group.get("structured_score") is not None:
+                meta["structured_score"] = group.get("structured_score")
+            hit["metadata"] = meta
+            results.append(hit)
+        return results
+
+    def search_grouped(
+        self,
+        query: str,
+        top_k: int = 5,
+        function_filter: list[str] | None = None,
+        doc_type_filter: list[str] | None = None,
+        *,
+        request_type: str = "query",
+        cancel_check: Callable[[], None] | None = None,
+        citations_per_group: int = 3,
+        score_mode: str = "max",
+        score_top_m: int = 3,
+    ) -> list[dict[str, Any]]:
+        """Search and aggregate by engagement; top_k = number of projects."""
         started = time.monotonic()
         if self.settings.mock_rag:
             hits = _filter_hits_by_functions(MOCK_RAG_HITS, function_filter)
             hits = _filter_hits_by_doc_type(hits, doc_type_filter)
-            return hits[:top_k]
+            return group_hits_by_engagement(
+                hits,
+                top_k=top_k,
+                citations_per_group=citations_per_group,
+                score_mode=score_mode,
+                score_top_m=score_top_m,
+            )
 
         index = self._index_service()
         hits = index.search(
@@ -144,21 +312,30 @@ class RAGService:
             request_type=request_type,
             cancel_check=cancel_check,
         )
+        groups = group_hits_by_engagement(
+            hits,
+            top_k=top_k,
+            citations_per_group=citations_per_group,
+            score_mode=score_mode,
+            score_top_m=score_top_m,
+        )
         max_score = max(
-            (float(h.get("similarity_score") or 0.0) for h in hits),
+            (float(g.get("similarity_score") or 0.0) for g in groups),
             default=0.0,
         )
+        flat = flatten_group_hits(groups)
         logger.info(
-            "rag_search request_type=%s top_k=%s hits=%d max_similarity=%.3f "
+            "rag_search request_type=%s top_k=%s groups=%d hits=%d max_similarity=%.3f "
             "insufficient=%s elapsed_ms=%d",
             request_type,
             top_k,
-            len(hits),
+            len(groups),
+            len(flat),
             max_score,
-            self.is_insufficient_evidence(hits),
+            self.is_insufficient_evidence(flat),
             int((time.monotonic() - started) * 1000),
         )
-        return hits
+        return groups
 
     def build_comparison_table(
         self, rfq_data: dict[str, Any], similar_docs: list[dict[str, Any]]
@@ -277,10 +454,15 @@ class RAGService:
 
     def _projects_from_hits(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         projects: list[dict[str, Any]] = []
+        seen_keys: set[str] = set()
         for hit in hits:
             meta = hit.get("metadata") or {}
             name = meta.get("project_name") or "未知项目"
             engagement_id = meta.get("engagement_id")
+            dedupe_key = _engagement_group_key(hit)
+            if dedupe_key in seen_keys:
+                continue
+            seen_keys.add(dedupe_key)
 
             if self.settings.mock_rag:
                 # In mock mode use the pre-built mock project data if name matches.

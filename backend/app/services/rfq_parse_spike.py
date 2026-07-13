@@ -192,7 +192,10 @@ def merge_rfq_parse_parts(parts: list[dict[str, Any]]) -> dict[str, Any]:
         "functions_in_scope": [],
         "development_scope": [],
         "modules": [],
+        "work_sections": [],
+        "deliverable_groups": [],
         "milestones": {},
+        "milestone_groups": {"acceptance": {}, "data": {}, "other": {}},
         "special_requirements": [],
         "timeline_months": None,
     }
@@ -210,18 +213,47 @@ def merge_rfq_parse_parts(parts: list[dict[str, Any]]) -> dict[str, Any]:
         merged["development_scope"].extend(part.get("development_scope") or [])
         merged["modules"].extend(part.get("modules") or [])
         merged["special_requirements"].extend(part.get("special_requirements") or [])
+        # Prefer first non-empty rules payload; later LLM passes usually omit these.
+        if part.get("work_sections") and not merged["work_sections"]:
+            merged["work_sections"] = list(part.get("work_sections") or [])
+        if part.get("deliverable_groups") and not merged["deliverable_groups"]:
+            merged["deliverable_groups"] = list(part.get("deliverable_groups") or [])
         ms = part.get("milestones")
         if isinstance(ms, dict):
             for k, v in ms.items():
                 if v and k not in merged["milestones"]:
                     merged["milestones"][k] = v
+        groups = part.get("milestone_groups")
+        if isinstance(groups, dict):
+            merged.setdefault("milestone_groups", {"acceptance": {}, "data": {}, "other": {}})
+            for kind in ("acceptance", "data", "other"):
+                bucket = groups.get(kind) or {}
+                if isinstance(bucket, dict):
+                    for k, v in bucket.items():
+                        if v and k not in merged["milestone_groups"][kind]:
+                            merged["milestone_groups"][kind][k] = v
     merged["functions_in_scope"] = _dedupe_strings(merged["functions_in_scope"])
     merged["special_requirements"] = _dedupe_strings(merged["special_requirements"])
     merged["development_scope"] = _dedupe_dicts(merged["development_scope"], ("id", "title"))
     merged["modules"] = _dedupe_dicts(merged["modules"], ("function", "module_name"))
-    from app.services.rfq_rules_extractor import enrich_unknown_module_functions
+    from app.services.rfq_rules_extractor import (
+        build_display_work_sections,
+        build_milestone_groups,
+        enrich_unknown_module_functions,
+    )
 
     enrich_unknown_module_functions(merged["modules"])
+    # Keep canonical modules; rebuild folded work_sections for UI only.
+    prior_sections = list(merged.get("work_sections") or [])
+    clause_rows: list[dict[str, Any]] = []
+    for section in prior_sections:
+        kind = str(section.get("kind") or "")
+        if kind in {"tech_requirements", "quality", "other"}:
+            for cat in section.get("categories") or []:
+                clause_rows.extend(list(cat.get("rows") or []))
+    merged["work_sections"] = build_display_work_sections(merged["modules"], clause_rows)
+    if not merged.get("milestone_groups"):
+        merged["milestone_groups"] = build_milestone_groups(merged["milestones"])
     return merged
 
 

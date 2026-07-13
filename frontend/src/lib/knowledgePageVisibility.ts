@@ -60,7 +60,7 @@ export function knowledgeCoverageHint(canWriteKb: boolean): string {
 
 export function knowledgeSearchHint(canWriteKb: boolean): string {
   if (canWriteKb) {
-    return "RFQ 分析页中的「相似历史项目」由相同检索逻辑产生，可在此验证关键词能否命中预期资料。";
+    return "RFQ 分析页中的「相似历史项目」由相同检索逻辑产生；结果按历史项目聚合，展开可查看章节路径与内容片段。";
   }
-  return "与「RFQ 分析」相似项目使用同一检索逻辑。可在此试检索，确认关键词能否命中历史资料。";
+  return "与「RFQ 分析」相似项目使用同一检索逻辑；列表按历史项目聚合，可展开查看出处。";
 }

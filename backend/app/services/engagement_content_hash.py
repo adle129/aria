@@ -8,7 +8,7 @@ from pathlib import Path
 from app.config import get_settings
 
 _PARSER_VERSION = "engagement_preview_v1"
-_CHUNK_SCHEMA_VERSION = "rfqa_v1"
+_CHUNK_SCHEMA_VERSION = "rfqa_v4"
 
 
 def compute_engagement_content_hash(folder: Path) -> str:

@@ -37,7 +37,14 @@
     "P2": "YYYY-MM-DD",
     "P3": "YYYY-MM-DD",
     "P4": "YYYY-MM-DD",
-    "P5": "YYYY-MM-DD"
+    "P5": "YYYY-MM-DD",
+    "M0": "YYYY-MM-DD",
+    "EM1": "YYYY-MM-DD"
+  },
+  "milestone_groups": {
+    "acceptance": { "P2": "YYYY-MM-DD", "P3": "YYYY-MM-DD", "P5": "YYYY-MM-DD" },
+    "data": { "M0": "YYYY-MM-DD", "EM1": "YYYY-MM-DD" },
+    "other": { "P1": "YYYY-MM-DD", "SOP": "YYYY-MM-DD" }
   },
   "modules": [
     {
@@ -57,6 +64,8 @@
 
 - 角色定义 + JSON Schema 内嵌 + **1 组 Few-shot 示例**（Mock Chassis RFQ）
 - 兜底：不确定填「未知」，禁止编造
+- **里程碑归类（规则主路径）：** `milestone_groups.acceptance` = 验收阶段表（如 P2/P3/P5）；`data` = 数据主要节点表（如 M0/EM/M1…）；`other` = 启动/SOP 等。扁平 `milestones` 仍保留供 Excel/M3 remap
+- **§四 modules（解析草稿）：** 来自章节标题；`function` 可经关键词或**上级章节继承**（`function_source`）；`estimated_complexity` 默认 `未评估`；交付物来自 §4.2 表对齐。正式范围以 F1.10 维度复核为准
 - 变更 Prompt 须跑回归测试集（`samples/rfq/`）
 
 ```

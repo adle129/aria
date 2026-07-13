@@ -116,8 +116,16 @@
 | R1-K08c | P0-3 | **RFQ Top-3 ↔ baselines 联动** | F1.4 | 矩阵/对标页「查看该项目 baselines」 | R1-K05, R1-F09 | | **已完成** |
 | R1-K09 | P0-2 | 检索评测支撑 | §10.2 | ≥15 query + Pass 记录表；**spike 内部 12/15 PASS**（见 SPK-K04） | R1-K03 | | **进行中** |
 | R1-K10 | P0-2 | **知识库 Debug UI（DEV 专用）** | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | API+UI+Ollama index；`run_kb_debug_validation.py` | R1-E03, ingest spike | | **已实现** |
+| R1-K11a | P1 | RFQ chunker 层级 `section_path` | F5.1 / rag-design | 编号栈；path 如 `四、… > 4.1… > 4.1.1…`；unit test | R1-K02 | | **已完成** |
+| R1-K11b | P1 | 索引 embed = path+正文；`rfqa_v4` | F5.1 | hash/schema bump；全量 reindex 后生效 | R1-K11a | | **已完成** |
+| R1-K11c | P1 | 检索按 Engagement 聚合 | F5.4 | `groups[]` + flat `results`；`top_k`=项目数 | R1-K11b | | **已完成** |
+| R1-K11d | P1 | `/knowledge` 分组 UI | F5.4 | 项目行+展开出处；条数=历史项目数 | R1-K11c | | **已完成** |
+| R1-K11e | P1 | RFQ Top-3 engagement 去重 | F1.4 | 矩阵最多 3 个不同 engagement | R1-K11c | | **已完成** |
+| R1-K11f | P1 | 评测与回归 | §10.2 | run_tests；工作内容类 query spot check | R1-K11d, R1-K11e | | **已完成** |
 
 > **R1-K10 非客户交付物**；验收见 kb-debug-ui-spec §6，不写入 acceptance-checklist。
+>
+> **R1-K11：** RFQ 章节路径进 embedding + 检索按 Engagement 聚合（消歧同文档多 chunk 刷屏）。改 chunk schema（`rfqa_v4`）后须在环境执行 **全量 reindex**（增量 hash 会因 schema bump 自动判定项目变更；也可管理员手动触发全量）。
 
 ---
 
@@ -359,7 +367,7 @@
 | SPK-F03 | P0-1 | 解析迁入 worker + dimension_review 状态机 | R1-I03, R1-F06 | 待开始 |
 | SPK-F04 | P0-3 | 统一 Word 读入 + `rfq_chunker` | R1-F04 | 待开始 |
 | SPK-F05 | P1 | 里程碑规则补全 P1/P4/SOP | R1-F04 | 待开始 |
-| SPK-F06 | P1 | §4.2 交付物表规则解析（7 表） | R1-F04 | 待开始 |
+| SPK-F06 | P1 | §4.2 交付物表规则解析（7 表） | R1-F04 | **已完成**（序号窗/CAE 表/节点标签；见 rfq-parse-spike-closure） |
 | SPK-F07 | P0-3 | rules_first unit/API 测试 | R1-F10 | 待开始 |
 | SPK-F08 | P0-3 | 维度匹配 module batch LLM | R1-F05 | 待开始 |
 

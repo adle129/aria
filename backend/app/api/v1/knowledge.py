@@ -26,6 +26,7 @@ from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.task_job_service import TaskJobService
 from app.services.upload_stream_service import UploadStreamService
+from app.utils.datetime_utils import to_api_utc_iso
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -60,12 +61,15 @@ def knowledge_baselines(
 @router.post("/search")
 def knowledge_search(body: KnowledgeSearchRequest, rag: RAGService = Depends(get_rag_service)):
     try:
-        results = rag.search_similar_projects(
+        from app.services.rag_service import flatten_group_hits
+
+        groups = rag.search_grouped(
             body.query,
             top_k=body.top_k,
             function_filter=body.function_filter,
             doc_type_filter=body.doc_type_filter,
         )
+        results = flatten_group_hits(groups)
     except OllamaLeaseTimeout:
         return JSONResponse(
             status_code=503,
@@ -77,6 +81,7 @@ def knowledge_search(body: KnowledgeSearchRequest, rag: RAGService = Depends(get
     return {
         "code": 200,
         "data": {
+            "groups": groups,
             "results": results,
             "insufficient_evidence": rag.is_insufficient_evidence(results),
         },
@@ -367,9 +372,9 @@ def knowledge_engagements(
                 "tier": row.tier,
                 "index_status": row.index_status,
                 "content_hash": row.content_hash,
-                "uploaded_at": row.uploaded_at,
+                "uploaded_at": to_api_utc_iso(row.uploaded_at),
                 "uploaded_by": row.uploaded_by,
-                "last_indexed_at": row.last_indexed_at,
+                "last_indexed_at": to_api_utc_iso(row.last_indexed_at),
                 "last_error": row.last_error,
                 "folder_path": row.folder_path,
             }

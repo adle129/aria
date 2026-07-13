@@ -21,6 +21,7 @@ from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.rfq_document_guard import RfqDocumentRejectedError
 from app.services.rfq_parse_service import RFQParseService
+from app.services.rfq_similarity_query import build_rfq_similarity_query
 from app.services.rfq_upload import validate_rfq_upload_filename
 from app.services.task_job_service import TaskJobService
 from app.utils.datetime_utils import to_api_utc_iso
@@ -396,11 +397,15 @@ class RFQAnalysisService:
         task.error_msg = None
         repo.update(task)
 
-        query = task.rfq_modules.get("project_name") or str(task.file_name)
+        query = build_rfq_similarity_query(
+            task.rfq_modules,
+            draft=draft,
+            file_name=str(task.file_name) if task.file_name else None,
+        )
         logger.info(
             "rfq_confirm_start task_id=%s query=%r phase=retrieving",
             task.id,
-            query,
+            query[:200],
         )
         started = time.monotonic()
         phase2_cancel = self._make_task_cancel_check(db, task.id)
@@ -408,8 +413,11 @@ class RFQAnalysisService:
             similar_docs = self.rag.search_similar_projects(
                 query,
                 top_k=3,
+                doc_type_filter=["rfq"],
                 request_type="rfq",
                 cancel_check=phase2_cancel,
+                rfq_modules=task.rfq_modules,
+                draft=draft,
             )
             db.refresh(task)
             if task.processing_status == "cancelling":

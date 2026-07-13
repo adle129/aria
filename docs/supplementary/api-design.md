@@ -269,7 +269,7 @@ Content-Type: multipart/form-data
     "file_id": "uuid",
     "task_id": "uuid",
     "status": "draft",
-    "rfq_modules": { /* RFQ JSON Schema */ },
+    "rfq_modules": { /* RFQ JSON Schema；含 modules（canonical）、work_sections（展示）、deliverable_groups（按表 caption；项名可带（P2）/（P3）节点标签） */ },
     "similar_projects": [ /* comparison table projects */ ],
     "overall_confidence": "中"
   }
@@ -631,32 +631,42 @@ POST /api/v1/knowledge/search
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | query | string | 是 | 2–500 字符 |
-| top_k | int | 否 | 默认 5，最大 20 |
+| top_k | int | 否 | 默认 5，最大 20；**R1-K11 起 = 返回历史项目（engagement）数**，非 chunk 数 |
 | function_filter | string[] | 否 | P1；按 `metadata.functions` / Q_A **Area** 过滤 |
 | doc_type_filter | string[] | 否 | `rfq` / `qa`；**检索实验室应先选类型再输入 query**；报价 Excel 不进向量 |
 
-**响应（RAGHit 契约 — RFQ 内部分析共用）：**
+**响应（RAGHit 契约 — RFQ 内部分析共用；K11 增加 `groups`）：**
 
 ```json
 {
   "code": 200,
   "data": {
-    "results": [
+    "groups": [
       {
-        "content": "底盘集成验证内容...",
-        "metadata": {
-          "project_name": "2023_chassis",
-          "source_doc": "knowledge_base/2023_chassis/rfq.docx",
-          "doc_type": "rfq",
-          "functions": ["Chassis"],
-          "year": 2023,
-          "customer": "OEM-A",
-          "engagement_id": null,
-          "chunk_chapter": "3.2 Scope"
-        },
-        "similarity_score": 0.85
+        "engagement_id": "2023_chassis",
+        "project_name": "2023_chassis",
+        "similarity_score": 0.85,
+        "hits": [
+          {
+            "content": "四、工作内容及要求 > 4.1 …\n底盘集成验证内容...",
+            "metadata": {
+              "project_name": "2023_chassis",
+              "source_doc": "knowledge_base/2023_chassis/rfq.docx",
+              "doc_type": "rfq",
+              "functions": ["Chassis"],
+              "year": 2023,
+              "customer": "OEM-A",
+              "engagement_id": "2023_chassis",
+              "chunk_chapter": "4.1.1 整车总布置",
+              "section_path": "四、工作内容及要求 > 4.1 工作内容 > 4.1.1 整车总布置"
+            },
+            "similarity_score": 0.85
+          }
+        ]
       }
-    ]
+    ],
+    "results": [],
+    "insufficient_evidence": false
   }
 }
 ```
@@ -664,7 +674,8 @@ POST /api/v1/knowledge/search
 **契约规则：**
 
 - 字段名统一 `similarity_score`（禁止 `similarity`）
-- `MOCK_RAG=true` 与 pgvector 真实检索返回**同一 schema**；Real 允许空 `results`；空或低置信度时 `insufficient_evidence: true`（见 [rag-design.md §3.1](rag-design.md)）
+- `groups[]`：按 engagement 聚合；每组最多 3 条 citation；`results` 为各组 hits 展平（兼容旧客户端）
+- `MOCK_RAG=true` 与 pgvector 真实检索返回**同一 schema**；Real 允许空 `results`/`groups`；空或低置信度时 `insufficient_evidence: true`（见 [rag-design.md §3.1](rag-design.md)）
 - 展示用人天等字段来自 `comparison_table.projects`，不在 hit 顶层 duplicate
 - 实现：`RAGService.search_similar_projects()` — RFQ 与 knowledge 共用
 - Ollama 全局租约等待超过 query timeout 时返回 `503 {"code":503,"msg":"本地模型资源繁忙，请稍后重试"}`；不得暴露 holder、SQL 或内部路径。

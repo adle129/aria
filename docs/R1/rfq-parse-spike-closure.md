@@ -60,10 +60,11 @@ Word/COM 读入 → chunker（136 pieces）
 |------|----------|------|
 | project_name, customer, platform | §3.1 / 前言正则 | `extract_overview_rules()` |
 | functions_in_scope | §3.1.1「包含…设计开发工作」 | 关键词 → Function 映射 |
-| milestones | §3.2.3 开发进度表（`\x07` 单元格） | `extract_milestones_rules()` |
-| development_scope | §4.1.x 三级章节标题 | `extract_scope_rules()` |
-| modules | §4.1.x / §4.1.x.y 章节标题 | 同上 + 去重 |
-| deliverables（部分） | §4.2.x 表「工作内容」列 | `extract_deliverables_rules()` |
+| milestones | §3.2.3 开发进度 / 数据主要节点 + §验收阶段表 | `extract_milestones_bundle()` → 扁平 `milestones` + `milestone_groups`（acceptance/data/other） |
+| development_scope | 「工作内容及要求」下 L2 路径标题 | `extract_scope_rules()` |
+| modules | 大纲标题一行一条（canonical，供 F1.10 / align） | 同上；**不**做叶子折叠 |
+| work_sections | 展示用折叠视图（深叶子并入父级） | `build_display_work_sections()` |
+| deliverables / deliverable_groups | 交付物表（表一～表七，含 CAE「编号+工作内容」） | `extract_deliverables_rules()` → 按表 caption 分组；名称附节点 `（P2）`/`（P3）`，同名同节点再附 `序号` |
 
 ### 3.3 LLM 触发条件（生产 Service 须保留）
 
@@ -80,7 +81,7 @@ Word/COM 读入 → chunker（136 pieces）
 | 缺口 | 对策 |
 |------|------|
 | milestones 缺 P1/P4/SOP | 扩展表行正则；或 1 次 milestones LLM fallback |
-| deliverable_tables=1（§4.2 多表未全解析） | 加强 Word 表行解析；M3 前非阻塞 |
+| deliverable_tables=1（§4.2 多表未全解析） | **已缓解**：序号窗 + 格式锚定 + CAE 编号表；客户 A 模板 7 表全量（含阶段标签） |
 | `.doc` 依赖 Word COM / LibreOffice | R1 上传 **须支持 `.doc`**（prod §3.1.1a）；生产 Docker 用 LibreOffice；见 **R1-F04-07** |
 | customer 为占位「XX…有限公司」 | 正式 RFQ 有真实客户名；规则仍提取 |
 

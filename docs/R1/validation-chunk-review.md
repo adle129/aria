@@ -76,6 +76,7 @@
 #### Chunk #1 · `chapter` · 3.2
 
 - **字符数：** 687 · **表格标记：** 0
+- **section_path（R1-K11）：** `三、项目要求 > 3.2 供应商项目管理要求`（示意；以 chunker 实际输出为准）
 
 ```text
 3.2 供应商项目管理要求
@@ -359,8 +360,10 @@ Customer会提供法规清单和文档吗？…
 ## 6. Review 检查清单（请你勾选）
 
 - [ ] RFQ 章节边界合理（`chunk_chapter` 与目录/编号一致）
+- [ ] RFQ 叶块含 `section_path` 面包屑（K11；embedding 为 path+正文）
 - [ ] 含表格的 chunk 保留了表格结构（`| ` 分隔或单元格内容可读）
 - [ ] 无「整篇 RFQ 只有 1 个 chunk」的退化
+- [ ] 检索按 engagement 聚合，同文档多出处不刷屏（K11）
 - [ ] Q_A 行数与 Excel 有效 Question 行一致
 - [ ] Q_A 8 列 metadata 字段齐全（No/Area/Question/…）
 - [ ] 报价各 Function Sheet 岗位行可被抽取（PM/Chassis/…）

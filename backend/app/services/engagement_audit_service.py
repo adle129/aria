@@ -36,6 +36,7 @@ class EngagementAuditService:
         completeness = classify_engagement(missing or [])
         rel = str(folder.relative_to(self.kb_root)).replace("\\", "/")
         now = datetime.now(UTC)
+        existing = self.repo.get_by_id(manifest.engagement_id)
         return self.repo.upsert(
             Engagement(
                 id=manifest.engagement_id,
@@ -50,6 +51,9 @@ class EngagementAuditService:
                 content_hash=compute_engagement_content_hash(folder),
                 uploaded_at=now,
                 uploaded_by=uploaded_by,
+                # Keep prior index time until the next successful kb_index completes.
+                last_indexed_at=existing.last_indexed_at if existing else None,
+                last_error=existing.last_error if existing else None,
             )
         )
 

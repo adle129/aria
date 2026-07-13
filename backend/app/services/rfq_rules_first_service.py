@@ -113,7 +113,7 @@ def run_parse_report(
 
     if needs_scope_llm(rules_result):
         table_42 = [c for c in chunks if is_deliverable_table_chunk(c)]
-        selected = table_42[:4] if table_42 else []
+        selected = table_42[:4] if table_42 else select_chunks_for_pass(chunks, "scope")[:6]
         if selected:
             llm_plan.append(("scope", selected, "rules missing modules/deliverables enrichment"))
         else:
