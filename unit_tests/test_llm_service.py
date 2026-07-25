@@ -9,7 +9,7 @@ def test_ollama_call_uses_rfq_priority_lease(monkeypatch):
 
     class FakeGate:
         @contextmanager
-        def acquire(self, *, request_type):
+        def acquire(self, *, request_type, cancel_check=None):
             acquired.append(request_type)
             yield
 

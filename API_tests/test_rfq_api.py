@@ -26,8 +26,19 @@ def _confirm_dimensions(client, task_id: str) -> None:
             "custom_items": draft.get("custom_items") or [],
         },
     )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["code"] == 200
+    assert resp.status_code in {200, 202}, resp.text
+    body = resp.json()
+    assert body["code"] in {200, 202}
+    assert body["data"]["task_id"] == task_id
+    assert body["data"]["job_id"]
+    assert "reused" in body["data"]
+    assert body["data"]["processing_status"] in {
+        "queued",
+        "retrieving",
+        "generating",
+        "completed",
+        "dimension_review",
+    }
 
 
 def _wait_task_completed(client, task_id: str) -> None:
@@ -323,3 +334,147 @@ def test_demo_multifunction_rfq_uncovered_functions(client, demo_multifunction_r
     assert "EE" in task["rfq_modules"]["functions_in_scope"]
     assert "BIW" in coverage["uncovered"]
     assert "EE" in coverage["uncovered"]
+
+
+def test_confirm_dimensions_not_found(client):
+    resp = client.post(
+        "/api/v1/rfq/tasks/does-not-exist/confirm-dimensions",
+        json={"items": [{"dimension_id": "d1", "in_scope": True}]},
+    )
+    assert resp.status_code == 404
+    body = resp.json()
+    assert body["code"] == 404
+    assert body["msg"] == "任务 ID 不存在"
+
+
+def test_confirm_dimensions_async_enqueue_and_reuse(client, sample_rfq_bytes, monkeypatch):
+    import app.api.v1.rfq as rfq_module
+
+    upload = client.post(
+        "/api/v1/rfq/upload",
+        files={
+            "file": (
+                "mock_chassis_rfq.docx",
+                sample_rfq_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+    task_id = upload.json()["data"]["task_id"]
+    _wait_dimension_review(client, task_id)
+
+    monkeypatch.setattr(
+        rfq_module.analysis_service.job_service,
+        "uses_inline_worker",
+        lambda: False,
+    )
+
+    task = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
+    draft = task["dimension_draft"]
+    items = draft["items"]
+    if not any(i.get("in_scope") for i in items):
+        items = [{**items[0], "in_scope": True}]
+
+    first = client.post(
+        f"/api/v1/rfq/tasks/{task_id}/confirm-dimensions",
+        json={
+            "baseline_version": draft.get("baseline_version"),
+            "items": items,
+            "custom_items": draft.get("custom_items") or [],
+        },
+    )
+    assert first.status_code == 202, first.text
+    first_body = first.json()
+    assert first_body["code"] == 202
+    assert first_body["data"]["reused"] is False
+    assert first_body["data"]["job_id"]
+    assert first_body["data"]["processing_status"] == "queued"
+    assert first_body["data"]["comparison_table"] is None
+    assert first_body["data"]["task"]["processing_status"] == "queued"
+    assert first_body["data"]["task"]["status_message"] == "对比表任务排队中"
+
+    second = client.post(
+        f"/api/v1/rfq/tasks/{task_id}/confirm-dimensions",
+        json={
+            "baseline_version": draft.get("baseline_version"),
+            "items": items,
+            "custom_items": draft.get("custom_items") or [],
+        },
+    )
+    assert second.status_code == 202, second.text
+    second_body = second.json()
+    assert second_body["code"] == 202
+    assert second_body["data"]["reused"] is True
+    assert second_body["data"]["job_id"] == first_body["data"]["job_id"]
+
+
+def test_confirm_dimensions_queue_full_429(client, sample_rfq_bytes, monkeypatch):
+    import app.api.v1.rfq as rfq_module
+
+    upload = client.post(
+        "/api/v1/rfq/upload",
+        files={
+            "file": (
+                "mock_chassis_rfq.docx",
+                sample_rfq_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+    task_id = upload.json()["data"]["task_id"]
+    _wait_dimension_review(client, task_id)
+
+    monkeypatch.setattr(rfq_module.analysis_service.settings, "task_max_queue_size", 0)
+
+    task = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
+    draft = task["dimension_draft"]
+    items = draft["items"]
+    if not any(i.get("in_scope") for i in items):
+        items = [{**items[0], "in_scope": True}]
+
+    resp = client.post(
+        f"/api/v1/rfq/tasks/{task_id}/confirm-dimensions",
+        json={"items": items, "custom_items": []},
+    )
+    assert resp.status_code == 429, resp.text
+    body = resp.json()
+    assert body["code"] == 429
+    assert "队列已满" in body["msg"]
+    assert "queue_depth" in body
+
+
+def test_confirm_dimensions_conflict_when_retrieving(client, sample_rfq_bytes):
+    from app.database import SessionLocal
+    from app.repositories.rfq_task_repository import RFQTaskRepository
+
+    upload = client.post(
+        "/api/v1/rfq/upload",
+        files={
+            "file": (
+                "mock_chassis_rfq.docx",
+                sample_rfq_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+    task_id = upload.json()["data"]["task_id"]
+    _wait_dimension_review(client, task_id)
+
+    db = SessionLocal()
+    try:
+        task = RFQTaskRepository(db).get_by_id(task_id)
+        assert task is not None
+        task.processing_status = "retrieving"
+        task.status_message = "正在检索相似历史项目..."
+        RFQTaskRepository(db).update(task)
+    finally:
+        db.close()
+
+    resp = client.post(
+        f"/api/v1/rfq/tasks/{task_id}/confirm-dimensions",
+        json={"items": [{"dimension_id": "x", "in_scope": True}]},
+    )
+    assert resp.status_code == 409, resp.text
+    body = resp.json()
+    assert body["code"] == 409
+    assert "正在生成" in body["msg"]

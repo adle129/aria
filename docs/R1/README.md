@@ -1,8 +1,8 @@
 # R1 第一期 — 任务索引
 
 **里程碑：** R1（第 1–8 周 · ¥76,300）  
-**版本：** v1.6 · 2026-07-10
-**状态：** **RFQ + RAG spike 已结案** · R1-KH 生产稳定性任务已详细拆分 · Debug UI 已实现
+**版本：** v1.8 · 2026-07-25  
+**状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · 7C/7D（PERF08–11）待做
 **基线：** [prod.md](../../prod.md) v1.9 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.5
 
 ---
@@ -28,6 +28,10 @@
 | [feat-r1-aliyun-staging-summary.md](feat-r1-aliyun-staging-summary.md) | **阿里云 staging / 离线包 / RFQ 时长可观测** 分支变更摘要 |
 | [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) | **R1「签完即用」** 内部共识（金标准 ≥5 + bulk 档位） |
 | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) | **客户历史项目库 bulk 导入** 工作量 · 试点 · 验收档位 A/B/C |
+| [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md) | **多人 RFQ 排队体验**：架构（不引入 Redis/Celery）· UI 文案 · **R1-PERF** 任务 |
+| [change-map-vision-spike-plan.md](change-map-vision-spike-plan.md) | **红旅图/色标变更图** PPT·PDF 识别 Spike（**待排期 · R1 外变更候选**） |
+| [pdf-ppt-de-rfq-vision-eval.md](pdf-ppt-de-rfq-vision-eval.md) | **PDF/PPT + 德语 RFQ + 跨语种对标**：云 API vs 本地双路线与硬件评估 |
+| [customer-pm-de-rfq-vision-brief.md](customer-pm-de-rfq-vision-brief.md) | **给客户 PM**：红旅图/德语需求非技术说明 + 本地硬件分档与价格参考 |
 | [r1-customer-one-pager.md](r1-customer-one-pager.md) | **客户一页纸**「R1 您将得到什么」 |
 | [r1-rehearsal-script.md](r1-rehearsal-script.md) | **内部彩排脚本**（含 §7 本地 UI / 登录 / 镜像故障） |
 | [../supplementary/manpower-baselines-spec.md](../supplementary/manpower-baselines-spec.md) | **人力报价 baselines · 三层交付 · 不向量化主路径** |

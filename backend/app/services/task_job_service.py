@@ -13,6 +13,7 @@ from app.utils.datetime_utils import to_api_utc_iso
 
 class TaskJobService:
     JOB_RFQ_ANALYSIS = "rfq_analysis"
+    JOB_RFQ_CONFIRM = "rfq_confirm"
     JOB_KB_INDEX = "kb_index"
 
     def __init__(self, settings: Settings | None = None):

@@ -1,16 +1,21 @@
 import logging
+import hashlib
+import json
 import time
 import uuid
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.models.rfq_task import RFQTask
+from app.models.task_job import TaskJob
 from app.repositories.rfq_task_repository import RFQTaskRepository
 from app.repositories.task_job_repository import TaskJobRepository
 from app.services.artifact_service import compute_artifacts_status
@@ -31,17 +36,33 @@ logger = logging.getLogger(__name__)
 
 from app.services.cooperative_cancel import CooperativeCancelled
 
-# confirm-dimensions runs in the HTTP request (not a TaskJob); restart leaves these orphaned.
-ORPHAN_CONFIRM_STATUSES = frozenset({"retrieving", "generating", "cancelling"})
+# Phase2 stuck without an active rfq_confirm job (legacy HTTP or lost job after restart).
+ORPHAN_CONFIRM_STATUSES = frozenset({"queued", "retrieving", "generating", "cancelling"})
 
 RFQ_JOB_PRIORITY = 300
 
 CANCELLABLE_PHASE1_STATUSES = frozenset({"queued", "pending", "parsing"})
 CANCELLABLE_PHASE2_STATUSES = frozenset({"retrieving", "generating"})
+PHASE2_IN_FLIGHT_STATUSES = frozenset({"retrieving", "generating", "cancelling"})
 
 
 class RFQAnalysisCancelled(CooperativeCancelled):
     """Cooperative cancel at a safe processing boundary."""
+
+
+class RfqQueueFullError(Exception):
+    """Task job queue depth reached task_max_queue_size."""
+
+    def __init__(self, queue_depth: int):
+        self.queue_depth = queue_depth
+        super().__init__(f"当前处理队列已满（{queue_depth} 个任务排队中），请稍后再试")
+
+
+@dataclass(frozen=True)
+class ConfirmEnqueueResult:
+    task: RFQTask
+    job: TaskJob
+    reused: bool
 
 
 class RFQAnalysisService:
@@ -101,7 +122,7 @@ class RFQAnalysisService:
         if self.job_service.uses_inline_worker():
             from app.services.worker_service import run_inline_job
 
-            run_inline_job(db, job, self.settings)
+            run_inline_job(db, job, self.settings, analysis_service=self)
             db.refresh(task)
 
     def retry_task(self, db: Session, task: RFQTask) -> RFQTask:
@@ -172,8 +193,14 @@ class RFQAnalysisService:
             if now - last_check < interval:
                 return
             last_check = now
+            # Worker holds one Session for the whole job; without expire/refresh,
+            # identity-map still shows cancel_requested_at=None after API cancel.
             job = TaskJobRepository(db).get_by_id(job_id)
-            if job and job.cancel_requested_at is not None:
+            if job is None:
+                return
+            db.expire(job)
+            db.refresh(job)
+            if job.cancel_requested_at is not None:
                 raise RFQAnalysisCancelled("RFQ 分析已取消")
 
         return cancel_check
@@ -189,7 +216,11 @@ class RFQAnalysisService:
                 return
             last_check = now
             task = RFQTaskRepository(db).get_by_id(task_id)
-            if task and task.processing_status == "cancelling":
+            if task is None:
+                return
+            db.expire(task)
+            db.refresh(task)
+            if task.processing_status == "cancelling":
                 raise RFQAnalysisCancelled("矩阵生成已取消")
 
         return cancel_check
@@ -200,14 +231,27 @@ class RFQAnalysisService:
             return task
 
         job_repo = TaskJobRepository(db)
-        job = job_repo.get_active_by_ref(TaskJobService.JOB_RFQ_ANALYSIS, task.id)
+        job = job_repo.get_active_by_ref(
+            TaskJobService.JOB_RFQ_ANALYSIS,
+            task.id,
+        ) or job_repo.get_active_by_ref(
+            TaskJobService.JOB_RFQ_CONFIRM,
+            task.id,
+        )
         if job is not None:
             job = self.job_service.request_cancel(db, job)
             if job.status == "cancelled":
                 logger.info("rfq_cancel_immediate task_id=%s job_id=%s", task.id, job.id)
+                if job.job_type == TaskJobService.JOB_RFQ_CONFIRM and task.rfq_modules:
+                    return self._rollback_confirm_to_review(repo, task)
                 return self.apply_task_cancelled(db, task)
             if job.cancel_requested_at is not None:
-                task.status_message = "正在取消分析，当前模型调用结束后停止"
+                task.processing_status = "cancelling"
+                task.status_message = (
+                    "正在取消矩阵生成，当前模型调用结束后停止"
+                    if job.job_type == TaskJobService.JOB_RFQ_CONFIRM
+                    else "正在取消分析，当前模型调用结束后停止"
+                )
                 repo.update(task)
                 logger.info("rfq_cancel_requested task_id=%s job_id=%s", task.id, job.id)
             db.refresh(task)
@@ -224,6 +268,257 @@ class RFQAnalysisService:
             return task
 
         return task
+
+    @staticmethod
+    def confirm_single_flight_key(task_id: str) -> str:
+        return f"rfq_confirm:{task_id}"
+
+    @staticmethod
+    def draft_fingerprint(draft: dict[str, Any]) -> str:
+        canonical = json.dumps(draft, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]
+
+    def _active_confirm_job(self, db: Session, task_id: str) -> TaskJob | None:
+        return TaskJobRepository(db).get_active_by_ref(
+            TaskJobService.JOB_RFQ_CONFIRM,
+            task_id,
+        )
+
+    def confirm_dimensions(
+        self,
+        db: Session,
+        task: RFQTask,
+        body: dict[str, Any],
+    ) -> ConfirmEnqueueResult:
+        """Validate draft, enqueue rfq_confirm job (single-flight), optionally run inline."""
+        job_repo = TaskJobRepository(db)
+        repo = RFQTaskRepository(db)
+
+        if task.processing_status in PHASE2_IN_FLIGHT_STATUSES:
+            raise ValueError("对比表正在生成中，请稍候或取消后重试")
+        if not task.rfq_modules:
+            raise ValueError("RFQ 解析结果为空，无法确认维度")
+
+        draft = self._merge_confirm_body(task.dimension_draft, body)
+        if not self._in_scope_items(draft):
+            raise ValueError("至少选择一项 in_scope 维度")
+        fingerprint = self.draft_fingerprint(draft)
+
+        existing = self._active_confirm_job(db, task.id)
+        if existing is not None:
+            existing_fp = (existing.payload or {}).get("draft_fingerprint")
+            if existing_fp and existing_fp != fingerprint:
+                raise ValueError("对比表正在生成中，请稍候或取消后重试")
+            logger.info(
+                "rfq_confirm_deduped task_id=%s job_id=%s",
+                task.id,
+                existing.id,
+            )
+            return ConfirmEnqueueResult(task=task, job=existing, reused=True)
+
+        if task.processing_status != "dimension_review":
+            raise ValueError("当前状态不可确认维度，请等待解析完成")
+
+        queue_depth = job_repo.count_queued()
+        if queue_depth >= self.settings.task_max_queue_size:
+            raise RfqQueueFullError(queue_depth)
+
+        now = datetime.now(timezone.utc)
+        task.dimension_draft = draft
+        task.processing_status = "queued"
+        task.progress = "45"
+        task.status_message = "对比表任务排队中"
+        task.error_msg = None
+        task.similar_projects = None
+        task.comparison_table = None
+        task.updated_at = now
+
+        job = TaskJob(
+            job_type=TaskJobService.JOB_RFQ_CONFIRM,
+            ref_id=task.id,
+            status="queued",
+            phase="queued",
+            priority=RFQ_JOB_PRIORITY,
+            single_flight_key=self.confirm_single_flight_key(task.id),
+            payload={
+                "task_id": task.id,
+                "draft_fingerprint": fingerprint,
+                "baseline_version": draft.get("baseline_version"),
+            },
+            queued_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(task)
+        db.add(job)
+        try:
+            db.commit()
+            db.refresh(task)
+            db.refresh(job)
+        except IntegrityError:
+            db.rollback()
+            task = repo.get_by_id(task.id) or task
+            existing = self._active_confirm_job(db, task.id)
+            if existing is None:
+                raise
+            existing_fp = (existing.payload or {}).get("draft_fingerprint")
+            if existing_fp and existing_fp != fingerprint:
+                raise ValueError("对比表正在生成中，请稍候或取消后重试")
+            logger.info(
+                "rfq_confirm_deduped_race task_id=%s job_id=%s",
+                task.id,
+                existing.id,
+            )
+            return ConfirmEnqueueResult(task=task, job=existing, reused=True)
+
+        logger.info(
+            "rfq_confirm_enqueued task_id=%s job_id=%s fingerprint=%s inline=%s",
+            task.id,
+            job.id,
+            fingerprint,
+            self.job_service.uses_inline_worker(),
+        )
+        if self.job_service.uses_inline_worker():
+            from app.services.worker_service import run_inline_job
+
+            run_inline_job(db, job, self.settings, analysis_service=self)
+            db.refresh(task)
+            db.refresh(job)
+
+        return ConfirmEnqueueResult(task=task, job=job, reused=False)
+
+    def execute_confirm_job(self, db: Session, task_id: str, job: TaskJob | None = None) -> None:
+        """Worker entry: RAG retrieve + comparison matrix (former HTTP confirm body)."""
+        repo = RFQTaskRepository(db)
+        task = repo.get_by_id(task_id)
+        if not task:
+            logger.warning("rfq_confirm_missing task_id=%s", task_id)
+            return
+        if not task.rfq_modules or not task.dimension_draft:
+            raise ValueError("RFQ 解析结果或维度草稿为空，无法生成对比表")
+
+        draft = task.dimension_draft
+        task.processing_status = "retrieving"
+        task.progress = "55"
+        task.status_message = "正在检索相似历史项目..."
+        task.error_msg = None
+        repo.update(task)
+
+        if job is not None:
+            self.job_service.update_progress(
+                db, job, phase="retrieving", current=1, total=2
+            )
+
+        query = build_rfq_similarity_query(
+            task.rfq_modules,
+            draft=draft,
+            file_name=str(task.file_name) if task.file_name else None,
+        )
+        logger.info(
+            "rfq_confirm_start task_id=%s query=%r phase=retrieving",
+            task.id,
+            query[:200],
+        )
+        started = time.monotonic()
+        phase2_cancel = self._make_task_cancel_check(db, task.id)
+        job_cancel = self._make_job_cancel_check(db, job.id if job else None)
+
+        def combined_cancel() -> None:
+            if job_cancel is not None:
+                job_cancel()
+            if phase2_cancel is not None:
+                phase2_cancel()
+
+        try:
+            if job_cancel is not None:
+                job_cancel()
+            similar_docs = self.rag.search_similar_projects(
+                query,
+                top_k=3,
+                doc_type_filter=["rfq"],
+                request_type="rfq",
+                cancel_check=combined_cancel,
+                rfq_modules=task.rfq_modules,
+                draft=draft,
+                source_file_path=str(task.file_path) if task.file_path else None,
+            )
+            db.refresh(task)
+            if task.processing_status == "cancelling":
+                self._rollback_confirm_to_review(repo, task)
+                raise RFQAnalysisCancelled("矩阵生成已取消")
+            logger.info(
+                "rfq_confirm_retrieve_ok task_id=%s hits=%s elapsed_ms=%d",
+                task.id,
+                len(similar_docs),
+                int((time.monotonic() - started) * 1000),
+            )
+
+            task.processing_status = "generating"
+            task.progress = "80"
+            task.status_message = "正在生成技术维度对比表..."
+            task.similar_projects = similar_docs
+            repo.update(task)
+            if job is not None:
+                self.job_service.update_progress(
+                    db, job, phase="generating", current=2, total=2
+                )
+
+            db.refresh(task)
+            if task.processing_status == "cancelling":
+                self._rollback_confirm_to_review(repo, task)
+                raise RFQAnalysisCancelled("矩阵生成已取消")
+
+            comparison_table = self.rag.build_comparison_table_from_draft(
+                task.rfq_modules,
+                similar_docs,
+                draft,
+            )
+            task.comparison_table = comparison_table
+            task.processing_status = "completed"
+            task.progress = "100"
+            task.status_message = "分析完成"
+            repo.update(task)
+            logger.info(
+                "rfq_confirm_done task_id=%s elapsed_ms=%d",
+                task.id,
+                int((time.monotonic() - started) * 1000),
+            )
+        except CooperativeCancelled:
+            db.refresh(task)
+            if task.processing_status == "cancelling" or task.rfq_modules:
+                self._rollback_confirm_to_review(repo, task)
+            else:
+                self.apply_task_cancelled(db, task)
+            raise RFQAnalysisCancelled("矩阵生成已取消")
+        except OllamaLeaseTimeout as exc:
+            self._mark_confirm_failed(
+                repo,
+                task,
+                started=started,
+                error=exc,
+                user_message="本地模型资源繁忙，请稍后重试确认维度",
+            )
+            raise OllamaLeaseTimeout(task.status_message) from exc
+        except EmbeddingError as exc:
+            self._mark_confirm_failed(
+                repo,
+                task,
+                started=started,
+                error=exc,
+                user_message="相似项目检索失败：向量模型不可用或超时",
+            )
+            raise EmbeddingError(task.status_message) from exc
+        except RFQAnalysisCancelled:
+            raise
+        except Exception as exc:
+            self._mark_confirm_failed(
+                repo,
+                task,
+                started=started,
+                error=exc,
+                user_message="确认维度后生成对比矩阵失败",
+            )
+            raise
 
     def analyze_task(self, db: Session, task_id: str) -> None:
         repo = RFQTaskRepository(db)
@@ -251,6 +546,10 @@ class RFQAnalysisService:
             task.progress = "20"
             task.status_message = "正在解析 RFQ 文档..."
             repo.update(task)
+            if job is not None:
+                self.job_service.update_progress(
+                    db, job, phase="parsing", current=1, total=2
+                )
 
             rfq_path = resolve_task_file_path(task.file_path, upload_dir=self.settings.upload_path)
             parse_started = time.monotonic()
@@ -268,6 +567,10 @@ class RFQAnalysisService:
             task.progress = "35"
             task.status_message = "正在匹配基准维度库..."
             repo.update(task)
+            if job is not None:
+                self.job_service.update_progress(
+                    db, job, phase="matching", current=1, total=2
+                )
 
             def on_match_progress(done: int, total: int) -> None:
                 if total <= 0:
@@ -275,6 +578,10 @@ class RFQAnalysisService:
                 task.progress = str(35 + int(5 * done / total))
                 task.status_message = f"正在匹配基准维度库（{done}/{total}）..."
                 repo.update(task)
+                if job is not None:
+                    self.job_service.update_progress(
+                        db, job, phase="matching", current=done, total=total
+                    )
 
             match_started = time.monotonic()
             dimension_draft = self.dimension_match.match_rfq_to_baseline(
@@ -289,6 +596,10 @@ class RFQAnalysisService:
             task.progress = "40"
             task.status_message = "等待工程师确认基准维度清单"
             repo.update(task)
+            if job is not None:
+                self.job_service.update_progress(
+                    db, job, phase="dimension_review", current=2, total=2
+                )
             logger.info(
                 "rfq_dimension_match_ok task_id=%s items=%d match_ms=%d total_ms=%d",
                 task.id,
@@ -374,121 +685,6 @@ class RFQAnalysisService:
         custom = list(draft.get("custom_items") or [])
         return [i for i in items + custom if i.get("in_scope") is True]
 
-    def confirm_dimensions(
-        self,
-        db: Session,
-        task: RFQTask,
-        body: dict[str, Any],
-    ) -> RFQTask:
-        if task.processing_status != "dimension_review":
-            raise ValueError("当前状态不可确认维度，请等待解析完成")
-        if not task.rfq_modules:
-            raise ValueError("RFQ 解析结果为空，无法确认维度")
-
-        repo = RFQTaskRepository(db)
-        draft = self._merge_confirm_body(task.dimension_draft, body)
-        if not self._in_scope_items(draft):
-            raise ValueError("至少选择一项 in_scope 维度")
-
-        task.dimension_draft = draft
-        task.processing_status = "retrieving"
-        task.progress = "55"
-        task.status_message = "正在检索相似历史项目..."
-        task.error_msg = None
-        repo.update(task)
-
-        query = build_rfq_similarity_query(
-            task.rfq_modules,
-            draft=draft,
-            file_name=str(task.file_name) if task.file_name else None,
-        )
-        logger.info(
-            "rfq_confirm_start task_id=%s query=%r phase=retrieving",
-            task.id,
-            query[:200],
-        )
-        started = time.monotonic()
-        phase2_cancel = self._make_task_cancel_check(db, task.id)
-        try:
-            similar_docs = self.rag.search_similar_projects(
-                query,
-                top_k=3,
-                doc_type_filter=["rfq"],
-                request_type="rfq",
-                cancel_check=phase2_cancel,
-                rfq_modules=task.rfq_modules,
-                draft=draft,
-                source_file_path=str(task.file_path) if task.file_path else None,
-            )
-            db.refresh(task)
-            if task.processing_status == "cancelling":
-                return self._rollback_confirm_to_review(repo, task)
-            logger.info(
-                "rfq_confirm_retrieve_ok task_id=%s hits=%s elapsed_ms=%d",
-                task.id,
-                len(similar_docs),
-                int((time.monotonic() - started) * 1000),
-            )
-
-            task.processing_status = "generating"
-            task.progress = "80"
-            task.status_message = "正在生成技术维度对比表..."
-            task.similar_projects = similar_docs
-            repo.update(task)
-
-            db.refresh(task)
-            if task.processing_status == "cancelling":
-                return self._rollback_confirm_to_review(repo, task)
-
-            comparison_table = self.rag.build_comparison_table_from_draft(
-                task.rfq_modules,
-                similar_docs,
-                draft,
-            )
-            task.comparison_table = comparison_table
-            task.processing_status = "completed"
-            task.progress = "100"
-            task.status_message = "分析完成"
-            updated = repo.update(task)
-            logger.info(
-                "rfq_confirm_done task_id=%s elapsed_ms=%d",
-                task.id,
-                int((time.monotonic() - started) * 1000),
-            )
-            return updated
-        except CooperativeCancelled:
-            db.refresh(task)
-            if task.processing_status == "cancelling" or task.rfq_modules:
-                return self._rollback_confirm_to_review(repo, task)
-            return self.apply_task_cancelled(db, task)
-        except OllamaLeaseTimeout as exc:
-            self._mark_confirm_failed(
-                repo,
-                task,
-                started=started,
-                error=exc,
-                user_message="本地模型资源繁忙，请稍后重试确认维度",
-            )
-            raise OllamaLeaseTimeout(task.status_message) from exc
-        except EmbeddingError as exc:
-            self._mark_confirm_failed(
-                repo,
-                task,
-                started=started,
-                error=exc,
-                user_message="相似项目检索失败：向量模型不可用或超时",
-            )
-            raise EmbeddingError(task.status_message) from exc
-        except Exception as exc:
-            self._mark_confirm_failed(
-                repo,
-                task,
-                started=started,
-                error=exc,
-                user_message="确认维度后生成对比矩阵失败",
-            )
-            raise
-
     def _mark_confirm_failed(
         self,
         repo: RFQTaskRepository,
@@ -536,12 +732,11 @@ class RFQAnalysisService:
         job = None
         if db is not None:
             repo = TaskJobRepository(db)
-            job = repo.get_active_by_ref(
-                TaskJobService.JOB_RFQ_ANALYSIS,
-                task.id,
-            ) or repo.get_latest_by_ref(
-                TaskJobService.JOB_RFQ_ANALYSIS,
-                task.id,
+            job = (
+                repo.get_active_by_ref(TaskJobService.JOB_RFQ_CONFIRM, task.id)
+                or repo.get_latest_by_ref(TaskJobService.JOB_RFQ_CONFIRM, task.id)
+                or repo.get_active_by_ref(TaskJobService.JOB_RFQ_ANALYSIS, task.id)
+                or repo.get_latest_by_ref(TaskJobService.JOB_RFQ_ANALYSIS, task.id)
             )
         payload.update(TaskJobService.timing_payload(job))
         return payload
@@ -550,6 +745,18 @@ class RFQAnalysisService:
         """If confirm-dimensions or cancel was interrupted mid-flight, roll back safely."""
         if task.processing_status not in ORPHAN_CONFIRM_STATUSES:
             return task
+        # Active rfq_confirm job owns the phase; do not roll back while worker is alive.
+        if self._active_confirm_job(db, task.id) is not None:
+            return task
+        # Phase1 queued (or any queued without confirm draft) is not a confirm orphan.
+        if task.processing_status == "queued":
+            analysis = TaskJobRepository(db).get_active_by_ref(
+                TaskJobService.JOB_RFQ_ANALYSIS,
+                task.id,
+            )
+            if analysis is not None or not (task.rfq_modules and task.dimension_draft):
+                return task
+
         updated = task.updated_at
         if updated is None:
             return task
@@ -561,14 +768,16 @@ class RFQAnalysisService:
 
         repo = RFQTaskRepository(db)
         was_cancelling = task.processing_status == "cancelling"
+        was_queued = task.processing_status == "queued"
         if task.rfq_modules and task.dimension_draft:
             task.processing_status = "dimension_review"
             task.progress = "40"
-            task.status_message = (
-                "取消请求超时，已回到维度复核"
-                if was_cancelling
-                else "检索中断，请重新确认维度后继续"
-            )
+            if was_cancelling:
+                task.status_message = "取消请求超时，已回到维度复核"
+            elif was_queued:
+                task.status_message = "对比表任务中断，请重新确认维度后继续"
+            else:
+                task.status_message = "检索中断，请重新确认维度后继续"
             task.error_msg = "orphaned confirm phase recovered after stall"
         else:
             task.processing_status = "failed"
@@ -617,19 +826,34 @@ class RFQAnalysisService:
         timing_job = None
         if db is not None:
             repo = TaskJobRepository(db)
-            job = repo.get_active_by_ref(
+            confirm_active = repo.get_active_by_ref(
+                TaskJobService.JOB_RFQ_CONFIRM,
+                task.id,
+            )
+            analysis_active = repo.get_active_by_ref(
                 TaskJobService.JOB_RFQ_ANALYSIS,
                 task.id,
             )
-            timing_job = job or repo.get_latest_by_ref(
-                TaskJobService.JOB_RFQ_ANALYSIS,
-                task.id,
+            job = confirm_active or analysis_active
+            timing_job = (
+                job
+                or repo.get_latest_by_ref(TaskJobService.JOB_RFQ_CONFIRM, task.id)
+                or repo.get_latest_by_ref(TaskJobService.JOB_RFQ_ANALYSIS, task.id)
             )
         public_status = self._resolve_public_status(task, job)
+        phase = None
+        if job is not None and job.phase:
+            phase = job.phase
+        elif timing_job is not None and timing_job.phase:
+            phase = timing_job.phase
+        # Analysis job is marked completed at the human gate; expose the task stage.
+        if public_status == "dimension_review":
+            phase = "dimension_review"
         payload: dict[str, Any] = {
             "status": public_status,
             "progress": int(task.progress or "0"),
             "message": task.status_message or "",
+            "phase": phase,
         }
         if db is not None:
             payload.update(self.job_service.get_queue_info(db, job))

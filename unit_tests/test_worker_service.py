@@ -57,6 +57,34 @@ def test_process_one_completes_rfq_job(db_session, monkeypatch):
     assert processed.status == "completed"
 
 
+def test_process_one_completes_rfq_confirm_job(db_session, monkeypatch):
+    task = RFQTask(
+        file_name="c.docx",
+        file_path="/tmp/c.docx",
+        processing_status="queued",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"dimension_id": "d1", "in_scope": True}]},
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    job = TaskJob(
+        job_type="rfq_confirm",
+        ref_id=task.id,
+        status="queued",
+        phase="queued",
+        single_flight_key=f"rfq_confirm:{task.id}",
+    )
+    TaskJobRepository(db_session).create(job)
+
+    worker = WorkerService(Settings(database_url="sqlite://", mock_llm=True, mock_rag=True))
+    monkeypatch.setattr(worker.analysis_service, "execute_confirm_job", MagicMock())
+    processed = worker.process_one(db_session)
+    assert processed is not None
+    assert processed.status == "completed"
+    worker.analysis_service.execute_confirm_job.assert_called_once()
+
+
 def test_process_one_marks_failed_when_handler_raises(db_session, monkeypatch):
     task = RFQTask(
         file_name="a.docx",
@@ -250,6 +278,50 @@ def test_recover_stale_jobs_recovers_orphaned_confirm_phase(db_session):
     assert task.progress == "40"
 
 
+def test_handle_job_honours_cancel_requested_after_process(db_session, monkeypatch):
+    """If cancel arrives while analyze finishes, do not mark job completed."""
+    from datetime import timezone
+
+    task = RFQTask(
+        file_name="race_cancel.docx",
+        file_path="/tmp/race_cancel.docx",
+        processing_status="parsing",
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    job = TaskJob(
+        job_type="rfq_analysis",
+        ref_id=task.id,
+        status="running",
+        attempts=1,
+        max_attempts=3,
+        started_at=datetime.now(timezone.utc),
+        heartbeat_at=datetime.now(timezone.utc),
+    )
+    TaskJobRepository(db_session).create(job)
+
+    worker = WorkerService(Settings(database_url="sqlite://"))
+
+    def fake_process(db, claimed):
+        claimed.cancel_requested_at = datetime.now(timezone.utc)
+        TaskJobRepository(db).update(claimed)
+        task.processing_status = "dimension_review"
+        task.progress = "40"
+        task.status_message = "等待工程师确认基准维度清单"
+        db.add(task)
+        db.commit()
+        return None
+
+    monkeypatch.setattr(worker, "process_job", fake_process)
+    worker.handle_job(db_session, job)
+
+    reloaded = TaskJobRepository(db_session).get_by_id(job.id)
+    assert reloaded.status == "cancelled"
+    db_session.refresh(task)
+    assert task.processing_status == "cancelled"
+
+
 def test_recover_stale_jobs_honours_cancel_requested(db_session):
     from datetime import timedelta, timezone
 
@@ -286,3 +358,86 @@ def test_recover_stale_jobs_honours_cancel_requested(db_session):
     assert reloaded_job.status == "cancelled"
     db_session.refresh(task)
     assert task.processing_status == "cancelled"
+
+
+def test_recover_stale_confirm_cancel_rolls_back_to_review(db_session):
+    from datetime import timedelta, timezone
+
+    task = RFQTask(
+        file_name="confirm_cancel_stale.docx",
+        file_path="/tmp/confirm_cancel_stale.docx",
+        processing_status="retrieving",
+        progress="55",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"dimension_id": "d1", "in_scope": True}]},
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    stale = TaskJob(
+        job_type="rfq_confirm",
+        ref_id=task.id,
+        status="running",
+        phase="retrieving",
+        attempts=1,
+        max_attempts=3,
+        single_flight_key=f"rfq_confirm:{task.id}",
+        started_at=datetime.now(timezone.utc),
+        heartbeat_at=datetime.now(timezone.utc),
+        cancel_requested_at=datetime.now(timezone.utc) - timedelta(seconds=180),
+    )
+    TaskJobRepository(db_session).create(stale)
+
+    worker = WorkerService(
+        Settings(
+            database_url="sqlite://",
+            task_job_stale_seconds=900,
+            task_job_cancel_stale_seconds=120,
+        )
+    )
+    reset = worker.recover_stale_jobs(db_session)
+    assert reset == 1
+    reloaded_job = TaskJobRepository(db_session).get_by_id(stale.id)
+    assert reloaded_job.status == "cancelled"
+    db_session.refresh(task)
+    assert task.processing_status == "dimension_review"
+    assert task.dimension_draft is not None
+
+
+def test_recover_stale_confirm_job_fails_at_max_attempts(db_session):
+    from datetime import timedelta, timezone
+
+    task = RFQTask(
+        file_name="confirm_stale.docx",
+        file_path="/tmp/confirm_stale.docx",
+        processing_status="generating",
+        progress="80",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"dimension_id": "d1", "in_scope": True}]},
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    stale = TaskJob(
+        job_type="rfq_confirm",
+        ref_id=task.id,
+        status="running",
+        phase="generating",
+        attempts=3,
+        max_attempts=3,
+        single_flight_key=f"rfq_confirm:{task.id}",
+        started_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+        heartbeat_at=datetime.now(timezone.utc) - timedelta(minutes=20),
+    )
+    TaskJobRepository(db_session).create(stale)
+
+    worker = WorkerService(
+        Settings(database_url="sqlite://", task_job_stale_seconds=900)
+    )
+    reset = worker.recover_stale_jobs(db_session)
+    assert reset == 1
+    reloaded_job = TaskJobRepository(db_session).get_by_id(stale.id)
+    assert reloaded_job.status == "failed"
+    db_session.refresh(task)
+    assert task.processing_status == "failed"
+    assert "超时" in (task.error_msg or "")

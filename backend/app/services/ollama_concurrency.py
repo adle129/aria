@@ -6,11 +6,13 @@ import socket
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from contextlib import contextmanager
 
 from app.config import Settings, get_settings
 from app.database import SessionLocal, engine
 from app.repositories.ollama_lease_repository import OllamaLeaseRepository
+from app.services.cooperative_cancel import CooperativeCancelled
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +46,13 @@ class OllamaConcurrencyGate:
         request_type: str = "rfq",
         holder_id: str | None = None,
         wait_timeout_seconds: float | None = None,
+        cancel_check: Callable[[], None] | None = None,
     ):
         if request_type not in REQUEST_PRIORITIES:
             raise ValueError(f"Unsupported Ollama request type: {request_type}")
         if not self._use_global_lease:
+            if cancel_check is not None:
+                cancel_check()
             with self._local_slot():
                 yield None
             return
@@ -66,7 +71,16 @@ class OllamaConcurrencyGate:
                 request_type=request_type,
                 holder_id=holder,
                 wait_timeout_seconds=timeout,
+                cancel_check=cancel_check,
             )
+        except CooperativeCancelled:
+            logger.info(
+                "ollama_lease_wait_cancelled request_type=%s holder=%s waited_ms=%d",
+                request_type,
+                holder,
+                int((time.monotonic() - wait_started) * 1000),
+            )
+            raise
         except OllamaLeaseTimeout:
             logger.warning(
                 "ollama_lease_timeout request_type=%s holder=%s waited_ms=%d",
@@ -121,6 +135,7 @@ class OllamaConcurrencyGate:
         request_type: str,
         holder_id: str,
         wait_timeout_seconds: float,
+        cancel_check: Callable[[], None] | None = None,
     ) -> str:
         with SessionLocal() as db:
             lease = OllamaLeaseRepository(db).create_request(
@@ -133,6 +148,15 @@ class OllamaConcurrencyGate:
 
         deadline = time.monotonic() + max(0.1, wait_timeout_seconds)
         while True:
+            if cancel_check is not None:
+                try:
+                    cancel_check()
+                except CooperativeCancelled:
+                    with SessionLocal() as db:
+                        OllamaLeaseRepository(db).release(
+                            lease_id, status="cancelled"
+                        )
+                    raise
             with SessionLocal() as db:
                 acquired = OllamaLeaseRepository(db).try_acquire(
                     lease_id,

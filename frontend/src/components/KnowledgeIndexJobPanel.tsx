@@ -300,9 +300,9 @@ export default function KnowledgeIndexJobPanel({
               <Text type="secondary">
                 队列第 {job.queue_position} 位
                 {job.estimated_wait_seconds != null && job.estimated_wait_seconds > 0
-                  ? ` · 预计约 ${Math.ceil(job.estimated_wait_seconds / 60)} 分钟`
+                  ? ` · 预计还需约 ${Math.ceil(job.estimated_wait_seconds / 60)} 分钟`
                   : job.queue_position > 0
-                    ? " · 预计等待时间暂不可用"
+                    ? " · 预计剩余等待时间暂不可用"
                     : ""}
               </Text>
             )}

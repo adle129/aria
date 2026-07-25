@@ -89,7 +89,7 @@ def test_embed_texts_splits_large_input_into_bounded_batches(monkeypatch):
 
     class FakeGate:
         @contextmanager
-        def acquire(self, *, request_type):
+        def acquire(self, *, request_type, cancel_check=None):
             acquisitions.append(request_type)
             yield
 

@@ -17,10 +17,10 @@ export function formatDurationMs(ms: number | null | undefined): string | null {
 export function formatTaskTimingLine(opts: {
   queueWaitMs?: number | null;
   runMs?: number | null;
-  /** When true: 「排队已等待 / 解析已进行」 */
+  /** When true: 「已等待 / 解析已进行」 */
   live?: boolean;
 }): string | null {
-  const queueLabel = opts.live ? "排队已等待" : "排队";
+  const queueLabel = opts.live ? "已等待" : "排队";
   const runLabel = opts.live ? "解析已进行" : "解析";
   const parts: string[] = [];
   const q = formatDurationMs(opts.queueWaitMs);

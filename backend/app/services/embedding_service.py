@@ -136,7 +136,10 @@ def embed_texts(
                 if cancel_check is not None:
                     cancel_check()
                 batch = prompts[start : start + batch_size]
-                with gate.acquire(request_type=request_type):
+                with gate.acquire(
+                    request_type=request_type,
+                    cancel_check=cancel_check,
+                ):
                     vectors = _try_batch_embed(
                         client, base, settings.embedding_model, batch
                     )
