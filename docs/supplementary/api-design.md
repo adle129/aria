@@ -381,12 +381,12 @@ POST /api/v1/rfq/tasks/{task_id}/cancel
 **前置：** 任务处于可取消阶段（`queued` / `parsing` / `retrieving` / `generating`）；`dimension_review` 及终态幂等 no-op。
 
 **行为：**
-- Phase 1（`TaskJob` active）：`queued` 立即 `cancelled`；`running` 协作取消（`cancelling` 软状态 → `cancelled`）
-- Phase 2（无 active Job）：`retrieving`/`generating` 标 `cancelling`，在 RAG/生成边界回滚 `dimension_review`（保留维度勾选）
+- Phase 1（`rfq_analysis` Job active）：`queued` 立即 `cancelled`；`running` 协作取消（`cancelling` 软状态 → `cancelled`）
+- Phase 2（`rfq_confirm` Job active 或无 Job 的遗留路径）：`queued` 立即取消并回滚 `dimension_review`；`running`/`retrieving`/`generating` 标 `cancelling`，在 RAG/生成边界回滚 `dimension_review`（保留维度勾选）
 
 **实现要点（协作，非杀进程）：**
-- Phase 1：worker 在解析/匹配/LLM 边界读取 `TaskJob.cancel_requested_at`；LLM 使用 **流式 generate** 并在取消时 **关闭 HTTP 连接** 释放 Ollama 租约
-- Phase 2：`confirm-dimensions` 同步路径读取 `RFQTask.processing_status=cancelling`；query **embedding** 与后续步骤同样支持 `cancel_check`
+- Phase 1/2：worker 在解析/匹配/LLM/embedding 边界读取 `TaskJob.cancel_requested_at`（**expire/refresh**，避免长会话缓存）；LLM 使用 **流式 generate**，取消时关闭 HTTP 连接释放 Ollama 租约；租约等待循环同样检查取消
+- Phase 2 任务态：`RFQTask.processing_status=cancelling` 与 job 取消标志双通道；query **embedding** 与后续步骤支持 `cancel_check`
 - 取消标志 DB 查询 **节流**（约 0.5s），避免每个 stream chunk 打库
 - `cancelling` 超过 `task_job_cancel_stale_seconds`（默认 120s）由 worker 恢复终态或回滚 `dimension_review`
 
@@ -426,15 +426,15 @@ PATCH /api/v1/rfq/tasks/{task_id}/archive
 
 > **与 archive-to-knowledge 区分：** 本节为 **列表隐藏**；`POST .../archive-to-knowledge`（§2.3.5）为定稿写入知识库（Phase 2 / 变更单）。
 
-#### F1.10 确认维度清单并生成对比矩阵（R1 · **已实现**）
+#### F1.10 确认维度清单并生成对比矩阵（R1 · **已实现** · R1-PERF01）
 
-工程师审阅 `dimension_draft`（勾选 in_scope、编辑工作内容）后确认，触发 RAG 并按 **in_scope 维度** 生成 `comparison_table`。
+工程师审阅 `dimension_draft`（勾选 in_scope、编辑工作内容）后确认；服务端创建/复用 **`rfq_confirm`** 任务（worker 执行 retrieving → generating → completed），按 **in_scope 维度** 生成 `comparison_table`。
 
 ```
 POST /api/v1/rfq/tasks/{task_id}/confirm-dimensions
 ```
 
-**前置：** `processing_status=dimension_review`；`rfq_modules` 非空。
+**前置：** `processing_status=dimension_review`（Phase2 进行中则 409）；`rfq_modules` 非空；至少一项 in_scope。
 
 **请求体（推荐 · 基准库）：**
 
@@ -468,21 +468,38 @@ POST /api/v1/rfq/tasks/{task_id}/confirm-dimensions
 | `items` | 推荐 | 勾选后的全量/增量基准行 |
 | `comparison_dimensions` | 兼容 | 无 `items` 时使用；至少 1 项 in_scope |
 
-**响应：**
+**响应（入队 · 常见）：**
 
 ```json
 {
-  "code": 200,
+  "code": 202,
   "data": {
     "task_id": "uuid",
-    "processing_status": "retrieving | generating | completed",
-    "comparison_table": { /* 见 prompt-spec §4；仅 in_scope 行 */ },
-    "overall_confidence": "高 | 中 | 低"
+    "job_id": "uuid",
+    "reused": false,
+    "processing_status": "queued"
   }
 }
 ```
 
-**流程：** 上传 → `parsing` → 匹配基准库 → `dimension_draft` → `dimension_review` → **本接口** → RAG Layer1 Top-N → Layer2 关键维度对齐填 `dimensions` → Top-3 矩阵 → `completed`。详见 [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [rag-design.md](rag-design.md) §3.1。
+| 字段 | 说明 |
+|------|------|
+| `job_id` | `rfq_confirm` 任务 ID |
+| `reused` | `true` 表示同 draft 指纹命中已有 active job（单飞） |
+| `processing_status` | 入队后多为 `queued`；inline worker 时可直接进入后续阶段 |
+
+**响应（inline / 已完成）：** `200`，`data` 可含完整 task 载荷（含 `comparison_table`）。轮询 `GET .../status` 观察 `phase`（`retrieving` / `generating`）与 `queue_position` / ETA。
+
+| HTTP | 说明 |
+|------|------|
+| 202 | 已入队（或 reused） |
+| 200 | inline 已跑完或同步返回 |
+| 400 | 草稿非法 / 无 in_scope |
+| 409 | Phase2 进行中且 draft 指纹不一致，或状态不可确认 |
+| 429 | 任务队列已满 |
+
+**流程：** 上传 → `parsing`/`matching` → `dimension_review` → **本接口入队** → worker RAG Layer1 Top-N → Layer2 按维度对齐填 `dimensions` → Top-3 矩阵 → `completed`。详见 [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [rag-design.md](rag-design.md) §3.1 · [rfq-concurrency-ux-plan.md](../R1/rfq-concurrency-ux-plan.md)。
+
 
 **`comparison_table.projects[].dimensions`（Layer 2）：**
 

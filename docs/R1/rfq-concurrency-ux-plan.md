@@ -1,8 +1,9 @@
 # R1+ · RFQ 多人并发等待体验改进方案
 
-**版本：** v1.0 · 2026-07-20  
-**状态：** 方案已共识 · **待排期实施（本文档冻结设计，不含代码）**  
-**关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）
+**版本：** v1.1 · 2026-07-25  
+**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · 7C/7D/7E（PERF08–12）待做  
+**关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）  
+**实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`
 
 ---
 
@@ -277,18 +278,18 @@ flowchart TB
 
 | ID | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|------|------------|------|------|
-| **R1-PERF01** | `rfq_confirm` job 类型 + enqueue | `confirm-dimensions` 创建/复用 job；API 快速返回；payload 含 task_id + draft 快照版本 | R1-F08, R1-I02 | 待开始 |
-| **R1-PERF02** | worker handler：retrieving → generating → completed | 与现同步逻辑等价；失败写 `error_msg`；成功写矩阵 | PERF01 | 待开始 |
-| **R1-PERF03** | 取消 / stale / 重启恢复 | Phase2 取消回滚 `dimension_review`；orphan HTTP 路径废弃或仅兼容旧任务 | PERF02, R1-F11 | 待开始 |
-| **R1-PERF04** | unit + API 测试 | 入队、单飞/reused、取消、失败、队列满；Mock LLM/RAG | PERF03 | 待开始 |
+| **R1-PERF01** | `rfq_confirm` job 类型 + enqueue | `confirm-dimensions` 创建/复用 job；API 快速返回；payload 含 task_id + draft 快照版本 | R1-F08, R1-I02 | **已完成** |
+| **R1-PERF02** | worker handler：retrieving → generating → completed | 与现同步逻辑等价；失败写 `error_msg`；成功写矩阵 | PERF01 | **已完成** |
+| **R1-PERF03** | 取消 / stale / 重启恢复 | Phase2 取消回滚 `dimension_review`；orphan HTTP 路径废弃或仅兼容旧任务 | PERF02, R1-F11 | **已完成** |
+| **R1-PERF04** | unit + API 测试 | 入队、单飞/reused、取消、失败、队列满；Mock LLM/RAG | PERF03 | **已完成** |
 
 #### Wave 7B — 可观测进度与文案（易用性 P0）
 
 | ID | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|------|------------|------|------|
-| **R1-PERF05** | Phase1/2 `job.phase` + `status_message` 规范 | parsing/matching/retrieving/generating；批次 a/b 写入 message | PERF02 | 待开始 |
-| **R1-PERF06** | status API 契约对齐 | 稳定返回 queue_position、ETA、queue_wait_ms、run_ms、phase | PERF05, R1-I04 | 待开始 |
-| **R1-PERF07** | `/rfq` 进度卡 + 状态词典落地 | §5 文案；排队 vs 执行拆分；Vitest 覆盖文案函数 | PERF06 | 待开始 |
+| **R1-PERF05** | Phase1/2 `job.phase` + `status_message` 规范 | parsing/matching/retrieving/generating；批次 a/b 写入 message | PERF02 | **已完成** |
+| **R1-PERF06** | status API 契约对齐 | 稳定返回 queue_position、ETA、queue_wait_ms、run_ms、phase | PERF05, R1-I04 | **已完成** |
+| **R1-PERF07** | `/rfq` 进度卡 + 状态词典落地 | §5 文案；排队 vs 执行拆分；Vitest 覆盖文案函数 | PERF06 | **已完成** |
 
 #### Wave 7C — 缓存减负（效率 P1）
 
@@ -325,11 +326,11 @@ flowchart LR
 
 ### 6.4 验收标准（内部）
 
-- [ ] 多人连续上传：任务均入队；UI 显示位次与阶段；无 API 线程被 Phase2 长时间占用  
-- [ ] 确认维度后杀 backend：worker 仍能完成或可恢复；无幽灵 `retrieving`  
-- [ ] 取消 Phase2：回到可再次确认的 `dimension_review`  
-- [ ] 文案经产品/前端签收 §5.2–5.4；无实现泄漏词  
-- [ ] `run_tests.ps1` 全绿；涉及解析/RAG 时加 `--regression`  
+- [x] 多人连续上传：任务均入队；UI 显示位次与阶段；无 API 线程被 Phase2 长时间占用（PERF01–02；手测通过）  
+- [x] 确认维度后 Phase2 走 worker；取消/stale/重启可恢复；无幽灵 `retrieving`（PERF03）  
+- [x] 取消 Phase2：回到可再次确认的 `dimension_review`（PERF03；API/unit 覆盖）  
+- [x] 排队/执行文案落地（「预计还需」「已等待」）；取消态隔离与进度清单修复（PERF07 + 手测）  
+- [x] `run_tests.ps1` 全绿（含 cancel API 文案断言 + 进度控件 Vitest）  
 - [ ] 彩排脚本增加「双人排队 + 一人确认维度离开再回」小节（更新 `r1-rehearsal-script.md`）
 
 ### 6.5 明确不做清单（再确认）
@@ -349,12 +350,12 @@ flowchart LR
 
 | 文档 | 待更新点 |
 |------|----------|
-| [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队语义；phase 枚举 |
-| [prod.md](../../prod.md) §5.x | Phase2 异步；体验验收一句 |
-| [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 |
-| [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 |
-| [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 |
-| 本文 | 实施后回写状态为「已完成」并链 PR |
+| [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队语义；phase 枚举 — **7A/7B 已同步** |
+| [prod.md](../../prod.md) §5.x | Phase2 异步；体验验收一句 — 待补 |
+| [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — 待 PERF10 |
+| [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补 |
+| [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
+| 本文 | **PERF01–07 已回写已完成**；PERF08–12 仍待做 |
 
 ---
 
@@ -367,6 +368,7 @@ flowchart LR
 | 2026-07-20 | 是否内容级缓存 | **是（P1）** |
 | 2026-07-20 | 是否默认提高 Ollama 并发 | **否；仅 P2 评估** |
 | 2026-07-20 | 与 R1-β 关系 | **不阻塞签字；签字后体验增强优先做 7A/7B** |
+| 2026-07-25 | 7A/7B 落地 | **PERF01–07 已完成**（含取消 Session 刷新、取消态按 task 隔离）；下一优先 **PERF08–11** |
 
 ---
 

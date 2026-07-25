@@ -1,6 +1,6 @@
 # R1 开发任务清单
 
-**版本：** v1.12 · 2026-07-20
+**版本：** v1.13 · 2026-07-25
 **索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)（**R1-PERF**） · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
@@ -28,7 +28,7 @@
 **仍进行中：** R1-K09 / SPK-K04（内部 12/15 已达成 · 待客户 O-03）· R1-U06 · R1-A06 · K08-UX / K08-RESP  
 **仍依赖客户（阻塞）：** R1-F02 · R1-A02–A05/A07 · O-01～O-05  
 **可选 / 不阻塞 R1：** R1-OPS01–02 · SPK-F05 · SPK-K07 · R1-KH14–16（M6）  
-**R1+ 体验增强（不阻塞 R1-β 签字）：** [R1-PERF](rfq-concurrency-ux-plan.md) Wave 7 · 待开始
+**R1+ 体验增强（不阻塞 R1-β 签字）：** [R1-PERF](rfq-concurrency-ux-plan.md) Wave 7 · **7A/7B（PERF01–07）已完成** · 7C/7D（PERF08–11）待开始
 
 ---
 
@@ -407,7 +407,7 @@
 | R1-PERF11 | P1 | TaskContextBar 排队/待确认强化 | 非 RFQ 页可理解；Vitest | PERF07 | 待开始 |
 | R1-PERF12 | P2 | 并发=2 / 双卡评估备忘录 | 通过才改生产默认；默认保持 1 | PERF04 | 待开始 |
 
-**Gate：** 不阻塞 R1-β 签字；建议签字后优先 7A（PERF01–04）+ 7B（PERF05–07）。彩排须补「双人排队」小节。
+**Gate：** 不阻塞 R1-β 签字；**7A/7B 已完成**。下一优先 7C（PERF08–09）+ 7D（PERF10–11）。彩排须补「双人排队」子弹。
 
 ---
 

@@ -1,7 +1,7 @@
 # R1 正式实施 — 统一执行计划（Spike 后）
 
-**版本：** v1.5 · 2026-07-20
-**状态：** **Wave 1–6 代码主体已完成** · 行级状态与 [dev-tasks.md](dev-tasks.md) v1.12 同步 · 剩余：联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7 R1-PERF 方案已文档化（待实施）**
+**版本：** v1.6 · 2026-07-25
+**状态：** **Wave 1–6 代码主体已完成** · 行级状态与 [dev-tasks.md](dev-tasks.md) 同步 · 剩余：联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · 7C/7D P1 待做
 **用途：** 唯一 **执行顺序** 清单；[dev-tasks.md](dev-tasks.md) 为完整 ID 索引；[spike-follow-up-tasks.md](spike-follow-up-tasks.md) 为 Spike 结论摘要；多人排队体验见 [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)。
 
 > **原则：** 按 **Wave** 顺序执行；同 Wave 内 `#` 可并行。  
@@ -47,7 +47,7 @@ flowchart TB
   W6 --> W7
 ```
 
-| Wave | 主题 | 核心 ID | 预估 | 状态（2026-07-20） |
+| Wave | 主题 | 核心 ID | 预估 | 状态（2026-07-25） |
 |------|------|---------|------|-------------------|
 | **1** | 任务队列 + pgvector + **Auth 底座** | R1-I01–I09, **R1-AUTH01–03** | Week 1–2 | **已完成** |
 | **2** | 知识库 ingest + **Auth 前端/RBAC** | R1-K01–K09, **R1-AUTH04–07** | Week 2–4 | **已完成**（K09 评测待客户） |
@@ -56,7 +56,7 @@ flowchart TB
 | **4** | 维度基准 seed + 匹配 | R1-F01,F03,F05, SPK-F08 | Week 4–5 | **已完成**（F02 阻塞 O-01） |
 | **5** | dimension_review + 前端 | R1-F06–F07, R1-U01–U03 | Week 5–6 | **已完成** |
 | **6** | confirm + RAG 矩阵 + 验收 | R1-F08–F10, R1-U04–U06, A* | Week 6–8 | **进行中**（U06/手验；A* 客户阻塞） |
-| **7** | 多人排队体验（R1+ · 不阻塞 β） | **R1-PERF01–12** | β 后优先 7A/7B | **7A/7B 主体已完成** · 7C/7D P1 待做 |
+| **7** | 多人排队体验（R1+ · 不阻塞 β） | **R1-PERF01–12** | 7A/7B 已完成 | **7A/7B 已完成** · 下一优先 7C/7D |
 
 ---
 
@@ -259,7 +259,7 @@ flowchart TB
 | 7D.2 | **R1-PERF11** | TaskContextBar 强化 | P1 | 7B.3 | 待开始 |
 | 7E.1 | **R1-PERF12** | 并发=2 / 双卡评估 | P2 可选 | 7A.4 | 待开始 |
 
-**建议顺序：** 先 7A → 7B（P0）；再 7C/7D（P1）；7E 仅有机时与客户同意时做。
+**建议顺序：** **7A/7B 已完成**；下一做 7C/7D（P1）；7E 仅有机时与客户同意时做。
 
 ---
 
@@ -269,10 +269,10 @@ flowchart TB
 
 1. **`bootstrap_r1_internal.ps1` + 15 题 eval + health smoke**（关 K09/U06 内部部分）
 2. **Compose 全链路手验**（`MOCK_*=false` · Profile=r1）
-3. **按 [r1-rehearsal-script.md](r1-rehearsal-script.md) 彩排**并记缺口
+3. **按 [r1-rehearsal-script.md](r1-rehearsal-script.md) 彩排**并记缺口（补「双人排队」子弹）
 4. **K08-UX 状态词典签收 + K08-RESP** 响应式打磨
 5. （可选）SPK-F05 里程碑规则 · R1-OPS L1 反馈
-6. **R1-β 不阻塞前提下启动 Wave 7A/7B**（Phase2 入队 + 进度文案）— 见 [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)
+6. **Wave 7C/7D（PERF08–11）**：content_hash / embedding 缓存 + 忙时提示 + TaskContextBar — 见 [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)
 
 客户侧由 PM 跟进 **O-01～O-05**（阻塞 R1-β 签字）。
 

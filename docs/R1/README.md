@@ -1,8 +1,8 @@
 # R1 第一期 — 任务索引
 
 **里程碑：** R1（第 1–8 周 · ¥76,300）  
-**版本：** v1.7 · 2026-07-20
-**状态：** **Wave 1–6 代码主体已完成**（2026-07-16 与 [dev-tasks](dev-tasks.md) v1.11 同步）· 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7 R1-PERF 方案已文档化（待实施）**
+**版本：** v1.8 · 2026-07-25  
+**状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · 7C/7D（PERF08–11）待做
 **基线：** [prod.md](../../prod.md) v1.9 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.5
 
 ---
