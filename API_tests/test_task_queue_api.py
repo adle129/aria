@@ -49,6 +49,7 @@ def test_upload_inline_worker_completes(client, sample_rfq_bytes):
     assert status["queued_at"] is not None
     assert status["started_at"] is not None
     assert status["finished_at"] is not None
+    assert status.get("phase") == "dimension_review"
 
     detail = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
     assert detail["queue_wait_ms"] is not None
@@ -74,6 +75,7 @@ def test_status_timing_from_job_timestamps(client, monkeypatch):
             job_type="rfq_analysis",
             ref_id=task.id,
             status="running",
+            phase="parsing",
             queued_at=t0,
             started_at=t0 + timedelta(seconds=10),
             created_at=t0,
@@ -86,6 +88,7 @@ def test_status_timing_from_job_timestamps(client, monkeypatch):
 
     status = client.get(f"/api/v1/rfq/tasks/{task_id}/status").json()
     assert status["status"] == "parsing"
+    assert status["phase"] == "parsing"
     assert status["queue_wait_ms"] == 10000
     assert status["run_ms"] is not None
     assert status["run_ms"] >= 25000

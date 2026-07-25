@@ -23,6 +23,6 @@ describe("formatTaskTimingLine", () => {
     ).toBe("排队 5秒 · 解析 1分5秒");
     expect(
       formatTaskTimingLine({ queueWaitMs: 12000, runMs: null, live: true }),
-    ).toBe("排队已等待 12秒");
+    ).toBe("已等待 12秒");
   });
 });

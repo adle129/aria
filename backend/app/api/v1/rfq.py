@@ -19,7 +19,11 @@ from app.services.dimension_baseline_service import (
 from app.services.embedding_service import EmbeddingError
 from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.quote_service import QuoteService
-from app.services.rfq_analysis_service import RFQAnalysisService
+from app.services.rfq_analysis_service import (
+    ConfirmEnqueueResult,
+    RFQAnalysisService,
+    RfqQueueFullError,
+)
 from app.services.rfq_upload import RFQ_UPLOAD_REJECT_MSG, is_allowed_rfq_filename
 from app.utils.datetime_utils import to_api_utc_iso
 
@@ -200,9 +204,22 @@ def confirm_dimensions(
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
     try:
-        updated = analysis_service.confirm_dimensions(db, task, body.model_dump(exclude_none=True))
+        result: ConfirmEnqueueResult = analysis_service.confirm_dimensions(
+            db, task, body.model_dump(exclude_none=True)
+        )
+    except RfqQueueFullError as exc:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "code": 429,
+                "msg": str(exc),
+                "queue_depth": exc.queue_depth,
+            },
+        )
     except ValueError as exc:
-        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+        msg = str(exc)
+        status = 409 if "正在生成" in msg else 400
+        return JSONResponse(status_code=status, content={"code": status, "msg": msg})
     except OllamaLeaseTimeout:
         return JSONResponse(
             status_code=503,
@@ -222,17 +239,27 @@ def confirm_dimensions(
                 "msg": task.status_message or "确认维度后生成对比矩阵失败",
             },
         )
+
+    updated = result.task
     payload = analysis_service.get_task_payload(updated, db)
-    return {
-        "code": 200,
-        "data": {
-            "task_id": updated.id,
-            "processing_status": updated.processing_status,
-            "comparison_table": payload.get("comparison_table"),
-            "overall_confidence": (payload.get("comparison_table") or {}).get("overall_confidence"),
-            "task": payload,
+    http_code = 200 if updated.processing_status == "completed" else 202
+    return JSONResponse(
+        status_code=http_code,
+        content={
+            "code": http_code,
+            "data": {
+                "task_id": updated.id,
+                "job_id": result.job.id,
+                "reused": result.reused,
+                "processing_status": updated.processing_status,
+                "comparison_table": payload.get("comparison_table"),
+                "overall_confidence": (payload.get("comparison_table") or {}).get(
+                    "overall_confidence"
+                ),
+                "task": payload,
+            },
         },
-    }
+    )
 
 
 @router.post("/tasks/{task_id}/generate-excel", dependencies=[Depends(block_r1_undelivered_milestone)])

@@ -1,33 +1,34 @@
 # R1 开发任务清单
 
-**版本：** v1.10 · 2026-07-11
-**索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
+**版本：** v1.12 · 2026-07-20
+**索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)（**R1-PERF**） · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
 > 状态枚举：`待开始` · `进行中` · `已完成` · `阻塞`  
 > 写 PR 前对照 [pre-development-open-items.md §1](../supplementary/pre-development-open-items.md) Gate。
 
-**2026-07-08 内部进度（未签约 · 不依赖客户交付物）：**
+**2026-07-16 状态同步（对照 `release/r1` 代码 · 行级回写）：**
 
 | 块 | 代码状态 | 内部可继续 |
 |----|----------|------------|
-| R1-E / Profile / 生产门禁 | E03/E05 已实现；E02 规则已同步 | Compose 全链路手验 |
-| R1-I / AUTH | 主体已完成 | 排队 UI polish |
-| **R1-I10 任务生命周期** | **已完成** | — |
+| R1-E / Profile / 生产门禁 | E01–E06 **已完成**（含 MOCK 门禁） | Compose 全链路手验 |
+| R1-I / AUTH | I01–I10 · AUTH01–07 **已完成** | 排队 UI polish（非阻塞） |
 | **R1-F11 RFQ 协作取消** | **已完成** | — |
-| R1-K / F1.10 / U | 主体已完成 | `bootstrap_r1_internal.ps1` + ingest + eval |
-| R1-A 验收 | 彩排脚本已编写 | smoke / eval / 内网手验 |
+| R1-K / F1.10 / U | K01–K08c · F01/F03–F10 · U01–U05 **已完成** | `bootstrap` + ingest + eval；U06 联调 |
+| R1-KH Phase A/B | KH00–KH13 **已完成** | 真实 bulk / 4090 手验 |
+| R1-KH UX | KH05/08/11/12-UX · U-KB · K06-UX **已完成**；K08-UX/RESP **进行中** | 状态词典签收 · 响应式打磨 |
+| R1-A 验收 | A01 彩排脚本 **已完成** | smoke / eval / 内网手验 |
 | **客户 O-01～O-05** | **阻塞 R1-β 签字** | PM 跟进；开发用 `seed_internal_engagement` |
 
 **内部一键：** `.\scripts\bootstrap_r1_internal.ps1` → seed → ingest → 15 题 eval → health smoke  
 **R1 正式 UI：** `ARIA_UI_PROFILE=r1` · 见 `.env.r1-dev.example` · 彩排见 [r1-rehearsal-script.md](r1-rehearsal-script.md)
 
-**代码已完成（2026-07-11 对照）：** R1-I01–I09 · **R1-I10** · **R1-F11** · R1-AUTH01–07 · R1-K01–K08b · R1-F01/F03/F05–F09 · R1-U01–U05 · R1-E03/E05（health 门禁）· R1-K10 · SPK-F01–F04/F07–F08 · SPK-K01–K05（部分）
+**代码已完成（2026-07-16 对照）：** R1-E01–E06 · R1-I01–I10 · R1-F11 · R1-AUTH01–07 · R1-K01–K08c · R1-K10–K11f · R1-KH00–KH13 · R1-F01/F03–F10 · R1-U01–U05 · SPK-F01–F04/F06–F08 · SPK-K01–K03/K05–K06
 
-**2026-07-09 新增：** R1-I10（Wave 6 任务生命周期）· KB 服务优化（embedding 批量、pgvector upsert 分批）
-**2026-07-10 架构审查新增：** **R1-KH 知识库生产稳定性加固**；P0 阻塞真实 bulk/UAT，P1 在 R1-β 前完成，P2 进入 M6/运营增强。
-
-**仍依赖客户：** R1-F02 · R1-A02–A07 · O-01～O-05
+**仍进行中：** R1-K09 / SPK-K04（内部 12/15 已达成 · 待客户 O-03）· R1-U06 · R1-A06 · K08-UX / K08-RESP  
+**仍依赖客户（阻塞）：** R1-F02 · R1-A02–A05/A07 · O-01～O-05  
+**可选 / 不阻塞 R1：** R1-OPS01–02 · SPK-F05 · SPK-K07 · R1-KH14–16（M6）  
+**R1+ 体验增强（不阻塞 R1-β 签字）：** [R1-PERF](rfq-concurrency-ux-plan.md) Wave 7 · 待开始
 
 ---
 
@@ -35,12 +36,12 @@
 
 | ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 负责人 | 状态 |
 |----|--------|------|------------|------|--------|------|
-| R1-E01 | P0-0 | 从 `main` 创建 `release/r1` | 分支存在；README 注明 Demo 冻结 | I-04 | | 已完成 |
-| R1-E02 | P0-0 | 同步 `.cursor/rules` + `dev-context.md`（pgvector、无 LangChain、R1 Profile） | 规则与 prod v1.6 一致 | I-05 | | 待开始 |
+| R1-E01 | P0-0 | 从 `main` 创建 `release/r1` | 分支存在；README 注明 Demo 冻结 | I-04 | | **已完成** |
+| R1-E02 | P0-0 | 同步 `.cursor/rules` + `dev-context.md`（pgvector、无 LangChain、R1 Profile） | 规则与 prod v1.6 一致 | I-05 | | **已完成** |
 | R1-E03 | P0-0 | 实现 `ARIA_UI_PROFILE=r1` | 五步可见；未购步锁定；`/proposal` `/qa` `/quote` 路由守卫 | api-design | | **已完成** |
-| R1-E04 | P0-0 | R1 PR 检查项：traceability 行号 + 测试路径 | `.github/pull_request_template.md` | delivery-traceability | | 已完成 |
-| R1-E05 | P0-0 | 生产 Compose 验证：`MOCK_LLM`/`MOCK_RAG`=false 门禁 | `.env.production.example` 注释对齐 | deployment-guide | | **进行中** |
-| R1-E06 | P0-0 | Git 流程文档 + 团队对齐 | [git-workflow.md](git-workflow.md)；PR 模板 | R1-E01 | | 已完成 |
+| R1-E04 | P0-0 | R1 PR 检查项：traceability 行号 + 测试路径 | `.github/pull_request_template.md` | delivery-traceability | | **已完成** |
+| R1-E05 | P0-0 | 生产 Compose 验证：`MOCK_LLM`/`MOCK_RAG`=false 门禁 | `.env.production.example` 注释对齐 | deployment-guide | | **已完成** |
+| R1-E06 | P0-0 | Git 流程文档 + 团队对齐 | [git-workflow.md](git-workflow.md)；PR 模板 | R1-E01 | | **已完成** |
 
 ---
 
@@ -48,15 +49,15 @@
 
 | ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 负责人 | 状态 |
 |----|--------|------|------------|------|--------|------|
-| R1-I01 | P0-1 | `task_jobs` 表 + Alembic 迁移 | queued/running/completed/failed | api-design §3 | | 待开始 |
-| R1-I02 | P0-1 | 独立 worker 进程（`SKIP LOCKED` 认领） | 容器或 systemd 可启停 | R1-I01 | | 待开始 |
-| R1-I03 | P0-1 | RFQ 流水线迁入 worker | 移除 `rfq.py` `BackgroundTasks` | R1-I02 | | 待开始 |
-| R1-I04 | P0-1 | Ollama 并发闸 + 排队 ETA 字段 | `OLLAMA_MAX_CONCURRENT` 默认 1 | I-01 | | 待开始 |
-| R1-I05 | P0-1 | pgvector 扩展 + embeddings 表 | `pgvector/pgvector:pg16` compose | rag-design §6 | | 待开始 |
-| R1-I06 | P0-1 | Ollama `nomic-embed-text` Embedding 服务 | 写入 pgvector | R1-I05 | | 待开始 |
-| R1-I07 | P0-1 | 替换 `chroma_store.py` → pgvector 检索层 | 单测 Mock；生产无 Chroma 依赖 | R1-I06 | | 待开始 |
-| R1-I08 | P0-1 | `insufficient_evidence` 拒答门控 | 禁止 Mock 项目兜底 | rag-design §3.1 | | 待开始 |
-| R1-I09 | P0-1 | unit + API 测试（队列降级、空库拒答） | `run_tests.ps1` 全绿 | R1-I01–I08 | | 待开始 |
+| R1-I01 | P0-1 | `task_jobs` 表 + Alembic 迁移 | queued/running/completed/failed | api-design §3 | | **已完成** |
+| R1-I02 | P0-1 | 独立 worker 进程（`SKIP LOCKED` 认领） | 容器或 systemd 可启停 | R1-I01 | | **已完成** |
+| R1-I03 | P0-1 | RFQ 流水线迁入 worker | 移除 `rfq.py` `BackgroundTasks` | R1-I02 | | **已完成** |
+| R1-I04 | P0-1 | Ollama 并发闸 + 排队 ETA 字段 | `OLLAMA_MAX_CONCURRENT` 默认 1 | I-01 | | **已完成** |
+| R1-I05 | P0-1 | pgvector 扩展 + embeddings 表 | `pgvector/pgvector:pg16` compose | rag-design §6 | | **已完成** |
+| R1-I06 | P0-1 | Ollama `nomic-embed-text` Embedding 服务 | 写入 pgvector | R1-I05 | | **已完成** |
+| R1-I07 | P0-1 | 替换 `chroma_store.py` → pgvector 检索层 | 单测 Mock；生产无 Chroma 依赖 | R1-I06 | | **已完成** |
+| R1-I08 | P0-1 | `insufficient_evidence` 拒答门控 | 禁止 Mock 项目兜底 | rag-design §3.1 | | **已完成** |
+| R1-I09 | P0-1 | unit + API 测试（队列降级、空库拒答） | `run_tests.ps1` 全绿 | R1-I01–I08 | | **已完成** |
 | R1-I10 | P1 | **Wave 6 任务生命周期** | retry/delete/archive API + `archived` 列 + 队列门控 429 + stale 恢复 | R1-I01–I03 | | **已完成** |
 
 ---
@@ -89,13 +90,13 @@
 
 | ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 负责人 | 状态 |
 |----|--------|------|------------|------|--------|------|
-| R1-AUTH01 | P0-1 | `users` 表 + Alembic + User model | username unique；role enum | — | | 待开始 |
-| R1-AUTH02 | P0-1 | AuthService + `POST/GET /auth/login|me` | JWT；401/403 契约 | R1-AUTH01 | | 待开始 |
-| R1-AUTH03 | P0-1 | `rfq_tasks.owner_id` 迁移 + repo 过滤 | 404 非 owner；list 按 owner | R1-AUTH01, R1-I01 | | 待开始 |
-| R1-AUTH04 | P0-2 | KB 写 API `require_role(kb_admin)` | import/reindex/upload → 403 | R1-AUTH02, R1-K02 | | 待开始 |
-| R1-AUTH05 | P0-2 | 前端 `/login` + AuthContext + axios Bearer | 401 → 跳转登录 | R1-AUTH02 | | 待开始 |
-| R1-AUTH06 | P0-2 | 排队 UI + kb_admin 知识库写按钮 | queue_position/ETA 可见 | R1-AUTH05, R1-I04 | | 待开始 |
-| R1-AUTH07 | P0-2 | `create_admin.py` + auth unit/API 测试 | AUTH-01～07；`run_tests.ps1` 全绿 | R1-AUTH01–06 | | 待开始 |
+| R1-AUTH01 | P0-1 | `users` 表 + Alembic + User model | username unique；role enum | — | | **已完成** |
+| R1-AUTH02 | P0-1 | AuthService + `POST/GET /auth/login|me` | JWT；401/403 契约 | R1-AUTH01 | | **已完成** |
+| R1-AUTH03 | P0-1 | `rfq_tasks.owner_id` 迁移 + repo 过滤 | 404 非 owner；list 按 owner | R1-AUTH01, R1-I01 | | **已完成** |
+| R1-AUTH04 | P0-2 | KB 写 API `require_role(kb_admin)` | import/reindex/upload → 403 | R1-AUTH02, R1-K02 | | **已完成** |
+| R1-AUTH05 | P0-2 | 前端 `/login` + AuthContext + axios Bearer | 401 → 跳转登录 | R1-AUTH02 | | **已完成** |
+| R1-AUTH06 | P0-2 | 排队 UI + kb_admin 知识库写按钮 | queue_position/ETA 可见 | R1-AUTH05, R1-I04 | | **已完成** |
+| R1-AUTH07 | P0-2 | `create_admin.py` + auth unit/API 测试 | AUTH-01～07；`run_tests.ps1` 全绿 | R1-AUTH01–06 | | **已完成** |
 
 ---
 
@@ -103,19 +104,19 @@
 
 | ID | 优先级 | 任务 | prod / 规格 | DoD | 依赖 | 负责人 | 状态 |
 |----|--------|------|-------------|-----|------|--------|------|
-| R1-K01 | P0-2 | `manifest.json` 规范 + `engagements` 表 | F5.10 | 目录结构见 rag-design §5.2 | R1-I07 | | 待开始 |
-| R1-K02 | P0-2 | 分类型切块 ingest | F5.1 | RFQ/Q_A → pgvector；**报价 → baselines 分支（不向量化）** | R1-K01 | | 待开始 |
-| R1-K03 | P0-2 | metadata 预过滤检索 | F1.4, F5.4 | `functions_in_scope` + `doc_type`；**检索主路径 RFQ/Q_A** | R1-K02 | | 待开始 |
-| R1-K04 | P0-2 | `manpower_baselines` 结构化 + ingest | F5.10 | 写入 `manpower_baselines.json`；与 import 同批 | R1-K02 | | 待开始 |
-| R1-K04a | P0-2 | 报价解析加固 | F5.10 | Expense/Money 行过滤；**全量** positions；`total_man_days` 校验 | R1-K04 | | 待开始 |
-| R1-K05 | P0-2 | `GET /knowledge/baselines` | traceability | API test 200；`?engagement_id` / `&function=` | R1-K04, R1-K04a | | 待开始 |
-| R1-K06 | P0-2 | `POST /knowledge/engagements/upload`（≤5 套/次） | F5.1 | zip 或多文件；导入报告；**三件套含填好数的报价 Excel** | R1-K02 | | 待开始 |
-| R1-K07 | P0-2 | 触发全量/增量 Re-index API | F5.1 | IT 目录 + Web 双路径；**向量仅 RFQ/Q_A** | R1-K02 | | 待开始 |
-| R1-K08 | P0-2 | `/knowledge` 页扩展 | F5.3–F5.4 | 统计、检索实验室（**资料类型 → 关键词 → Area**）、上传、进度 | R1-K05–K07 | | 待开始 |
-| R1-K08b | P0-2 | **`/knowledge` 基线预览 Tab** | F5.10 | engagement 列表 + Function 人天钻取 + 对照导出 | R1-K05 | | 待开始 |
+| R1-K01 | P0-2 | `manifest.json` 规范 + `engagements` 表 | F5.10 | 目录结构见 rag-design §5.2 | R1-I07 | | **已完成** |
+| R1-K02 | P0-2 | 分类型切块 ingest | F5.1 | RFQ/Q_A → pgvector；**报价 → baselines 分支（不向量化）** | R1-K01 | | **已完成** |
+| R1-K03 | P0-2 | metadata 预过滤检索 | F1.4, F5.4 | `functions_in_scope` + `doc_type`；**检索主路径 RFQ/Q_A** | R1-K02 | | **已完成** |
+| R1-K04 | P0-2 | `manpower_baselines` 结构化 + ingest | F5.10 | 写入 `manpower_baselines.json`；与 import 同批 | R1-K02 | | **已完成** |
+| R1-K04a | P0-2 | 报价解析加固 | F5.10 | Expense/Money 行过滤；**全量** positions；`total_man_days` 校验 | R1-K04 | | **已完成** |
+| R1-K05 | P0-2 | `GET /knowledge/baselines` | traceability | API test 200；`?engagement_id` / `&function=` | R1-K04, R1-K04a | | **已完成** |
+| R1-K06 | P0-2 | `POST /knowledge/engagements/upload`（≤5 套/次） | F5.1 | zip 或多文件；导入报告；**三件套含填好数的报价 Excel** | R1-K02 | | **已完成** |
+| R1-K07 | P0-2 | 触发全量/增量 Re-index API | F5.1 | IT 目录 + Web 双路径；**向量仅 RFQ/Q_A** | R1-K02 | | **已完成** |
+| R1-K08 | P0-2 | `/knowledge` 页扩展 | F5.3–F5.4 | 统计、检索实验室（**资料类型 → 关键词 → Area**）、上传、进度 | R1-K05–K07 | | **已完成** |
+| R1-K08b | P0-2 | **`/knowledge` 基线预览 Tab** | F5.10 | engagement 列表 + Function 人天钻取 + 对照导出 | R1-K05 | | **已完成** |
 | R1-K08c | P0-3 | **RFQ Top-3 ↔ baselines 联动** | F1.4 | 矩阵/对标页「查看该项目 baselines」 | R1-K05, R1-F09 | | **已完成** |
 | R1-K09 | P0-2 | 检索评测支撑 | §10.2 | ≥15 query + Pass 记录表；**spike 内部 12/15 PASS**（见 SPK-K04） | R1-K03 | | **进行中** |
-| R1-K10 | P0-2 | **知识库 Debug UI（DEV 专用）** | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | API+UI+Ollama index；`run_kb_debug_validation.py` | R1-E03, ingest spike | | **已实现** |
+| R1-K10 | P0-2 | **知识库 Debug UI（DEV 专用）** | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | API+UI+Ollama index；`run_kb_debug_validation.py` | R1-E03, ingest spike | | **已完成** |
 | R1-K11a | P1 | RFQ chunker 层级 `section_path` | F5.1 / rag-design | 编号栈；path 如 `四、… > 4.1… > 4.1.1…`；unit test | R1-K02 | | **已完成** |
 | R1-K11b | P1 | 索引 embed = path+正文；`rfqa_v4` | F5.1 | hash/schema bump；全量 reindex 后生效 | R1-K11a | | **已完成** |
 | R1-K11c | P1 | 检索按 Engagement 聚合 | F5.4 | `groups[]` + flat `results`；`top_k`=项目数 | R1-K11b | | **已完成** |
@@ -249,14 +250,14 @@
 
 | ID | 优先级 | 任务 | 主要产出 | 依赖 | 状态 |
 |----|--------|------|----------|------|------|
-| R1-K08-UX | P0-2 | 知识库 IA / 状态词典 / 文案冻结 | 管理员/工程师线框；上传/完整度/索引/job 四维状态 | KH00 | 待开始 |
-| R1-K06-UX | P0-2 | 上传与批次结果 | client 校验、partial success、hard failure、507、本批索引 CTA | K08-UX, KH01, KH05–KH07 | 待开始 |
-| R1-KH05-UX | P0-1 | 容量与写保护 | 80/90 Alert；结构化 507；读服务保持可用 | KH05b | 待开始 |
+| R1-K08-UX | P0-2 | 知识库 IA / 状态词典 / 文案冻结 | 管理员/工程师线框；上传/完整度/索引/job 四维状态 | KH00 | **进行中** |
+| R1-K06-UX | P0-2 | 上传与批次结果 | client 校验、partial success、hard failure、507、本批索引 CTA | K08-UX, KH01, KH05–KH07 | **已完成** |
+| R1-KH05-UX | P0-1 | 容量与写保护 | 80/90 Alert；结构化 507；读服务保持可用 | KH05b | **已完成** |
 | R1-KH08-UX | P0-2 | 导入历史与详情 | 批次列表、详情 Drawer、job/generation/失败清单 | KH08c | **已完成** |
 | R1-KH11-UX | P1 | 索引任务与维护提示 | job panel、reused/cancel、工程师非阻塞横幅 | KH02c, KH11a–b | **已完成** |
 | R1-KH12-UX | P1 | Engagement 分组清单 | 项目主表、文件展开、审计字段、真实状态 | KH12a–b | **已完成** |
-| R1-U-KB | P0-3 | 跨页面工程师体验 | AppLayout/RFQ 维护提示；RFQ 操作不阻塞 | KH11d | 待开始 |
-| R1-K08-RESP | P1 | 响应式与无障碍 | 窄屏 Card/Drawer、aria、非颜色状态、组件测试 | K06-UX, KH11-UX, KH12-UX | 待开始 |
+| R1-U-KB | P0-3 | 跨页面工程师体验 | AppLayout/RFQ 维护提示；RFQ 操作不阻塞 | KH11d | **已完成** |
+| R1-K08-RESP | P1 | 响应式与无障碍 | 窄屏 Card/Drawer、aria、非颜色状态、组件测试 | K06-UX, KH11-UX, KH12-UX | **进行中** |
 
 ### Phase C · P2（M6 / 运营增强，不阻塞 R1）
 
@@ -277,24 +278,24 @@
 
 | ID | 优先级 | 任务 | 子 ID | DoD | 依赖 | 负责人 | 状态 |
 |----|--------|------|-------|-----|------|--------|------|
-| R1-F01 | P0-3 | 基准库 JSON 加载 + seed（20–30 项） | F1.10a | 子任务 **F01-01** seed + **F01-02** Loader | R1-I 完成；可与 K 末期并行 | | 待开始 |
-| R1-F01-01 | P0-3 | `dimension_baseline.v1.json` seed | F1.10a | 20–30 项 JSON 文件 | — | | 待开始 |
-| R1-F01-02 | P0-3 | Baseline Loader Service | F1.10a | 读 JSON；version + modules | R1-F01-01 | | 待开始 |
-| R1-F02 | P0-3 | 客户 Excel → 基准库导入脚本/CLI | F1.10a | R1-β；附录 A 模板 | R1-F01, O-01 | | 待开始 |
-| R1-F03 | P0-3 | `GET /rfq/dimension-baseline` | F1.10a | 只读 version + modules | R1-F01-02 | | 待开始 |
-| R1-F04 | P0-3 | **RFQ 解析 `rules_first` 生产化** | F1.2–F1.3 | 子任务 **F04-01** 骨架 → SPK-F01–F07 → **F04-06** worker | R1-I03, **SPK-F01–F07** | | 待开始 |
-| R1-F04-01 | P0-3 | `RFQParseService` 骨架 | F1.2 | `parse_rules_first()` 入口 | — | | 待开始 |
-| R1-F04-06 | P0-3 | 解析接入 worker `parsing` | F1.2 | 经 R1-I03 调度 | R1-I03, F04-01 | | 待开始 |
-| R1-F04-07 | P0-3 | **RFQ 上传支持 `.doc`** | **F1.1** | API/UI 接受 `.docx`+`.doc`；`rfq_document_loader`；Docker LibreOffice；unit+API 测试 | R1-F04-01 | | 待开始 |
-| R1-F05 | P0-3 | 维度匹配 Service + Prompt | F1.10b | **F05-01**–**F05-04**；**SPK-F08** | R1-F01, R1-F04 | | 已完成 |
-| R1-F05-01 | P0-3 | `prompts/v1/rfq_baseline_match.txt` | F1.10b | batch LLM schema | R1-F01-01 | | 已完成 |
-| R1-F05-02 | P0-3 | `DimensionMatchService` 骨架 | F1.10b | keywords + module batch | R1-F01-02, F05-01 | | 已完成 |
-| R1-F05-04 | P0-3 | 维度匹配 unit + API 测试 | F1.10b | Mock LLM | R1-F05-02 | | 已完成 |
-| R1-F06 | P0-3 | 状态机插入 `dimension_review` | §5.1 | parsing → dimension_review → retrieving | R1-F05 | | 已完成 |
-| R1-F07 | P0-3 | `PUT /rfq/tasks/{id}` 更新 draft | F1.10c | 勾选、work_content、custom_items | R1-F06 | | 已完成 |
-| R1-F08 | P0-3 | `POST .../confirm-dimensions` | F1.10d | 触发 Top-3 RAG + 矩阵（仅 in_scope） | **R1-K02,K03,K07**, R1-F07 | | 已完成 |
-| R1-F09 | P0-3 | 对比矩阵生成对齐 in_scope | F1.5–F1.6 | 复用 comparison_service | R1-F08 | | 已完成 |
-| R1-F10 | P0-3 | unit + API + regression | — | Mock LLM/RAG；非法 JSON 不 500 | R1-F01–F09 | | 待开始 |
+| R1-F01 | P0-3 | 基准库 JSON 加载 + seed（20–30 项） | F1.10a | 子任务 **F01-01** seed + **F01-02** Loader | R1-I 完成；可与 K 末期并行 | | **已完成** |
+| R1-F01-01 | P0-3 | `dimension_baseline.v1.json` seed | F1.10a | 20–30 项 JSON 文件 | — | | **已完成** |
+| R1-F01-02 | P0-3 | Baseline Loader Service | F1.10a | 读 JSON；version + modules | R1-F01-01 | | **已完成** |
+| R1-F02 | P0-3 | 客户 Excel → 基准库导入脚本/CLI | F1.10a | R1-β；附录 A 模板 | R1-F01, O-01 | | **阻塞** |
+| R1-F03 | P0-3 | `GET /rfq/dimension-baseline` | F1.10a | 只读 version + modules | R1-F01-02 | | **已完成** |
+| R1-F04 | P0-3 | **RFQ 解析 `rules_first` 生产化** | F1.2–F1.3 | 子任务 **F04-01** 骨架 → SPK-F01–F07 → **F04-06** worker | R1-I03, **SPK-F01–F07** | | **已完成** |
+| R1-F04-01 | P0-3 | `RFQParseService` 骨架 | F1.2 | `parse_rules_first()` 入口 | — | | **已完成** |
+| R1-F04-06 | P0-3 | 解析接入 worker `parsing` | F1.2 | 经 R1-I03 调度 | R1-I03, F04-01 | | **已完成** |
+| R1-F04-07 | P0-3 | **RFQ 上传支持 `.doc`** | **F1.1** | API/UI 接受 `.docx`+`.doc`；`rfq_document_loader`；Docker LibreOffice；unit+API 测试 | R1-F04-01 | | **已完成** |
+| R1-F05 | P0-3 | 维度匹配 Service + Prompt | F1.10b | **F05-01**–**F05-04**；**SPK-F08** | R1-F01, R1-F04 | | **已完成** |
+| R1-F05-01 | P0-3 | `prompts/v1/rfq_baseline_match.txt` | F1.10b | batch LLM schema | R1-F01-01 | | **已完成** |
+| R1-F05-02 | P0-3 | `DimensionMatchService` 骨架 | F1.10b | keywords + module batch | R1-F01-02, F05-01 | | **已完成** |
+| R1-F05-04 | P0-3 | 维度匹配 unit + API 测试 | F1.10b | Mock LLM | R1-F05-02 | | **已完成** |
+| R1-F06 | P0-3 | 状态机插入 `dimension_review` | §5.1 | parsing → dimension_review → retrieving | R1-F05 | | **已完成** |
+| R1-F07 | P0-3 | `PUT /rfq/tasks/{id}` 更新 draft | F1.10c | 勾选、work_content、custom_items | R1-F06 | | **已完成** |
+| R1-F08 | P0-3 | `POST .../confirm-dimensions` | F1.10d | 触发 Top-3 RAG + 矩阵（仅 in_scope） | **R1-K02,K03,K07**, R1-F07 | | **已完成** |
+| R1-F09 | P0-3 | 对比矩阵生成对齐 in_scope | F1.5–F1.6 | 复用 comparison_service | R1-F08 | | **已完成** |
+| R1-F10 | P0-3 | unit + API + regression | — | Mock LLM/RAG；非法 JSON 不 500 | R1-F01–F09 | | **已完成** |
 
 ---
 
@@ -305,9 +306,9 @@
 | R1-U01 | P0-3 | `DimensionBaselineReview` 新建 | F1.10c | 单视图、模块 Collapse、RFQ 依据 Drawer | R1-F06 | | 已完成 |
 | R1-U02 | P0-3 | `/rfq` 两阶段流 | — | dimension_review → 矩阵页 | R1-U01 | | 已完成 |
 | R1-U03 | P0-3 | `TaskContextBar` / 状态文案 | §5.1 | dimension_review 等待勾选 | R1-F06 | | 已完成 |
-| R1-U04 | P0-3 | 矩阵页仅 in_scope 行 | F1.10d | 复用 ComparisonMatrix | R1-F09 | | 待开始 |
+| R1-U04 | P0-3 | 矩阵页仅 in_scope 行 | F1.10d | 复用 ComparisonMatrix | R1-F09 | | **已完成** |
 | R1-U05 | P0-3 | Profile=r1 路由守卫 + 未购步锁定 UI | formal §5.2 | 侧栏/Stepper 灰色锁定 + 路由重定向 | R1-E03 | | **已完成** |
-| R1-U06 | P0-3 | 联调 3 RFQ 样本路径 | — | 端到端无 Mock 欺骗 | R1-F10, R1-K seed 数据 | | 待开始 |
+| R1-U06 | P0-3 | 联调 3 RFQ 样本路径 | — | 端到端无 Mock 欺骗 | R1-F10, R1-K seed 数据 | | **进行中** |
 
 ---
 
@@ -315,13 +316,13 @@
 
 | ID | 优先级 | 任务 | DoD / 对齐 | 依赖 | 负责人 | 状态 |
 |----|--------|------|------------|------|--------|------|
-| R1-A01 | P0-3 | 编写 R1 验收彩排脚本（15–20 min） | 仅 RFQ+知识库；与 demo-rehearsal 分离 | I-06 | | 待开始 |
-| R1-A02 | P0-3 | 与客户确认 ≥15 条检索评测题集 | O-03 · 第 4 周前 | R1-K09 | | 待开始 |
-| R1-A03 | 验收 | 金标准 **≥5 套** + 内网 bulk 导入报告（O-02a/c） | O-02a/c | R1-K06–K07 | | 待开始 |
-| R1-A04 | 验收 | R1-β：客户 ~100 项基准 + 3 RFQ 签字 | O-01, O-04 | R1-F02, R1-U06 | | 待开始 |
-| R1-A05 | 验收 | 内网 UAT：Profile=r1 + 真实 Ollama | O-05 | R1-E05 | | 待开始 |
-| R1-A07 | 验收 | bulk 试点评估登记（10–20 套；失败率 Top5） | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) §5.3 | O-02b | | 待开始 |
-| R1-A06 | 验收 | `run_tests.ps1` 全绿 + `--regression` | 解析/RAG 变更时必跑 | 全部 P0 任务 | | 待开始 |
+| R1-A01 | P0-3 | 编写 R1 验收彩排脚本（15–20 min） | 仅 RFQ+知识库；与 demo-rehearsal 分离 | I-06 | | **已完成** |
+| R1-A02 | P0-3 | 与客户确认 ≥15 条检索评测题集 | O-03 · 第 4 周前 | R1-K09 | | **阻塞** |
+| R1-A03 | 验收 | 金标准 **≥5 套** + 内网 bulk 导入报告（O-02a/c） | O-02a/c | R1-K06–K07 | | **阻塞** |
+| R1-A04 | 验收 | R1-β：客户 ~100 项基准 + 3 RFQ 签字 | O-01, O-04 | R1-F02, R1-U06 | | **阻塞** |
+| R1-A05 | 验收 | 内网 UAT：Profile=r1 + 真实 Ollama | O-05 | R1-E05 | | **阻塞** |
+| R1-A07 | 验收 | bulk 试点评估登记（10–20 套；失败率 Top5） | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) §5.3 | O-02b | | **阻塞** |
+| R1-A06 | 验收 | `run_tests.ps1` 全绿 + `--regression` | 解析/RAG 变更时必跑 | 全部 P0 任务 | | **进行中** |
 
 ---
 
@@ -362,26 +363,51 @@
 
 | ID | 优先级 | 任务 | 映射 | 状态 |
 |----|--------|------|------|------|
-| SPK-F01 | P0-3 | `rules_first` 并入 `RFQAnalysisService` | R1-F04 | 待开始 |
-| SPK-F02 | P0-3 | LLM 兜底 + `normalize_llm_json` | R1-F04 | 待开始 |
-| SPK-F03 | P0-1 | 解析迁入 worker + dimension_review 状态机 | R1-I03, R1-F06 | 待开始 |
-| SPK-F04 | P0-3 | 统一 Word 读入 + `rfq_chunker` | R1-F04 | 待开始 |
+| SPK-F01 | P0-3 | `rules_first` 并入 `RFQAnalysisService` | R1-F04 | **已完成** |
+| SPK-F02 | P0-3 | LLM 兜底 + `normalize_llm_json` | R1-F04 | **已完成** |
+| SPK-F03 | P0-1 | 解析迁入 worker + dimension_review 状态机 | R1-I03, R1-F06 | **已完成** |
+| SPK-F04 | P0-3 | 统一 Word 读入 + `rfq_chunker` | R1-F04 | **已完成** |
 | SPK-F05 | P1 | 里程碑规则补全 P1/P4/SOP | R1-F04 | 待开始 |
 | SPK-F06 | P1 | §4.2 交付物表规则解析（7 表） | R1-F04 | **已完成**（序号窗/CAE 表/节点标签；见 rfq-parse-spike-closure） |
-| SPK-F07 | P0-3 | rules_first unit/API 测试 | R1-F10 | 待开始 |
-| SPK-F08 | P0-3 | 维度匹配 module batch LLM | R1-F05 | 待开始 |
+| SPK-F07 | P0-3 | rules_first unit/API 测试 | R1-F10 | **已完成** |
+| SPK-F08 | P0-3 | 维度匹配 module batch LLM | R1-F05 | **已完成** |
 
 ### RAG 检索（vector 12/15 · index 171）
 
 | ID | 优先级 | 任务 | 映射 | 状态 |
 |----|--------|------|------|------|
-| SPK-K01 | P0-2 | 金标准回归须 rfq+qa（171）；铜级 RFQ 可独立索引 | R1-K02, K07, KH01 | 待开始 |
-| SPK-K02 | P0-2 | index 后 doc_type 回归测试 | R1-K09, I09 | 待开始 |
-| SPK-K03 | P0-2 | 生产 RAG = vector（同 spike） | R1-K03 | 待开始 |
+| SPK-K01 | P0-2 | 金标准回归须 rfq+qa（171）；铜级 RFQ 可独立索引 | R1-K02, K07, KH01 | **已完成** |
+| SPK-K02 | P0-2 | index 后 doc_type 回归测试 | R1-K09, I09 | **已完成** |
+| SPK-K03 | P0-2 | 生产 RAG = vector（同 spike） | R1-K03 | **已完成** |
 | SPK-K04 | P0-2 | 15 条评测 + Pass 记录；客户 O-03 | R1-K09, A02 | **进行中** |
-| SPK-K05 | P0-2 | `insufficient_evidence` 拒答 | R1-I08 | 待开始 |
-| SPK-K06 | P1 | 3 条 vector FAIL 根因文档化 | R1-K09 | 待开始 |
+| SPK-K05 | P0-2 | `insufficient_evidence` 拒答 | R1-I08 | **已完成** |
+| SPK-K06 | P1 | 3 条 vector FAIL 根因文档化 | R1-K09 | **已完成**（见 rag-compare-spike-closure §2） |
 | SPK-K07 | P2 | Hybrid 变更单依据归档 | R1-P2-02 | 待开始 |
+
+---
+
+## R1-PERF 多人 RFQ 排队体验（R1+ · Wave 7 · 不阻塞 R1-β）
+
+> **规格全文：** [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)  
+> **决策：** 不引入 Redis/Celery；Phase2（confirm）入队；内容级缓存；默认保持 `OLLAMA_MAX_CONCURRENT=1`。  
+> **原则：** 缩短真实 GPU 占用 + 提升体感等待（透明排队、分阶段文案、可离开）。
+
+| ID | 优先级 | 任务 | 产出 / DoD | 依赖 | 状态 |
+|----|--------|------|------------|------|------|
+| R1-PERF01 | P0 | `rfq_confirm` job + enqueue | confirm 快速返回；单飞/reused | R1-F08, R1-I02 | **已完成** |
+| R1-PERF02 | P0 | worker：retrieving → generating | 与现同步逻辑等价；写矩阵/失败 | PERF01 | **已完成**（随 PERF01 落地） |
+| R1-PERF03 | P0 | Phase2 取消 / stale / 重启恢复 | 回滚 `dimension_review`；orphan 跳过 active job；queued 无 job 恢复 | PERF02, R1-F11 | **已完成** |
+| R1-PERF04 | P0 | unit + API 测试 | Mock LLM/RAG；入队/取消/429/stale | PERF03 | **已完成** |
+| R1-PERF05 | P0 | `job.phase` + `status_message` | parsing/matching/retrieving/generating；批次 a/b | PERF02 | **已完成** |
+| R1-PERF06 | P0 | status 契约对齐 | queue_position、ETA、queue_wait_ms、run_ms、phase | PERF05 | **已完成** |
+| R1-PERF07 | P0 | `/rfq` 进度卡 + 状态词典 | 文案见方案 §5；Vitest（排队「预计还需」已落地） | PERF06 | **已完成**（文案）；进度卡细粒度可后续打磨 |
+| R1-PERF08 | P1 | RFQ content_hash 解析缓存 | 同文件+版本命中；owner 隔离勾选 | PERF01 | 待开始 |
+| R1-PERF09 | P1 | query embedding 短缓存 | 模型变更失效；不上 Redis | PERF02 | 待开始 |
+| R1-PERF10 | P1 | 忙时提示条 + 429/503 操作区文案 | 方案 §5.4 | PERF07 | 待开始 |
+| R1-PERF11 | P1 | TaskContextBar 排队/待确认强化 | 非 RFQ 页可理解；Vitest | PERF07 | 待开始 |
+| R1-PERF12 | P2 | 并发=2 / 双卡评估备忘录 | 通过才改生产默认；默认保持 1 | PERF04 | 待开始 |
+
+**Gate：** 不阻塞 R1-β 签字；建议签字后优先 7A（PERF01–04）+ 7B（PERF05–07）。彩排须补「双人排队」小节。
 
 ---
 
@@ -410,5 +436,6 @@
 - Web QA 表格在线编辑（Q3 → M4）
 - 财务助手 · OA 对接
 - **F5.6 引用反馈 L1/L2 作为客户交付物**（见 **R1-OPS** · 内部可选）
+- **Redis / Celery 替换现有 PG 任务队列**（见 **R1-PERF** · 已否决）
 
 客户依赖明细见 [customer-dependencies.md](customer-dependencies.md)。验收勾选项见 [acceptance-checklist.md](acceptance-checklist.md)。

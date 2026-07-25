@@ -46,8 +46,8 @@ export function formatQueueWaitHint(opts: {
         : "排队中";
     const eta =
       estimatedWaitSeconds != null && estimatedWaitSeconds > 0
-        ? `预计约 ${Math.ceil(estimatedWaitSeconds / 60)} 分钟`
-        : "预计等待时间暂不可用";
+        ? `预计还需约 ${Math.ceil(estimatedWaitSeconds / 60)} 分钟`
+        : "预计剩余等待时间暂不可用";
     return `排队中：${pos} · ${eta}`;
   }
   if (stalled) {
@@ -70,6 +70,9 @@ export function formatLiveTimingHint(opts: {
   });
 }
 
+/** Phase2 (confirm / retrieve / generate) starts at progress 45+. */
+const PHASE2_PROGRESS_FLOOR = 45;
+
 export function resolveProcessingStepIndex(processingStatus: string, progress: number): number {
   switch (processingStatus) {
     case "queued":
@@ -77,11 +80,16 @@ export function resolveProcessingStepIndex(processingStatus: string, progress: n
       return 1;
     case "parsing":
       return progress >= 35 ? 2 : 1;
+    case "cancelling":
+      // Phase1 cancel must not jump to "等待工程师确认".
+      if (progress < PHASE2_PROGRESS_FLOOR) {
+        return progress >= 35 ? 2 : 1;
+      }
+      return 3;
     case "dimension_review":
       return 3;
     case "retrieving":
     case "generating":
-    case "cancelling":
       // Past engineer confirmation; keep review step done and show active on last step.
       return 3;
     default:
@@ -105,10 +113,25 @@ export function resolveProcessingStepVisuals(
     ];
   }
 
+  // Phase1 cancel: only mark steps actually reached; never mark engineer review done.
+  if (processingStatus === "cancelling" && progress < PHASE2_PROGRESS_FLOOR) {
+    const reachedMatch = progress >= 35;
+    return [
+      { label: RFQ_PROCESSING_STEPS[0].label, state: "done" },
+      { label: RFQ_PROCESSING_STEPS[1].label, state: "done" },
+      {
+        label: RFQ_PROCESSING_STEPS[2].label,
+        state: reachedMatch ? "done" : "pending",
+      },
+      { label: RFQ_PROCESSING_STEPS[3].label, state: "pending" },
+      { label: "正在取消", state: "active" },
+    ];
+  }
+
   if (
     processingStatus === "retrieving"
     || processingStatus === "generating"
-    || (processingStatus === "cancelling" && progress >= 40)
+    || (processingStatus === "cancelling" && progress >= PHASE2_PROGRESS_FLOOR)
   ) {
     return [
       { label: RFQ_PROCESSING_STEPS[0].label, state: "done" },
@@ -179,9 +202,13 @@ export default function RfqAnalysisProgress({
   const showQueueBadge =
     processingStatus === "queued" || processingStatus === "pending";
   const showCancel =
-    CANCELLABLE_STATUSES.has(processingStatus) && onCancel != null;
+    onCancel != null &&
+    (CANCELLABLE_STATUSES.has(processingStatus) ||
+      cancelling ||
+      processingStatus === "cancelling");
   const isPhase1Cancelling =
-    processingStatus === "cancelling" && progress < 40;
+    (cancelling || processingStatus === "cancelling") &&
+    progress < PHASE2_PROGRESS_FLOOR;
 
   const handleCancelClick = () => {
     if (!onCancel || cancelling) return;
@@ -317,7 +344,13 @@ export default function RfqAnalysisProgress({
       ) : null}
       {showCancel ? (
         <div style={{ marginTop: 20 }}>
-          <Button danger disabled={cancelling} loading={cancelling} onClick={handleCancelClick}>
+          <Button
+            danger
+            disabled={cancelling}
+            loading={cancelling}
+            onClick={handleCancelClick}
+            data-testid="rfq-cancel-analysis"
+          >
             {cancelling ? "正在取消…" : "取消分析"}
           </Button>
           {cancelling ? (

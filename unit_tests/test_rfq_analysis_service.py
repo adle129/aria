@@ -113,9 +113,13 @@ def test_confirm_dimensions_generates_matrix(db_session, analysis_service, monke
         )
 
     monkeypatch.setattr(analysis_service.rag, "search_similar_projects", fake_search)
-    analysis_service.confirm_dimensions(db_session, task, {})
+    result = analysis_service.confirm_dimensions(db_session, task, {})
     db_session.refresh(task)
 
+    assert result.reused is False
+    assert result.job.job_type == "rfq_confirm"
+    assert result.job.payload["task_id"] == task.id
+    assert result.job.payload["draft_fingerprint"]
     assert task.processing_status == "completed"
     assert task.comparison_table is not None
     assert task.comparison_table.get("matrix_rows")
@@ -164,7 +168,7 @@ def test_confirm_dimensions_marks_failed_on_lease_timeout(
     )
 
     with pytest.raises(OllamaLeaseTimeout):
-        analysis_service.confirm_dimensions(db_session, task, {})
+        analysis_service.execute_confirm_job(db_session, task.id)
     db_session.refresh(task)
 
     assert task.processing_status == "failed"
@@ -265,4 +269,203 @@ def test_recover_orphaned_confirm_phase_skips_fresh_task(db_session, analysis_se
 
     svc = RFQAnalysisService(Settings(mock_llm=True, mock_rag=True, task_job_stale_seconds=900))
     same = svc.recover_orphaned_confirm_phase(db_session, task)
+    assert same.processing_status == "retrieving"
+
+
+def test_confirm_dimensions_enqueues_job_without_inline(db_session, analysis_service, monkeypatch):
+    draft = analysis_service.dimension_match.match_rfq_to_baseline(
+        {
+            "project_name": "MEB Chassis",
+            "functions_in_scope": ["Chassis"],
+            "platform_type": "MEB",
+        }
+    )
+    draft["items"][0]["in_scope"] = True
+    task = RFQTask(
+        file_name="meb.docx",
+        file_path="/tmp/meb.docx",
+        processing_status="dimension_review",
+        rfq_modules={"project_name": "MEB Chassis", "functions_in_scope": ["Chassis"]},
+        dimension_draft=draft,
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    monkeypatch.setattr(analysis_service.job_service, "uses_inline_worker", lambda: False)
+    result = analysis_service.confirm_dimensions(db_session, task, {})
+    db_session.refresh(task)
+
+    assert result.reused is False
+    assert result.job.job_type == "rfq_confirm"
+    assert result.job.status == "queued"
+    assert result.job.phase == "queued"
+    assert result.job.priority == 300
+    assert result.job.single_flight_key == f"rfq_confirm:{task.id}"
+    assert result.job.payload["task_id"] == task.id
+    assert result.job.payload["draft_fingerprint"] == analysis_service.draft_fingerprint(
+        task.dimension_draft
+    )
+    assert task.processing_status == "queued"
+    assert task.status_message == "对比表任务排队中"
+    assert task.comparison_table is None
+
+
+def test_confirm_dimensions_reuses_active_job(db_session, analysis_service, monkeypatch):
+    draft = analysis_service.dimension_match.match_rfq_to_baseline(
+        {"project_name": "MEB", "functions_in_scope": ["Chassis"]}
+    )
+    draft["items"][0]["in_scope"] = True
+    task = RFQTask(
+        file_name="meb.docx",
+        file_path="/tmp/meb.docx",
+        processing_status="dimension_review",
+        rfq_modules={"project_name": "MEB", "functions_in_scope": ["Chassis"]},
+        dimension_draft=draft,
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    monkeypatch.setattr(analysis_service.job_service, "uses_inline_worker", lambda: False)
+    first = analysis_service.confirm_dimensions(db_session, task, {})
+    second = analysis_service.confirm_dimensions(db_session, task, {})
+
+    assert second.reused is True
+    assert second.job.id == first.job.id
+
+
+def test_confirm_dimensions_queue_full(db_session, analysis_service, monkeypatch):
+    from app.services.rfq_analysis_service import RfqQueueFullError
+
+    draft = analysis_service.dimension_match.match_rfq_to_baseline(
+        {"project_name": "MEB", "functions_in_scope": ["Chassis"]}
+    )
+    draft["items"][0]["in_scope"] = True
+    task = RFQTask(
+        file_name="meb.docx",
+        file_path="/tmp/meb.docx",
+        processing_status="dimension_review",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft=draft,
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    monkeypatch.setattr(analysis_service.settings, "task_max_queue_size", 0)
+    with pytest.raises(RfqQueueFullError) as exc:
+        analysis_service.confirm_dimensions(db_session, task, {})
+    assert exc.value.queue_depth >= 0
+
+def test_confirm_dimensions_rejects_when_phase2_in_flight(db_session, analysis_service):
+    task = RFQTask(
+        file_name="meb.docx",
+        file_path="/tmp/meb.docx",
+        processing_status="retrieving",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"dimension_id": "d1", "in_scope": True}]},
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    with pytest.raises(ValueError, match="正在生成"):
+        analysis_service.confirm_dimensions(db_session, task, {})
+
+
+def test_confirm_reuses_rejects_different_fingerprint(db_session, analysis_service, monkeypatch):
+    draft = analysis_service.dimension_match.match_rfq_to_baseline(
+        {"project_name": "MEB", "functions_in_scope": ["Chassis"]}
+    )
+    draft["items"][0]["in_scope"] = True
+    task = RFQTask(
+        file_name="meb.docx",
+        file_path="/tmp/meb.docx",
+        processing_status="dimension_review",
+        rfq_modules={"project_name": "MEB", "functions_in_scope": ["Chassis"]},
+        dimension_draft=draft,
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    monkeypatch.setattr(analysis_service.job_service, "uses_inline_worker", lambda: False)
+    first = analysis_service.confirm_dimensions(db_session, task, {})
+    other_items = [{**draft["items"][0], "in_scope": True, "work_content": "完全不同的勾选内容"}]
+    with pytest.raises(ValueError, match="正在生成"):
+        analysis_service.confirm_dimensions(
+            db_session,
+            task,
+            {"items": other_items, "custom_items": []},
+        )
+    assert first.job.id
+
+
+def test_get_status_payload_includes_job_phase(db_session, analysis_service):
+    from datetime import datetime, timezone
+
+    from app.models.task_job import TaskJob
+    from app.repositories.task_job_repository import TaskJobRepository
+
+    task = RFQTask(
+        file_name="phase.docx",
+        file_path="/tmp/phase.docx",
+        processing_status="retrieving",
+        progress="55",
+        status_message="正在检索相似历史项目...",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"dimension_id": "d1", "in_scope": True}]},
+    )
+    db_session.add(task)
+    db_session.commit()
+    now = datetime.now(timezone.utc)
+    job = TaskJob(
+        job_type="rfq_confirm",
+        ref_id=task.id,
+        status="running",
+        phase="retrieving",
+        single_flight_key=f"rfq_confirm:{task.id}",
+        started_at=now,
+        heartbeat_at=now,
+        queued_at=now,
+    )
+    TaskJobRepository(db_session).create(job)
+
+    payload = analysis_service.get_status_payload(task, db_session)
+    assert payload["status"] == "retrieving"
+    assert payload["phase"] == "retrieving"
+    assert payload["message"] == "正在检索相似历史项目..."
+    assert "queue_wait_ms" in payload
+    assert "run_ms" in payload
+
+
+def test_recover_orphan_skips_when_confirm_job_active(db_session, analysis_service):
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.task_job import TaskJob
+    from app.repositories.task_job_repository import TaskJobRepository
+
+    stale = datetime.now(timezone.utc) - timedelta(seconds=3600)
+    task = RFQTask(
+        file_name="stale.docx",
+        file_path="/tmp/stale.docx",
+        processing_status="retrieving",
+        progress="55",
+        rfq_modules={"project_name": "MEB"},
+        dimension_draft={"items": [{"dimension_id": "d1", "in_scope": True}]},
+        updated_at=stale,
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    now = datetime.now(timezone.utc)
+    job = TaskJob(
+        job_type="rfq_confirm",
+        ref_id=task.id,
+        status="running",
+        phase="retrieving",
+        single_flight_key=f"rfq_confirm:{task.id}",
+        started_at=now,
+        heartbeat_at=now,
+        queued_at=now,
+    )
+    TaskJobRepository(db_session).create(job)
+
+    same = analysis_service.recover_orphaned_confirm_phase(db_session, task)
     assert same.processing_status == "retrieving"

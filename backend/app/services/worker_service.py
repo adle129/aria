@@ -81,6 +81,10 @@ class WorkerService:
                     task = task_repo.get_by_id(job.ref_id)
                     if task and task.processing_status in IN_FLIGHT_RFQ_STATUSES:
                         self.analysis_service.apply_task_cancelled(db, task)
+                elif job.job_type == TaskJobService.JOB_RFQ_CONFIRM:
+                    task = task_repo.get_by_id(job.ref_id)
+                    if task and task.rfq_modules and task.dimension_draft:
+                        self.analysis_service._rollback_confirm_to_review(task_repo, task)
                 recovered += 1
                 continue
             self.job_service.mark_failed(db, job, "任务执行超时（worker 无响应）")
@@ -97,6 +101,19 @@ class WorkerService:
                         task.error_msg = "分析超时：本地模型响应过慢或处理中断"
                         task.status_message = "分析失败"
                     task_repo.update(task)
+            elif job.job_type == TaskJobService.JOB_RFQ_CONFIRM:
+                task = task_repo.get_by_id(job.ref_id)
+                if task and task.rfq_modules and task.dimension_draft:
+                    if job.status == "queued":
+                        task.processing_status = "queued"
+                        task.error_msg = None
+                        task.progress = "45"
+                        task.status_message = "对比表任务排队中"
+                    else:
+                        task.processing_status = "failed"
+                        task.error_msg = "确认维度超时：本地模型响应过慢或处理中断"
+                        task.status_message = "确认维度后生成对比矩阵失败"
+                    task_repo.update(task)
             recovered += 1
         recovered += self.analysis_service.recover_orphaned_confirm_phases(db)
         return recovered
@@ -104,6 +121,9 @@ class WorkerService:
     def process_job(self, db: Session, job: TaskJob) -> dict | None:
         if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
             self.analysis_service.analyze_task(db, job.ref_id)
+            return None
+        if job.job_type == TaskJobService.JOB_RFQ_CONFIRM:
+            self.analysis_service.execute_confirm_job(db, job.ref_id, job)
             return None
         if job.job_type == TaskJobService.JOB_KB_INDEX:
             return KnowledgeIndexJobService(self.settings).execute(db, job)
@@ -115,6 +135,28 @@ class WorkerService:
             if job.job_type == TaskJobService.JOB_KB_INDEX:
                 kb_jobs.sync_import_started(db, job)
             result = self.process_job(db, job)
+            # Race: work finished a tick after cancel was requested — honour cancel.
+            db.expire(job)
+            db.refresh(job)
+            if job.cancel_requested_at is not None and job.status == "running":
+                self.job_service.mark_cancelled(db, job)
+                if job.job_type == TaskJobService.JOB_RFQ_ANALYSIS:
+                    task = RFQTaskRepository(db).get_by_id(job.ref_id)
+                    if task and task.processing_status != "cancelled":
+                        self.analysis_service.apply_task_cancelled(db, task)
+                elif job.job_type == TaskJobService.JOB_RFQ_CONFIRM:
+                    task = RFQTaskRepository(db).get_by_id(job.ref_id)
+                    if task and task.processing_status not in {"dimension_review", "cancelled"}:
+                        if task.rfq_modules and task.dimension_draft:
+                            self.analysis_service._rollback_confirm_to_review(
+                                RFQTaskRepository(db),
+                                task,
+                            )
+                        elif task.processing_status != "cancelled":
+                            self.analysis_service.apply_task_cancelled(db, task)
+                elif job.job_type == TaskJobService.JOB_KB_INDEX:
+                    kb_jobs.sync_import_finished(db, job)
+                return
             self.job_service.mark_completed(db, job, result)
             if job.job_type == TaskJobService.JOB_KB_INDEX:
                 kb_jobs.sync_import_finished(db, job, result=result)
@@ -128,6 +170,16 @@ class WorkerService:
                 task = RFQTaskRepository(db).get_by_id(job.ref_id)
                 if task and task.processing_status != "cancelled":
                     self.analysis_service.apply_task_cancelled(db, task)
+            elif job.job_type == TaskJobService.JOB_RFQ_CONFIRM:
+                task = RFQTaskRepository(db).get_by_id(job.ref_id)
+                if task and task.processing_status not in {"dimension_review", "cancelled"}:
+                    if task.rfq_modules and task.dimension_draft:
+                        self.analysis_service._rollback_confirm_to_review(
+                            RFQTaskRepository(db),
+                            task,
+                        )
+                    elif task.processing_status != "cancelled":
+                        self.analysis_service.apply_task_cancelled(db, task)
         except DiskCapacityError as exc:
             logger.error(
                 "job_disk_capacity_failed job_id=%s job_type=%s ref_id=%s volume=%s "
@@ -206,7 +258,13 @@ class WorkerService:
                 time.sleep(poll)
 
 
-def run_inline_job(db: Session, job: TaskJob, settings: Settings | None = None) -> None:
+def run_inline_job(
+    db: Session,
+    job: TaskJob,
+    settings: Settings | None = None,
+    *,
+    analysis_service: RFQAnalysisService | None = None,
+) -> None:
     repo = TaskJobRepository(db)
     now = datetime.now(timezone.utc)
     job.status = "running"
@@ -215,4 +273,7 @@ def run_inline_job(db: Session, job: TaskJob, settings: Settings | None = None) 
     job.worker_id = "inline"
     job.attempts = (job.attempts or 0) + 1
     repo.update(job)
-    WorkerService(settings).handle_job(db, job)
+    worker = WorkerService(settings)
+    if analysis_service is not None:
+        worker.analysis_service = analysis_service
+    worker.handle_job(db, job)

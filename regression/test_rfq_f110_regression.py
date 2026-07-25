@@ -162,7 +162,9 @@ def test_reg_m01_confirm_matrix_structure(regression_client):
             "custom_items": task["dimension_draft"].get("custom_items") or [],
         },
     )
-    assert confirm.status_code == 200, confirm.text
+    assert confirm.status_code in {200, 202}, confirm.text
+    assert confirm.json()["code"] in {200, 202}
+    assert confirm.json()["data"]["job_id"]
     _wait_completed(regression_client, task_id)
 
     done = regression_client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]

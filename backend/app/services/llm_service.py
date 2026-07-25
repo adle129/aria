@@ -86,7 +86,7 @@ class LLMService:
             payload["stream"],
         )
         try:
-            with gate.acquire(request_type="rfq"):
+            with gate.acquire(request_type="rfq", cancel_check=cancel_check):
                 with ollama_http_client(self.timeout_seconds) as client:
                     if not payload["stream"]:
                         response = client.post(url, json=payload)
