@@ -28,6 +28,7 @@ import WorkflowSteps from "@/components/WorkflowSteps";
 import { useUiProfile } from "@/hooks/useUiProfile";
 import { TASK_CHANGED_EVENT, notifyTaskChanged, useTaskContext } from "@/context/TaskContext";
 import { isCancellingUi, shouldApplyStatusToDisplayedTask } from "@/lib/rfqCancelUi";
+import { resolveStatusWatchTaskId, RfqPollSessionMap } from "@/lib/rfqStatusPoll";
 import { RFQ_BEGIN_NEW_EVENT, RFQ_BEGIN_NEW_FLAG, resolveRfqWorkspaceStage } from "@/lib/rfqWorkspace";
 import {
   buildBaselinesKnowledgeHref,
@@ -129,10 +130,12 @@ export default function RfqPage() {
   /** Only the task currently being cancelled — must not leak to other selected tasks. */
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
-  const activePollEpochRef = useRef(0);
+  /** Per-task poll epochs — concurrent RFQ polls must not cancel each other. */
+  const pollSessionsRef = useRef(new RfqPollSessionMap());
   const displayedTaskIdRef = useRef<string | null>(null);
   const [taskSwitching, setTaskSwitching] = useState(false);
   const [stalledPolling, setStalledPolling] = useState(false);
+  /** Resume target for the displayed task's poll (not a sibling upload). */
   const [activePollTaskId, setActivePollTaskId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -175,7 +178,7 @@ export default function RfqPage() {
   );
 
   const resetWorkspace = useCallback(() => {
-    activePollEpochRef.current += 1;
+    pollSessionsRef.current.invalidateAll();
     if (typeof window !== "undefined") {
       sessionStorage.removeItem(RFQ_BEGIN_NEW_FLAG);
     }
@@ -204,18 +207,27 @@ export default function RfqPage() {
       stopAt: "dimension_review" | "completed",
       options?: { resume?: boolean },
     ) => {
-      activePollEpochRef.current += 1;
-      const myEpoch = activePollEpochRef.current;
-      setActivePollTaskId(taskId);
-      setStalledPolling(false);
-      if (!options?.resume) {
-        setAnalysisProgress(0);
-        setAnalysisMessage("等待处理...");
-        setQueuePosition(null);
-        setEstimatedWaitSeconds(null);
-        setQueueWaitMs(null);
-        setRunMs(null);
+      const sessions = pollSessionsRef.current;
+      const myEpoch = sessions.begin(taskId);
+      const isLive = () => sessions.isCurrent(taskId, myEpoch);
+      const finishPoll = () => {
+        sessions.end(taskId, myEpoch);
+        setActivePollTaskId((prev) => (prev === taskId ? null : prev));
+      };
+
+      if (shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) {
+        setActivePollTaskId(taskId);
+        setStalledPolling(false);
+        if (!options?.resume) {
+          setAnalysisProgress(0);
+          setAnalysisMessage("等待处理...");
+          setQueuePosition(null);
+          setEstimatedWaitSeconds(null);
+          setQueueWaitMs(null);
+          setRunMs(null);
+        }
       }
+
       let lastStatus = "";
       let lastProgress = -1;
 
@@ -243,8 +255,24 @@ export default function RfqPage() {
         );
       };
 
+      const applyTerminalTask = (data: TaskData, status: TaskStatusPayload) => {
+        void refreshRecentTasks();
+        if (!shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) {
+          return;
+        }
+        syncMatrixFromTask(data);
+        if (status.status === "failed") {
+          message.error(status.message || "RFQ 分析失败");
+        }
+        if (status.status === "cancelled") {
+          setCancellingTaskId((id) => (id === taskId ? null : id));
+        }
+        setAnalysisProgress(status.status === "completed" ? 100 : status.progress ?? 0);
+        setStalledPolling(false);
+      };
+
       for (let i = 0; i < POLL_MAX_ITERATIONS; i++) {
-        if (activePollEpochRef.current !== myEpoch) return "cancelled";
+        if (!isLive()) return "cancelled";
         let status: TaskStatusPayload;
         try {
           const statusResp = await apiClient.get<TaskStatusPayload>(
@@ -253,13 +281,16 @@ export default function RfqPage() {
           );
           status = statusResp.data;
         } catch {
-          if (activePollEpochRef.current !== myEpoch) return "cancelled";
-          setStalledPolling(true);
-          setAnalysisMessage("状态查询暂时失败，后台可能仍在处理，请稍后继续等待");
+          if (!isLive()) return "cancelled";
+          if (shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) {
+            setStalledPolling(true);
+            setActivePollTaskId(taskId);
+            setAnalysisMessage("状态查询暂时失败，后台可能仍在处理，请稍后继续等待");
+          }
           await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS * 2));
           continue;
         }
-        if (activePollEpochRef.current !== myEpoch) return "cancelled";
+        if (!isLive()) return "cancelled";
         const progress = status.progress ?? 0;
         if (status.status !== lastStatus) {
           lastStatus = status.status;
@@ -281,58 +312,45 @@ export default function RfqPage() {
           const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
             `/rfq/tasks/${taskId}`,
           );
-          if (activePollEpochRef.current !== myEpoch) return "cancelled";
-          syncMatrixFromTask(taskResp.data.data);
-          if (status.status === "failed") {
-            message.error(status.message || "RFQ 分析失败");
-          }
-          if (status.status === "cancelled") {
-            setCancellingTaskId((id) => (id === taskId ? null : id));
-          }
-          setAnalysisProgress(status.status === "completed" ? 100 : status.progress ?? 0);
-          setActivePollTaskId(null);
-          setStalledPolling(false);
-          void refreshRecentTasks();
+          if (!isLive()) return "cancelled";
+          applyTerminalTask(taskResp.data.data, status);
+          finishPoll();
           return status.status;
         }
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       }
-      if (activePollEpochRef.current === myEpoch) {
+      if (isLive()) {
         try {
           const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${taskId}/status`);
           const status = statusResp.data;
           applyStatus(status);
-          if (status.status === "failed") {
-            const taskResp = await apiClient.get<{ code: number; data: TaskData }>(`/rfq/tasks/${taskId}`);
-            syncMatrixFromTask(taskResp.data.data);
-            message.error(status.message || "RFQ 分析失败");
-            setActivePollTaskId(null);
-            return "failed";
-          }
-          if (status.status === "cancelled") {
-            const taskResp = await apiClient.get<{ code: number; data: TaskData }>(`/rfq/tasks/${taskId}`);
-            syncMatrixFromTask(taskResp.data.data);
-            setActivePollTaskId(null);
-            setCancellingTaskId((id) => (id === taskId ? null : id));
-            return "cancelled";
-          }
           if (
+            status.status === "failed" ||
+            status.status === "cancelled" ||
             status.status === stopAt ||
             (stopAt === "completed" && status.status === "completed")
           ) {
-            const taskResp = await apiClient.get<{ code: number; data: TaskData }>(`/rfq/tasks/${taskId}`);
-            syncMatrixFromTask(taskResp.data.data);
-            setActivePollTaskId(null);
+            const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
+              `/rfq/tasks/${taskId}`,
+            );
+            if (!isLive()) return "cancelled";
+            applyTerminalTask(taskResp.data.data, status);
+            finishPoll();
             return status.status;
           }
         } catch {
           // fall through to stalled UI
         }
-        setStalledPolling(true);
-        message.warning("分析耗时较长，后台可能仍在处理，可继续等待或稍后从左侧打开任务");
+        if (shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) {
+          setStalledPolling(true);
+          setActivePollTaskId(taskId);
+          message.warning("分析耗时较长，后台可能仍在处理，可继续等待或稍后从左侧打开任务");
+        }
         void refreshRecentTasks();
+        // Keep session active so resume can continue this task.
+        return "timeout";
       }
-      return "timeout";
+      return "cancelled";
     },
     [refreshRecentTasks, syncMatrixFromTask],
   );
@@ -343,12 +361,24 @@ export default function RfqPage() {
   );
 
   const handleResumePolling = useCallback(async () => {
-    if (!activePollTaskId) return;
+    const resumeId =
+      (task?.task_id && activePollTaskId === task.task_id ? task.task_id : null) ??
+      activePollTaskId ??
+      task?.task_id;
+    if (!resumeId) return;
     setUploading(true);
     setStalledPolling(false);
-    await pollTask(activePollTaskId);
+    const phase2Resume =
+      task?.task_id === resumeId &&
+      (task.processing_status === "retrieving" ||
+        task.processing_status === "generating" ||
+        (task.processing_status === "queued" &&
+          Boolean(task.status_message?.includes("对比"))));
+    await pollUntilTerminal(resumeId, phase2Resume ? "completed" : "dimension_review", {
+      resume: true,
+    });
     setUploading(false);
-  }, [activePollTaskId, pollTask]);
+  }, [activePollTaskId, pollUntilTerminal, task]);
 
   const loadExistingTask = useCallback(async (taskId: string) => {
     const id = taskId.trim();
@@ -658,7 +688,18 @@ export default function RfqPage() {
         return;
       }
       message.success("已确认维度，正在生成对比矩阵...");
-      await pollUntilTerminal(task.task_id, "completed");
+      const pollResult = await pollUntilTerminal(task.task_id, "completed");
+      // Sibling uploads must not leave this task stuck mid-Phase2; re-fetch if poll ended early.
+      if (pollResult !== "completed" && pollResult !== "failed" && pollResult !== "cancelled") {
+        const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
+          `/rfq/tasks/${task.task_id}`,
+          { silentError: true },
+        );
+        if (shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, task.task_id)) {
+          syncMatrixFromTask(taskResp.data.data);
+        }
+        void refreshRecentTasks();
+      }
     } catch {
       try {
         const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
@@ -725,12 +766,15 @@ export default function RfqPage() {
   });
 
   useEffect(() => {
-    const taskId = activePollTaskId ?? task?.task_id;
-    if (!taskId) return;
+    // Always follow the displayed task — never a sibling upload's activePollTaskId.
+    const taskId = resolveStatusWatchTaskId({
+      displayedTaskId: task?.task_id,
+      activePollTaskId: null,
+    });
+    if (!taskId || !task) return;
     const shouldWatch =
-      stalledPolling ||
-      uploading ||
-      (task != null && IN_FLIGHT_PROCESSING.has(task.processing_status));
+      (stalledPolling && activePollTaskId === taskId) ||
+      IN_FLIGHT_PROCESSING.has(task.processing_status);
     if (!shouldWatch) return;
 
     const syncStatus = async () => {
@@ -739,6 +783,7 @@ export default function RfqPage() {
           silentError: true,
         });
         const status = statusResp.data;
+        if (!shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) return;
         if (["dimension_review", "completed", "failed", "cancelled"].includes(status.status)) {
           const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
             `/rfq/tasks/${taskId}`,
@@ -747,11 +792,11 @@ export default function RfqPage() {
           syncMatrixFromTask(taskResp.data.data);
           setStalledPolling(false);
           setUploading(false);
-          setActivePollTaskId(null);
+          setActivePollTaskId((prev) => (prev === taskId ? null : prev));
+          pollSessionsRef.current.invalidate(taskId);
           void refreshRecentTasks();
           return;
         }
-        if (!shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) return;
         setAnalysisProgress(status.progress ?? 0);
         setAnalysisMessage(
           status.message || PROCESSING_STATUS_LABELS[status.status] || "正在分析...",
@@ -775,10 +820,10 @@ export default function RfqPage() {
     return () => clearInterval(interval);
   }, [
     activePollTaskId,
+    task,
     task?.task_id,
     task?.processing_status,
     stalledPolling,
-    uploading,
     syncMatrixFromTask,
     refreshRecentTasks,
   ]);
