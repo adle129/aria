@@ -352,7 +352,7 @@ flowchart LR
 - [x] 排队/执行文案落地（「预计还需」「已等待」）；取消态隔离与进度清单修复（PERF07 + 手测）  
 - [x] `run_tests.ps1` 全绿（含 cancel API 文案断言 + 进度控件 Vitest）  
 - [x] 同文件二次上传：Phase1 命中 content_hash 缓存，快速进入 `dimension_review`；确认后 Phase2 仍正常排队（PERF08；手测通过）  
-- [ ] 彩排脚本增加「双人排队 + 一人确认维度离开再回」子弹（更新 `r1-rehearsal-script.md`）
+- [x] 彩排脚本增加「双人排队 + 一人确认维度离开再回」骨架（`r1-rehearsal-script.md` §8；可再润色）
 
 ### 6.5 明确不做清单（再确认）
 
