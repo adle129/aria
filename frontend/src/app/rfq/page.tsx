@@ -21,14 +21,20 @@ import DemoModuleCapability from "@/components/DemoModuleCapability";
 import DimensionBaselineReview, { type DimensionDraft } from "@/components/DimensionBaselineReview";
 import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/ComparisonMatrix";
 import RfqAnalysisProgress from "@/components/rfq/RfqAnalysisProgress";
+import RfqBusyHoursBanner from "@/components/rfq/RfqBusyHoursBanner";
 import RfqParseSummary from "@/components/rfq/RfqParseSummary";
 import RfqTaskHeader from "@/components/rfq/RfqTaskHeader";
 import RfqUploadZone from "@/components/rfq/RfqUploadZone";
 import WorkflowSteps from "@/components/WorkflowSteps";
 import { useUiProfile } from "@/hooks/useUiProfile";
-import { TASK_CHANGED_EVENT, notifyTaskChanged, useTaskContext } from "@/context/TaskContext";
+import { TASK_CHANGED_EVENT, useTaskContext } from "@/context/TaskContext";
+import { actionAreaErrorFromAxios } from "@/lib/rfqBusyUx";
 import { isCancellingUi, shouldApplyStatusToDisplayedTask } from "@/lib/rfqCancelUi";
-import { resolveStatusWatchTaskId, RfqPollSessionMap } from "@/lib/rfqStatusPoll";
+import {
+  resolveStatusWatchTaskId,
+  RfqPollSessionMap,
+  shouldContinueStatusPoll,
+} from "@/lib/rfqStatusPoll";
 import { RFQ_BEGIN_NEW_EVENT, RFQ_BEGIN_NEW_FLAG, resolveRfqWorkspaceStage } from "@/lib/rfqWorkspace";
 import {
   buildBaselinesKnowledgeHref,
@@ -133,10 +139,13 @@ export default function RfqPage() {
   /** Per-task poll epochs — concurrent RFQ polls must not cancel each other. */
   const pollSessionsRef = useRef(new RfqPollSessionMap());
   const displayedTaskIdRef = useRef<string | null>(null);
+  const taskSwitchingRef = useRef(false);
   const [taskSwitching, setTaskSwitching] = useState(false);
   const [stalledPolling, setStalledPolling] = useState(false);
   /** Resume target for the displayed task's poll (not a sibling upload). */
   const [activePollTaskId, setActivePollTaskId] = useState<string | null>(null);
+  /** PERF10: 429/队列满等须落在操作区，不能只 toast。 */
+  const [actionAreaError, setActionAreaError] = useState<string | null>(null);
 
   useEffect(() => {
     displayedTaskIdRef.current = task?.task_id ?? null;
@@ -229,7 +238,7 @@ export default function RfqPage() {
       }
 
       let lastStatus = "";
-      let lastProgress = -1;
+      let consecutiveStatusErrors = 0;
 
       const applyStatus = (status: TaskStatusPayload) => {
         if (!shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) return;
@@ -256,7 +265,7 @@ export default function RfqPage() {
       };
 
       const applyTerminalTask = (data: TaskData, status: TaskStatusPayload) => {
-        void refreshRecentTasks();
+        void refreshRecentTasks({ force: true });
         if (!shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) {
           return;
         }
@@ -273,6 +282,16 @@ export default function RfqPage() {
 
       for (let i = 0; i < POLL_MAX_ITERATIONS; i++) {
         if (!isLive()) return "cancelled";
+        // Stop orphaned sibling polls — only the displayed task keeps a tight status loop.
+        if (
+          !shouldContinueStatusPoll({
+            displayedTaskId: displayedTaskIdRef.current,
+            pollTaskId: taskId,
+          })
+        ) {
+          finishPoll();
+          return "cancelled";
+        }
         let status: TaskStatusPayload;
         try {
           const statusResp = await apiClient.get<TaskStatusPayload>(
@@ -280,23 +299,22 @@ export default function RfqPage() {
             { silentError: true },
           );
           status = statusResp.data;
+          consecutiveStatusErrors = 0;
         } catch {
           if (!isLive()) return "cancelled";
+          consecutiveStatusErrors += 1;
           if (shouldApplyStatusToDisplayedTask(displayedTaskIdRef.current, taskId)) {
             setStalledPolling(true);
             setActivePollTaskId(taskId);
             setAnalysisMessage("状态查询暂时失败，后台可能仍在处理，请稍后继续等待");
           }
-          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS * 2));
+          const backoffMs = Math.min(POLL_INTERVAL_MS * 2 * consecutiveStatusErrors, 5000);
+          await new Promise((r) => setTimeout(r, backoffMs));
           continue;
         }
         if (!isLive()) return "cancelled";
-        const progress = status.progress ?? 0;
         if (status.status !== lastStatus) {
           lastStatus = status.status;
-          void refreshRecentTasks();
-        } else if (progress !== lastProgress) {
-          lastProgress = progress;
           void refreshRecentTasks();
         }
         applyStatus(status);
@@ -311,6 +329,7 @@ export default function RfqPage() {
         if (done) {
           const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
             `/rfq/tasks/${taskId}`,
+            { silentError: true },
           );
           if (!isLive()) return "cancelled";
           applyTerminalTask(taskResp.data.data, status);
@@ -321,7 +340,10 @@ export default function RfqPage() {
       }
       if (isLive()) {
         try {
-          const statusResp = await apiClient.get<TaskStatusPayload>(`/rfq/tasks/${taskId}/status`);
+          const statusResp = await apiClient.get<TaskStatusPayload>(
+            `/rfq/tasks/${taskId}/status`,
+            { silentError: true },
+          );
           const status = statusResp.data;
           applyStatus(status);
           if (
@@ -332,6 +354,7 @@ export default function RfqPage() {
           ) {
             const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
               `/rfq/tasks/${taskId}`,
+              { silentError: true },
             );
             if (!isLive()) return "cancelled";
             applyTerminalTask(taskResp.data.data, status);
@@ -346,7 +369,7 @@ export default function RfqPage() {
           setActivePollTaskId(taskId);
           message.warning("分析耗时较长，后台可能仍在处理，可继续等待或稍后从左侧打开任务");
         }
-        void refreshRecentTasks();
+        void refreshRecentTasks({ force: true });
         // Keep session active so resume can continue this task.
         return "timeout";
       }
@@ -476,41 +499,60 @@ export default function RfqPage() {
     const onTaskChanged = (e: Event) => {
       const newId = (e as CustomEvent<string>).detail?.trim();
       if (!newId) return;
-      if (task?.task_id === newId && !taskSwitching) return;
+      // Ignore self-sync and in-flight switches — prevents notify↔reload flicker loops.
+      if (displayedTaskIdRef.current === newId) return;
+      if (taskSwitchingRef.current) return;
+      taskSwitchingRef.current = true;
       setTaskSwitching(true);
-      void loadExistingTask(newId).finally(() => setTaskSwitching(false));
+      void loadExistingTask(newId).finally(() => {
+        taskSwitchingRef.current = false;
+        setTaskSwitching(false);
+      });
     };
     window.addEventListener(TASK_CHANGED_EVENT, onTaskChanged);
     return () => window.removeEventListener(TASK_CHANGED_EVENT, onTaskChanged);
-  }, [loadExistingTask, task?.task_id, taskSwitching]);
+  }, [loadExistingTask]);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
-    setTask(null);
-    setMatrixRows([]);
-    setConfirmed(false);
-    setDimensionDraft(null);
-    setAnalysisProgress(0);
-    setAnalysisMessage("");
+    setActionAreaError(null);
     try {
       const form = new FormData();
       form.append("file", file);
       const resp = await apiClient.post<{ code: number; data: { task_id: string } }>(
         "/rfq/upload",
         form,
-        { headers: { "Content-Type": "multipart/form-data" } },
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+          silentError: true,
+        },
       );
       const newTaskId = resp.data.data.task_id;
       const pending = buildPendingTask(newTaskId, file.name);
+      // Bind UI only after success — keep previous task on 429 (no empty-page flash).
+      setMatrixRows([]);
+      setConfirmed(false);
+      setDimensionDraft(null);
+      setAnalysisProgress(0);
+      setAnalysisMessage("");
+      // Drop sibling status loops before binding the new displayed task.
+      pollSessionsRef.current.invalidateAll();
       setTask(pending);
+      displayedTaskIdRef.current = newTaskId;
       syncFromPayload(pending);
-      notifyTaskChanged(newTaskId);
       message.success("上传成功，正在分析...");
-      await refreshRecentTasks();
+      await refreshRecentTasks({ force: true });
       const result = await pollTask(newTaskId);
       if (result === "timeout") {
         setUploading(false);
         return false;
+      }
+    } catch (err) {
+      const action = actionAreaErrorFromAxios(err);
+      if (action?.kind === "queue_full") {
+        setActionAreaError(action.message);
+      } else {
+        message.error(action?.message || "上传失败，请稍后重试");
       }
     } finally {
       setUploading(false);
@@ -667,6 +709,7 @@ export default function RfqPage() {
     if (!task || !dimensionDraft) return;
     setConfirmingDimensions(true);
     setUploading(true);
+    setActionAreaError(null);
     try {
       const resp = await apiClient.post<{
         code: number;
@@ -674,11 +717,15 @@ export default function RfqPage() {
           processing_status: string;
           task?: TaskData;
         };
-      }>(`/rfq/tasks/${task.task_id}/confirm-dimensions`, {
-        baseline_version: dimensionDraft.baseline_version,
-        items: dimensionDraft.items,
-        custom_items: dimensionDraft.custom_items || [],
-      });
+      }>(
+        `/rfq/tasks/${task.task_id}/confirm-dimensions`,
+        {
+          baseline_version: dimensionDraft.baseline_version,
+          items: dimensionDraft.items,
+          custom_items: dimensionDraft.custom_items || [],
+        },
+        { silentError: true },
+      );
       const resultStatus = resp.data.data.processing_status;
       if (resultStatus === "dimension_review") {
         if (resp.data.data.task) {
@@ -700,7 +747,13 @@ export default function RfqPage() {
         }
         void refreshRecentTasks();
       }
-    } catch {
+    } catch (err) {
+      const action = actionAreaErrorFromAxios(err);
+      if (action?.kind === "queue_full") {
+        setActionAreaError(action.message);
+      } else if (action?.message) {
+        message.error(action.message);
+      }
       try {
         const taskResp = await apiClient.get<{ code: number; data: TaskData }>(
           `/rfq/tasks/${task.task_id}`,
@@ -708,7 +761,7 @@ export default function RfqPage() {
         );
         syncMatrixFromTask(taskResp.data.data);
       } catch {
-        /* keep current UI; interceptor already toasted API error */
+        /* keep current UI */
       }
     } finally {
       setConfirmingDimensions(false);
@@ -764,6 +817,19 @@ export default function RfqPage() {
     restoring,
     hasMatrix: matrixRows.length > 0,
   });
+
+  const hasInFlightInbox = recentTasks.some((t) =>
+    IN_FLIGHT_PROCESSING.has(t.processing_status),
+  );
+
+  // Sidebar badges for non-displayed queued tasks — slow list refresh only (no per-task status storm).
+  useEffect(() => {
+    if (!hasInFlightInbox) return;
+    const timer = window.setInterval(() => {
+      void refreshRecentTasks();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [hasInFlightInbox, refreshRecentTasks]);
 
   useEffect(() => {
     // Always follow the displayed task — never a sibling upload's activePollTaskId.
@@ -854,24 +920,30 @@ export default function RfqPage() {
 
     if (showProcessing) {
       return (
-        <RfqAnalysisProgress
-          progress={analysisProgress}
-          message={analysisMessage}
-          processingStatus={task?.processing_status ?? "pending"}
-          queuePosition={queuePosition}
-          estimatedWaitSeconds={estimatedWaitSeconds}
-          queueWaitMs={queueWaitMs}
-          runMs={runMs}
-          useRealLlm={useRealLlm}
-          stalled={stalledPolling}
-          cancelling={isCancellingUi({
-            cancellingTaskId,
-            displayedTaskId: task?.task_id,
-            processingStatus: task?.processing_status,
-          })}
-          onResumePolling={() => void handleResumePolling()}
-          onCancel={() => void handleCancelAnalysis()}
-        />
+        <>
+          <RfqBusyHoursBanner
+            queuePosition={queuePosition}
+            estimatedWaitSeconds={estimatedWaitSeconds}
+          />
+          <RfqAnalysisProgress
+            progress={analysisProgress}
+            message={analysisMessage}
+            processingStatus={task?.processing_status ?? "pending"}
+            queuePosition={queuePosition}
+            estimatedWaitSeconds={estimatedWaitSeconds}
+            queueWaitMs={queueWaitMs}
+            runMs={runMs}
+            useRealLlm={useRealLlm}
+            stalled={stalledPolling}
+            cancelling={isCancellingUi({
+              cancellingTaskId,
+              displayedTaskId: task?.task_id,
+              processingStatus: task?.processing_status,
+            })}
+            onResumePolling={() => void handleResumePolling()}
+            onCancel={() => void handleCancelAnalysis()}
+          />
+        </>
       );
     }
 
@@ -1237,6 +1309,21 @@ export default function RfqPage() {
       )}
 
       <DemoModuleCapability module="rfq" />
+
+      {actionAreaError && (
+        <Alert
+          type="error"
+          showIcon
+          closable
+          onClose={() => setActionAreaError(null)}
+          message={
+            task?.processing_status === "dimension_review" ? "无法确认维度" : "无法开始分析"
+          }
+          description={actionAreaError}
+          style={{ marginBottom: 16 }}
+          data-testid="rfq-action-area-error"
+        />
+      )}
 
       {(task || showProcessing) && (
         <div style={{ marginBottom: showProcessing ? 16 : 28, paddingBottom: 8 }}>

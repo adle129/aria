@@ -178,6 +178,12 @@ RTX 4090 24GB ×1 是 R1 推荐基线，但属于**排队型服务**。若客户
 - 507 后先检查 staging 残留、outputs、过期备份；不得手工删除 PostgreSQL 目录或当前 active generation。
 - Windows 用户上传的 ZIP/散文件应使用 UTF-8 文件名；manifest 路径统一 `/`，不要写 `C:\...` 或反斜杠相对路径。
 
+### 3.4.3 忙时体验与运维建议（R1-PERF10）
+
+- UI 在 `queue_position ≥ 3` 或 `estimated_wait_seconds ≥ 600` 时展示忙时提示条；工程师可错开高峰再上传。
+- 队列满（429）与检索资源忙（503）文案落在操作区，不依赖 toast；运维侧优先：**暂停非必要 KB 全量索引**、确认 `aria-worker` 健康、观察 `task_jobs` 深度。
+- 日间避免与 RFQ 高峰重叠跑全量 reindex；增量小批量可保留。
+
 ### 3.5 知识库健康指标
 
 | 指标 | 健康 | 需关注 |

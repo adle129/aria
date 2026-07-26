@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveStatusWatchTaskId, RfqPollSessionMap } from "@/lib/rfqStatusPoll";
+import {
+  resolveStatusWatchTaskId,
+  RfqPollSessionMap,
+  shouldContinueStatusPoll,
+} from "@/lib/rfqStatusPoll";
 
 describe("RfqPollSessionMap", () => {
   it("keeps sibling task polls independent", () => {
@@ -73,5 +77,25 @@ describe("resolveStatusWatchTaskId", () => {
         activePollTaskId: "task-b",
       }),
     ).toBe("task-b");
+  });
+});
+
+describe("shouldContinueStatusPoll", () => {
+  it("continues when displayed matches poll task", () => {
+    expect(
+      shouldContinueStatusPoll({ displayedTaskId: "task-a", pollTaskId: "task-a" }),
+    ).toBe(true);
+  });
+
+  it("stops when user switched to another task", () => {
+    expect(
+      shouldContinueStatusPoll({ displayedTaskId: "task-b", pollTaskId: "task-a" }),
+    ).toBe(false);
+  });
+
+  it("allows poll when displayed id not committed yet", () => {
+    expect(shouldContinueStatusPoll({ displayedTaskId: null, pollTaskId: "task-a" })).toBe(
+      true,
+    );
   });
 });

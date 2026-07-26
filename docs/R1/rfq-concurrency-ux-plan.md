@@ -1,7 +1,7 @@
 # R1+ · RFQ 多人并发等待体验改进方案
 
 **版本：** v1.2 · 2026-07-26  
-**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08–09 已落地** · PERF10–12 待做  
+**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08–09 已落地** · **PERF10 已落地** · PERF11–12 待做  
 **关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）  
 **实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`；PERF08/09：`feat/r1-perf09-embedding-cache`（含 poll 修复与 PERF08）
 
@@ -50,7 +50,7 @@ flowchart LR
 
 | 已具备 | 缺口 |
 |--------|------|
-| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | 忙时提示条 + 429/503 操作区（PERF10） |
+| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | 忙时提示条 + 429/503 操作区（PERF10，**已落地**） |
 | 跨进程 Ollama 租约 + 优先级 | TaskContextBar 排队/待确认强化（PERF11） |
 | 排队位次 / ETA / queue_wait_ms / run_ms / phase | 彩排「双人排队」剧本 |
 | 429 队列满、取消、stale 恢复 | confirm 后离开页面体验仍可打磨 |
@@ -321,7 +321,7 @@ flowchart TB
 
 | ID | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|------|------------|------|------|
-| **R1-PERF10** | 忙时提示条 + 429/503 操作区文案 | §5.4；阈值可配置或前端常量文档化 | PERF07 | 待开始 |
+| **R1-PERF10** | 忙时提示条 + 429/503 操作区文案 | §5.4；阈值见 `frontend/src/lib/rfqBusyUx.ts` | PERF07 | **已完成** |
 | **R1-PERF11** | TaskContextBar：排队位次/待确认强化 | 非 RFQ 页可理解；点击回任务；Vitest | PERF07 | 待开始 |
 
 #### Wave 7E — 容量评估（可选 P2）
@@ -372,10 +372,10 @@ flowchart LR
 |------|----------|
 | [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队；phase；**PERF08 解析缓存行为说明已同步** |
 | [prod.md](../../prod.md) §5.x | Phase2 异步；体验验收一句 — 待补 |
-| [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — 待 PERF10 |
+| [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — **§3.4.3 已同步** |
 | [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补 |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
-| 本文 | **PERF01–09 + BUG-POLL01 已回写已完成**；PERF10–12 仍待做 |
+| 本文 | **PERF01–10 + BUG-POLL01 已回写已完成**；PERF11–12 仍待做 |
 
 ---
 
@@ -393,6 +393,7 @@ flowchart LR
 | 2026-07-26 | BUG-POLL01 | Phase2 轮询按 `task_id` 隔离，避免并发上传卡住「检索相似历史」直至刷新 |
 | 2026-07-26 | 本地分支合成 | poll-isolation 分支 cherry-pick PERF08，避免本地 DB 已 stamp `010` 时缺 migration 无法启动 |
 | 2026-07-26 | PERF09 落地 | query/`rfq` embedding 短 TTL 缓存（PG）；KB 索引路径不缓存；下一优先 **PERF10–11** |
+| 2026-07-26 | PERF10 落地 | 忙时提示条（位次≥3 或 ETA≥600s）+ 上传/确认 429 与检索 503 操作区文案；下一优先 **PERF11** |
 
 ---
 

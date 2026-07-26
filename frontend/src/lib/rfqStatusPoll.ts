@@ -53,3 +53,19 @@ export function resolveStatusWatchTaskId(options: {
   const active = options.activePollTaskId?.trim() || null;
   return active;
 }
+
+/**
+ * Only the displayed task should keep a tight status poll.
+ * Sibling uploads must not leave orphaned 500ms loops (request storms + Network Error toasts).
+ */
+export function shouldContinueStatusPoll(options: {
+  displayedTaskId: string | null | undefined;
+  pollTaskId: string;
+}): boolean {
+  const displayed = options.displayedTaskId?.trim() || "";
+  const pollId = options.pollTaskId.trim();
+  if (!pollId) return false;
+  // Allow first ticks before React commits displayedTaskId (upload just bound the task).
+  if (!displayed) return true;
+  return displayed === pollId;
+}

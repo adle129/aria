@@ -169,7 +169,7 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
 
   useEffect(() => {
     if (!showInbox) return;
-    void refreshRecentTasks();
+    void refreshRecentTasks({ force: true });
   }, [showInbox, refreshRecentTasks]);
 
   const filteredTasks = useMemo(() => {
@@ -221,7 +221,7 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
     try {
       await deleteTask(taskId);
       message.success("任务已删除");
-      void refreshRecentTasks();
+      void refreshRecentTasks({ force: true });
     } catch {
       // error shown by interceptor
     }
@@ -231,7 +231,7 @@ function RfqSideInbox({ pathname }: { pathname: string }) {
     try {
       await archiveTask(taskId);
       message.success("任务已归档");
-      void refreshRecentTasks();
+      void refreshRecentTasks({ force: true });
     } catch {
       // error shown by interceptor
     }

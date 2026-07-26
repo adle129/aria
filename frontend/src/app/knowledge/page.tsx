@@ -38,6 +38,7 @@ import {
   knowledgePageIntro,
   knowledgeSearchHint,
 } from "@/lib/knowledgePageVisibility";
+import { actionAreaErrorFromAxios } from "@/lib/rfqBusyUx";
 import { ENGAGEMENT_FUNCTION_OPTIONS, formatEngagementMetadataSummary } from "@/lib/engagementMetadata";
 
 const { Paragraph, Text, Title } = Typography;
@@ -162,6 +163,8 @@ export default function KnowledgePage() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [docsLoading, setDocsLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  /** PERF10: 503 resource busy must show in the search action area. */
+  const [searchActionError, setSearchActionError] = useState<string | null>(null);
   const [wizardStep, setWizardStep] = useState(0);
   const [activeTab, setActiveTab] = useState("docs");
   const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
@@ -234,6 +237,7 @@ export default function KnowledgePage() {
       return;
     }
     setSearchLoading(true);
+    setSearchActionError(null);
     try {
       const resp = await apiClient.post<{
         code: number;
@@ -250,6 +254,7 @@ export default function KnowledgePage() {
           function_filter: functionFilter.length ? functionFilter : undefined,
           doc_type_filter: docTypeFilter.length ? docTypeFilter : undefined,
         },
+        { silentError: true },
       );
       const nextGroups = resp.data.data.groups ?? [];
       setGroups(nextGroups);
@@ -259,8 +264,13 @@ export default function KnowledgePage() {
       if (nextGroups.length === 0 && (resp.data.data.results ?? []).length === 0) {
         message.info("未找到匹配结果，可调整关键词或先更新知识库索引");
       }
-    } catch {
-      message.error("检索失败");
+    } catch (err) {
+      const action = actionAreaErrorFromAxios(err);
+      if (action?.kind === "search_busy") {
+        setSearchActionError(action.message);
+      } else {
+        message.error(action?.message || "检索失败");
+      }
     } finally {
       setSearchLoading(false);
     }
@@ -604,6 +614,19 @@ export default function KnowledgePage() {
                       检索
                     </Button>
                   </Space>
+
+                  {searchActionError && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      closable
+                      onClose={() => setSearchActionError(null)}
+                      style={{ marginBottom: 16 }}
+                      message="检索暂时不可用"
+                      description={searchActionError}
+                      data-testid="knowledge-search-action-error"
+                    />
+                  )}
 
                   {insufficientEvidence === true && (
                     <Alert
