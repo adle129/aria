@@ -2,7 +2,7 @@
 
 **里程碑：** R1（第 1–8 周 · ¥76,300）  
 **版本：** v1.8 · 2026-07-25  
-**状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · **PERF08 + BUG-POLL01 已完成** · PERF09–11 待做
+**状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · **PERF08–09 + BUG-POLL01 已完成** · PERF10–11 待做
 **基线：** [prod.md](../../prod.md) v1.9 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.5
 
 ---

@@ -109,33 +109,67 @@ def embed_texts(
     Falls back to serial /api/embeddings for older Ollama installations.
     Applies the global OllamaConcurrencyGate so embedding never exceeds
     ``OLLAMA_MAX_CONCURRENT`` simultaneous requests.
+
+    PERF09: for ``query`` / ``rfq`` request types, reuse short-TTL PG cache
+    entries keyed by normalized text + embedding model name.
     """
     if not texts:
         return []
+
+    from app.services.query_embedding_cache_service import QueryEmbeddingCacheService
 
     base = settings.ollama_base_url.rstrip("/")
     max_chars = settings.embedding_max_chars
     prompts = [truncate_for_embedding(t, max_chars) for t in texts]
     batch_size = max(1, settings.embedding_batch_size)
+    cache = QueryEmbeddingCacheService(settings)
+    use_cache = cache.enabled and cache.is_cacheable_request(request_type)
 
+    results: list[list[float] | None] = [None] * len(prompts)
+    miss_indices: list[int] = []
+    if use_cache:
+        for idx, prompt in enumerate(prompts):
+            try:
+                hit = cache.lookup_vector(prompt)
+            except Exception:
+                logger.exception("embed_cache_lookup_unexpected prompt_idx=%s", idx)
+                hit = None
+            if hit is not None:
+                results[idx] = hit
+            else:
+                miss_indices.append(idx)
+    else:
+        miss_indices = list(range(len(prompts)))
+
+    if not miss_indices:
+        logger.info(
+            "embed_ok request_type=%s texts=%d cache_hits=%d elapsed_ms=0",
+            request_type,
+            len(prompts),
+            len(prompts),
+        )
+        return [v for v in results if v is not None]
+
+    miss_prompts = [prompts[i] for i in miss_indices]
     gate = get_ollama_gate(settings)
     started = time.monotonic()
     logger.info(
-        "embed_start request_type=%s texts=%d model=%s batch_size=%d",
+        "embed_start request_type=%s texts=%d miss=%d model=%s batch_size=%d",
         request_type,
         len(prompts),
+        len(miss_prompts),
         settings.embedding_model,
         batch_size,
     )
     try:
         if cancel_check is not None:
             cancel_check()
-        with ollama_http_client(max(120.0, 5.0 * len(prompts))) as client:
-            all_vectors: list[list[float]] = []
-            for start in range(0, len(prompts), batch_size):
+        with ollama_http_client(max(120.0, 5.0 * len(miss_prompts))) as client:
+            miss_vectors: list[list[float]] = []
+            for start in range(0, len(miss_prompts), batch_size):
                 if cancel_check is not None:
                     cancel_check()
-                batch = prompts[start : start + batch_size]
+                batch = miss_prompts[start : start + batch_size]
                 with gate.acquire(
                     request_type=request_type,
                     cancel_check=cancel_check,
@@ -151,21 +185,31 @@ def embed_texts(
                             batch,
                             cancel_check=cancel_check,
                         )
-                all_vectors.extend(vectors)
+                miss_vectors.extend(vectors)
+            for idx, vector in zip(miss_indices, miss_vectors, strict=True):
+                results[idx] = vector
+                if use_cache:
+                    try:
+                        cache.store_vector(prompts[idx], vector)
+                    except Exception:
+                        logger.exception(
+                            "embed_cache_store_unexpected prompt_idx=%s", idx
+                        )
             logger.info(
-                "embed_ok request_type=%s texts=%d elapsed_ms=%d",
+                "embed_ok request_type=%s texts=%d miss=%d elapsed_ms=%d",
                 request_type,
-                len(all_vectors),
+                len(prompts),
+                len(miss_vectors),
                 int((time.monotonic() - started) * 1000),
             )
-            return all_vectors
+            return [v for v in results if v is not None]
     except CooperativeCancelled:
         raise
     except httpx.HTTPError as exc:
         logger.exception(
             "embed_failed request_type=%s texts=%d elapsed_ms=%d",
             request_type,
-            len(prompts),
+            len(miss_prompts),
             int((time.monotonic() - started) * 1000),
         )
         raise EmbeddingError(f"Ollama embedding failed: {exc}") from exc

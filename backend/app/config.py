@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_max_chars: int = 2400
     embedding_batch_size: int = 16
+    # PERF09: query/rfq embedding short cache TTL; 0 disables.
+    query_embedding_cache_ttl_seconds: int = 86400
     mock_llm: bool = True
     mock_rag: bool = True
 

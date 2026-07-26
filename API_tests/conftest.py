@@ -63,6 +63,7 @@ def client(upload_dir, monkeypatch):
     from app.models.engagement import Engagement
     from app.models.knowledge_import import KnowledgeImport
     from app.models.project import Project
+    from app.models.query_embedding_cache import QueryEmbeddingCache
     from app.models.rfq_parse_cache import RfqParseCache
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
@@ -78,6 +79,7 @@ def client(upload_dir, monkeypatch):
             Engagement.__table__,
             KnowledgeImport.__table__,
             RfqParseCache.__table__,
+            QueryEmbeddingCache.__table__,
         ],
     )
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)

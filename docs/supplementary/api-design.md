@@ -257,6 +257,10 @@ Content-Type: multipart/form-data
 仅缓存自动匹配草稿，**不**缓存工程师勾选；确认后的 `rfq_confirm`（对比矩阵）**不**使用本缓存。
 缓存 miss/损坏静默回落全量路径。详见 [rfq-concurrency-ux-plan.md §3.3](../R1/rfq-concurrency-ux-plan.md)。
 
+**Query embedding 短缓存（R1-PERF09 · 内部行为，无新接口）：** `embed_texts` 在 `request_type` 为 `query` / `rfq` 时按
+`sha256(normalized text):embedding_model` 查 PG 表 `query_embedding_cache`（默认 TTL 24h，`QUERY_EMBEDDING_CACHE_TTL_SECONDS=0` 关闭）。
+命中则跳过 Ollama embedding。知识库索引（`kb_full` / `kb_incremental`）不走此缓存。详见同上 §3.3。
+
 **内容门禁（异步 · R1+）：** 上传仍返回 `200` 并入队；worker 读入正文后若判定非预期文档，任务 `processing_status=failed`，`status` 轮询与任务详情可见下列 `message` / `error_msg`（**不**调用 LLM 补全，避免幻觉）：
 
 | 场景 | `message` 示例 |

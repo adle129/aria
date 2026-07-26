@@ -35,6 +35,7 @@ def init_db() -> None:
     from app.models.knowledge_index_generation import KnowledgeIndexGeneration, KnowledgeIndexState
     from app.models.ollama_resource_lease import OllamaResourceLease
     from app.models.project import Project
+    from app.models.query_embedding_cache import QueryEmbeddingCache
     from app.models.rfq_parse_cache import RfqParseCache
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
@@ -52,6 +53,7 @@ def init_db() -> None:
             KnowledgeIndexState.__table__,
             OllamaResourceLease.__table__,
             RfqParseCache.__table__,
+            QueryEmbeddingCache.__table__,
         ],
     )
     _ensure_rfq_task_columns()

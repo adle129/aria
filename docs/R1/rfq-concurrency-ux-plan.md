@@ -1,9 +1,9 @@
 # R1+ · RFQ 多人并发等待体验改进方案
 
 **版本：** v1.2 · 2026-07-26  
-**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08 已落地** · PERF09–12 待做  
+**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08–09 已落地** · PERF10–12 待做  
 **关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）  
-**实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`；PERF08：`feat/r1-perf08-parse-cache`
+**实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`；PERF08/09：`feat/r1-perf09-embedding-cache`（含 poll 修复与 PERF08）
 
 ---
 
@@ -50,12 +50,13 @@ flowchart LR
 
 | 已具备 | 缺口 |
 |--------|------|
-| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | query embedding 短缓存（PERF09） |
-| 跨进程 Ollama 租约 + 优先级 | 忙时提示条 + 429/503 操作区（PERF10） |
-| 排队位次 / ETA / queue_wait_ms / run_ms / phase | TaskContextBar 排队/待确认强化（PERF11） |
-| 429 队列满、取消、stale 恢复 | 彩排「双人排队」剧本 |
+| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | 忙时提示条 + 429/503 操作区（PERF10） |
+| 跨进程 Ollama 租约 + 优先级 | TaskContextBar 排队/待确认强化（PERF11） |
+| 排队位次 / ETA / queue_wait_ms / run_ms / phase | 彩排「双人排队」剧本 |
+| 429 队列满、取消、stale 恢复 | confirm 后离开页面体验仍可打磨 |
 | Phase1 content_hash 解析缓存（PERF08） | — |
-| TaskContextBar + 轮询 | confirm 后离开页面体验仍可打磨 |
+| Query embedding 短缓存（PERF09） | — |
+| TaskContextBar + 轮询（含 BUG-POLL01 隔离） | — |
 
 ---
 
@@ -93,8 +94,18 @@ flowchart TB
 | 缓存 | Key | Value | TTL / 失效 | 存放 | 状态 |
 |------|-----|-------|------------|------|------|
 | RFQ 解析 + 自动维度草稿 | `sha256(file bytes):parser_version:prompt_version:baseline_version` | `rfq_modules` + **自动** `dimension_draft` | parser / prompt / baseline 任一变更即 miss | PG `rfq_parse_cache`（Alembic `010_rfq_parse_cache`） | **PERF08 已落地** |
-| Query embedding | `sha256(normalized query text)` + embed model | vector | 短 TTL（如 24h）或进程重启可丢 | PG 小表或本地；**不上 Redis** | PERF09 待做 |
+| Query embedding | `sha256(normalized query text):embedding_model` | vector (JSON) | 默认 TTL 24h（`QUERY_EMBEDDING_CACHE_TTL_SECONDS`；`0` 关闭） | PG `query_embedding_cache`（Alembic `011_query_embedding_cache`） | **PERF09 已落地** |
 | LLM 整段生成 | — | — | **禁止跨任务复用** | — | 不做 |
+
+#### PERF09 落地约定（手测 / 运维）
+
+| 项 | 约定 |
+|----|------|
+| 作用路径 | 仅 `request_type` ∈ `{query, rfq}`（知识库试搜 / RFQ confirm 检索）；**不**缓存 `kb_full` / `kb_incremental` 索引批 |
+| 命中行为 | 跳过 Ollama embedding 调用，直接用缓存向量做 pgvector 检索 |
+| 失效 | embedding 模型名变更；超过 TTL；损坏条目删除后回落 |
+| 失败语义 | lookup/store 异常静默回落全量 embed，不得 500 |
+| 实现 | `query_embedding_cache_service.py` · `embed_texts` |
 
 #### PERF08 落地约定（手测 / 运维）
 
@@ -304,7 +315,7 @@ flowchart TB
 | ID | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|------|------------|------|------|
 | **R1-PERF08** | RFQ 文件 content_hash 解析缓存 | 同文件+同版本命中跳过重解析；owner 隔离勾选；损坏回落 | PERF01 | **已完成** |
-| **R1-PERF09** | query embedding 短缓存 | confirm/检索同文复用；模型名变更失效；单测 | PERF02 | 待开始 |
+| **R1-PERF09** | query embedding 短缓存 | confirm/检索同文复用；模型名变更失效；单测 | PERF02 | **已完成** |
 
 #### Wave 7D — 忙时与跨页提示（易用性 P1）
 
@@ -364,7 +375,7 @@ flowchart LR
 | [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — 待 PERF10 |
 | [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补 |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
-| 本文 | **PERF01–08 已回写已完成**；PERF09–12 仍待做 |
+| 本文 | **PERF01–09 + BUG-POLL01 已回写已完成**；PERF10–12 仍待做 |
 
 ---
 
@@ -381,6 +392,7 @@ flowchart LR
 | 2026-07-26 | PERF08 落地 | **content_hash 解析缓存**（PG `rfq_parse_cache`）；仅 Phase1；owner 勾选不缓存；下一优先 **PERF09–11** |
 | 2026-07-26 | BUG-POLL01 | Phase2 轮询按 `task_id` 隔离，避免并发上传卡住「检索相似历史」直至刷新 |
 | 2026-07-26 | 本地分支合成 | poll-isolation 分支 cherry-pick PERF08，避免本地 DB 已 stamp `010` 时缺 migration 无法启动 |
+| 2026-07-26 | PERF09 落地 | query/`rfq` embedding 短 TTL 缓存（PG）；KB 索引路径不缓存；下一优先 **PERF10–11** |
 
 ---
 
