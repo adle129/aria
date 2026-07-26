@@ -408,7 +408,9 @@
 | R1-PERF11 | P1 | TaskContextBar 排队/待确认强化 | 非 RFQ 页可理解；Vitest | PERF07 | 待开始 |
 | R1-PERF12 | P2 | 并发=2 / 双卡评估备忘录 | 通过才改生产默认；默认保持 1 | PERF04 | 待开始 |
 
-**Gate：** 不阻塞 R1-β 签字；**7A/7B + PERF08 已完成**。下一优先 PERF09（embedding 短缓存）+ 7D（PERF10–11）。彩排须补「双人排队」剧本。
+**Gate：** 不阻塞 R1-β 签字；**7A/7B + PERF08 + BUG-POLL01 已完成**。下一优先 PERF09（embedding 短缓存）+ 7D（PERF10–11）。彩排须补「双人排队」剧本。
+
+> **本地分支提示（2026-07-26）：** `fix/r1-rfq-phase2-poll-isolation` 已 cherry-pick PERF08（含 Alembic `010_rfq_parse_cache`）。若本地 PG 的 `alembic_version` 已是 `010_rfq_parse_cache`，却检出不含该迁移的分支，backend 启动会报 `Can't locate revision identified by '010_rfq_parse_cache'`——须带回该 migration，或将 DB stamp 回 `009_kh08_knowledge_imports`（并视情况丢弃 `rfq_parse_cache` 表）。
 
 ---
 

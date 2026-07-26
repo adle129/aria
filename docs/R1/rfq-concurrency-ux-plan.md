@@ -379,6 +379,8 @@ flowchart LR
 | 2026-07-20 | 与 R1-β 关系 | **不阻塞签字；签字后体验增强优先做 7A/7B** |
 | 2026-07-25 | 7A/7B 落地 | **PERF01–07 已完成**（含取消 Session 刷新、取消态按 task 隔离）；下一优先 **PERF08–11** |
 | 2026-07-26 | PERF08 落地 | **content_hash 解析缓存**（PG `rfq_parse_cache`）；仅 Phase1；owner 勾选不缓存；下一优先 **PERF09–11** |
+| 2026-07-26 | BUG-POLL01 | Phase2 轮询按 `task_id` 隔离，避免并发上传卡住「检索相似历史」直至刷新 |
+| 2026-07-26 | 本地分支合成 | poll-isolation 分支 cherry-pick PERF08，避免本地 DB 已 stamp `010` 时缺 migration 无法启动 |
 
 ---
 
