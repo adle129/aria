@@ -56,7 +56,7 @@ flowchart TB
 | **4** | 维度基准 seed + 匹配 | R1-F01,F03,F05, SPK-F08 | Week 4–5 | **已完成**（F02 阻塞 O-01） |
 | **5** | dimension_review + 前端 | R1-F06–F07, R1-U01–U03 | Week 5–6 | **已完成** |
 | **6** | confirm + RAG 矩阵 + 验收 | R1-F08–F10, R1-U04–U06, A* | Week 6–8 | **进行中**（U06/手验；A* 客户阻塞） |
-| **7** | 多人排队体验（R1+ · 不阻塞 β） | **R1-PERF01–12** | 7A/7B 已完成 | **7A/7B 已完成** · 下一优先 7C/7D |
+| **7** | 多人排队体验（R1+ · 不阻塞 β） | **R1-PERF01–12** | 7A/7B + PERF08 已完成 | **7A/7B + PERF08 已完成** · 下一优先 PERF09 + 7D |
 
 ---
 
@@ -253,13 +253,13 @@ flowchart TB
 | 7B.1 | **R1-PERF05** | phase + status_message | matching 批次等 | 7A.2 | **已完成** |
 | 7B.2 | **R1-PERF06** | status 契约字段对齐 | ETA / queue_wait_ms / run_ms / phase | 7B.1 | **已完成** |
 | 7B.3 | **R1-PERF07** | `/rfq` 进度卡 + 文案词典 | 方案 §5；「预计还需」已落地 | 7B.2 | **已完成**（文案） |
-| 7C.1 | **R1-PERF08** | content_hash 解析缓存 | P1 | 7A.1 | 待开始 |
+| 7C.1 | **R1-PERF08** | content_hash 解析缓存 | P1 | 7A.1 | **已完成** |
 | 7C.2 | **R1-PERF09** | embedding 短缓存 | P1 | 7A.2 | 待开始 |
 | 7D.1 | **R1-PERF10** | 忙时提示 + 429/503 文案 | P1 | 7B.3 | 待开始 |
 | 7D.2 | **R1-PERF11** | TaskContextBar 强化 | P1 | 7B.3 | 待开始 |
 | 7E.1 | **R1-PERF12** | 并发=2 / 双卡评估 | P2 可选 | 7A.4 | 待开始 |
 
-**建议顺序：** **7A/7B 已完成**；下一做 7C/7D（P1）；7E 仅有机时与客户同意时做。
+**建议顺序：** **7A/7B + PERF08 已完成**；下一做 PERF09 + 7D（P1）；7E 仅有机时与客户同意时做。
 
 ---
 
@@ -272,7 +272,7 @@ flowchart TB
 3. **按 [r1-rehearsal-script.md](r1-rehearsal-script.md) 彩排**并记缺口（补「双人排队」子弹）
 4. **K08-UX 状态词典签收 + K08-RESP** 响应式打磨
 5. （可选）SPK-F05 里程碑规则 · R1-OPS L1 反馈
-6. **Wave 7C/7D（PERF08–11）**：content_hash / embedding 缓存 + 忙时提示 + TaskContextBar — 见 [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)
+6. **Wave 7C/7D（PERF09–11）**：embedding 短缓存 + 忙时提示 + TaskContextBar（PERF08 content_hash 已落地）— 见 [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)
 
 客户侧由 PM 跟进 **O-01～O-05**（阻塞 R1-β 签字）。
 

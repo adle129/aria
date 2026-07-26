@@ -1,9 +1,9 @@
 # R1+ · RFQ 多人并发等待体验改进方案
 
-**版本：** v1.1 · 2026-07-25  
-**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · 7C/7D/7E（PERF08–12）待做  
+**版本：** v1.2 · 2026-07-26  
+**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08 已落地** · PERF09–12 待做  
 **关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）  
-**实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`
+**实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`；PERF08：`feat/r1-perf08-parse-cache`
 
 ---
 
@@ -50,11 +50,12 @@ flowchart LR
 
 | 已具备 | 缺口 |
 |--------|------|
-| PG 队列 + worker + SKIP LOCKED | Phase2（confirm）仍在 HTTP 同步路径 |
-| 跨进程 Ollama 租约 + 优先级 | Phase1 进度粒度偏粗（多为 parsing） |
-| 排队位次 / ETA / queue_wait_ms / run_ms | 前端未充分区分「排队」vs「解析中」 |
-| 429 队列满、取消、stale 恢复 | 重复上传/重试无内容级缓存 |
-| TaskContextBar + 轮询 | confirm 后离开页面体验弱；忙时引导不足 |
+| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | query embedding 短缓存（PERF09） |
+| 跨进程 Ollama 租约 + 优先级 | 忙时提示条 + 429/503 操作区（PERF10） |
+| 排队位次 / ETA / queue_wait_ms / run_ms / phase | TaskContextBar 排队/待确认强化（PERF11） |
+| 429 队列满、取消、stale 恢复 | 彩排「双人排队」剧本 |
+| Phase1 content_hash 解析缓存（PERF08） | — |
+| TaskContextBar + 轮询 | confirm 后离开页面体验仍可打磨 |
 
 ---
 
@@ -89,17 +90,24 @@ flowchart TB
 
 ### 3.3 缓存设计（内容级）
 
-| 缓存 | Key | Value | TTL / 失效 | 存放 |
-|------|-----|-------|------------|------|
-| RFQ 解析草稿 | `sha256(file bytes)` + parser/baseline version | `rfq_modules` + 可选 dimension draft 指纹 | baseline / parser 版本变更失效 | PG 表或任务旁路表 |
-| Query embedding | `sha256(normalized query text)` + embed model | vector | 短 TTL（如 24h）或进程重启可丢 | PG 小表或本地；**不上 Redis** |
-| LLM 整段生成 | — | — | **禁止跨任务复用** | — |
+| 缓存 | Key | Value | TTL / 失效 | 存放 | 状态 |
+|------|-----|-------|------------|------|------|
+| RFQ 解析 + 自动维度草稿 | `sha256(file bytes):parser_version:prompt_version:baseline_version` | `rfq_modules` + **自动** `dimension_draft` | parser / prompt / baseline 任一变更即 miss | PG `rfq_parse_cache`（Alembic `010_rfq_parse_cache`） | **PERF08 已落地** |
+| Query embedding | `sha256(normalized query text)` + embed model | vector | 短 TTL（如 24h）或进程重启可丢 | PG 小表或本地；**不上 Redis** | PERF09 待做 |
+| LLM 整段生成 | — | — | **禁止跨任务复用** | — | 不做 |
 
-命中策略：
+#### PERF08 落地约定（手测 / 运维）
 
-- **重试同一文件**：可跳过规则解析 LLM 兜底轮次（若规则已完整）；维度匹配是否复用由 `baseline_version` 决定。  
-- **不同用户上传同一文件**：可复用解析结果，**不可**复用他人维度勾选（owner 隔离）。  
-- 缓存 miss 必须静默回落全量路径；缓存损坏不得 500。
+| 项 | 约定 |
+|----|------|
+| 判定「同一份文件」 | **整文件字节** SHA-256（非文件名、非任务 ID）。Word 另存导致字节变化 → miss（偏保守） |
+| 写入时机 | Phase1 **成功进入** `dimension_review` 后 `store`；匹配中取消 / 失败 **不写** |
+| 命中行为 | 跳过解析 **与** 自动维度匹配，直接 `dimension_review`（日志：`rfq_analyze_cache_hit`） |
+| Owner 隔离 | **永不**缓存工程师勾选；仅自动匹配草稿；任务间 deepcopy |
+| 作用范围 | **仅 Phase1**（`rfq_analysis`）。确认后的 `rfq_confirm`（对比矩阵）**不走**本缓存 |
+| 重试 | `retry` 清空本任务 `rfq_modules`/`dimension_draft`；若全局 cache 已有同 key 则整段命中，否则全量重跑（无「只续跑匹配」断点） |
+| 失败语义 | lookup/store/损坏条目静默回落全量路径，**不得**导致 500 |
+| 实现 | `rfq_parse_cache_service.py` · `analyze_task`；单测 + API + regression |
 
 ### 3.4 资源与扩展路径（运维）
 
@@ -295,7 +303,7 @@ flowchart TB
 
 | ID | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|------|------------|------|------|
-| **R1-PERF08** | RFQ 文件 content_hash 解析缓存 | 同文件+同版本命中跳过重解析；owner 隔离勾选；损坏回落 | PERF01 | 待开始 |
+| **R1-PERF08** | RFQ 文件 content_hash 解析缓存 | 同文件+同版本命中跳过重解析；owner 隔离勾选；损坏回落 | PERF01 | **已完成** |
 | **R1-PERF09** | query embedding 短缓存 | confirm/检索同文复用；模型名变更失效；单测 | PERF02 | 待开始 |
 
 #### Wave 7D — 忙时与跨页提示（易用性 P1）
@@ -331,7 +339,8 @@ flowchart LR
 - [x] 取消 Phase2：回到可再次确认的 `dimension_review`（PERF03；API/unit 覆盖）  
 - [x] 排队/执行文案落地（「预计还需」「已等待」）；取消态隔离与进度清单修复（PERF07 + 手测）  
 - [x] `run_tests.ps1` 全绿（含 cancel API 文案断言 + 进度控件 Vitest）  
-- [ ] 彩排脚本增加「双人排队 + 一人确认维度离开再回」小节（更新 `r1-rehearsal-script.md`）
+- [x] 同文件二次上传：Phase1 命中 content_hash 缓存，快速进入 `dimension_review`；确认后 Phase2 仍正常排队（PERF08；手测通过）  
+- [ ] 彩排脚本增加「双人排队 + 一人确认维度离开再回」子弹（更新 `r1-rehearsal-script.md`）
 
 ### 6.5 明确不做清单（再确认）
 
@@ -350,12 +359,12 @@ flowchart LR
 
 | 文档 | 待更新点 |
 |------|----------|
-| [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队语义；phase 枚举 — **7A/7B 已同步** |
+| [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队；phase；**PERF08 解析缓存行为说明已同步** |
 | [prod.md](../../prod.md) §5.x | Phase2 异步；体验验收一句 — 待补 |
 | [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — 待 PERF10 |
 | [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补 |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
-| 本文 | **PERF01–07 已回写已完成**；PERF08–12 仍待做 |
+| 本文 | **PERF01–08 已回写已完成**；PERF09–12 仍待做 |
 
 ---
 
@@ -369,6 +378,7 @@ flowchart LR
 | 2026-07-20 | 是否默认提高 Ollama 并发 | **否；仅 P2 评估** |
 | 2026-07-20 | 与 R1-β 关系 | **不阻塞签字；签字后体验增强优先做 7A/7B** |
 | 2026-07-25 | 7A/7B 落地 | **PERF01–07 已完成**（含取消 Session 刷新、取消态按 task 隔离）；下一优先 **PERF08–11** |
+| 2026-07-26 | PERF08 落地 | **content_hash 解析缓存**（PG `rfq_parse_cache`）；仅 Phase1；owner 勾选不缓存；下一优先 **PERF09–11** |
 
 ---
 

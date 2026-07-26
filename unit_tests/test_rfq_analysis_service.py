@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
 from app.database import Base
+from app.models.rfq_parse_cache import RfqParseCache
 from app.models.rfq_task import RFQTask
 from app.models.task_job import TaskJob
 from app.services.rfq_analysis_service import RFQAnalysisService
@@ -21,14 +22,17 @@ def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine, tables=[RFQTask.__table__, TaskJob.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[RFQTask.__table__, TaskJob.__table__, RfqParseCache.__table__],
+    )
     session = sessionmaker(bind=engine)()
     yield session
     session.close()
 
 
 @pytest.fixture
-def analysis_service():
+def analysis_service(tmp_path):
     if not SEED.is_file():
         pytest.skip("seed baseline missing")
     return RFQAnalysisService(
@@ -36,7 +40,8 @@ def analysis_service():
             mock_llm=True,
             mock_rag=True,
             dimension_baseline_path=str(SEED),
-            upload_path="./data/uploads",
+            upload_path=str(tmp_path / "uploads"),
+            prompt_version="v1",
         )
     )
 
@@ -71,6 +76,60 @@ def test_analyze_task_stops_at_dimension_review(db_session, analysis_service, mo
     assert len(task.dimension_draft["items"]) >= 1
     assert task.comparison_table is None
     assert task.similar_projects is None
+
+
+def test_analyze_task_uses_parse_cache_on_second_run(db_session, analysis_service, monkeypatch, tmp_path):
+    """PERF08: same file bytes + versions skip parse and match."""
+    rfq_path = tmp_path / "cached.docx"
+    rfq_path.write_bytes(b"identical-content-for-cache")
+
+    rfq_modules = {
+        "project_name": "Cached Project",
+        "platform_type": "MEB",
+        "functions_in_scope": ["Chassis"],
+        "modules": [],
+    }
+    parse_calls = {"n": 0}
+    match_calls = {"n": 0}
+
+    def fake_parse(_path, **kwargs):
+        parse_calls["n"] += 1
+        return rfq_modules
+
+    real_match = analysis_service.dimension_match.match_rfq_to_baseline
+
+    def counting_match(*args, **kwargs):
+        match_calls["n"] += 1
+        return real_match(*args, **kwargs)
+
+    monkeypatch.setattr(analysis_service.parse_service, "parse_rules_first", fake_parse)
+    monkeypatch.setattr(analysis_service.dimension_match, "match_rfq_to_baseline", counting_match)
+
+    t1 = RFQTask(file_name="cached.docx", file_path=str(rfq_path), processing_status="queued")
+    db_session.add(t1)
+    db_session.commit()
+    analysis_service.analyze_task(db_session, t1.id)
+    db_session.refresh(t1)
+    assert t1.processing_status == "dimension_review"
+    assert parse_calls["n"] == 1
+    assert match_calls["n"] == 1
+    draft_first = t1.dimension_draft
+
+    t2 = RFQTask(file_name="cached.docx", file_path=str(rfq_path), processing_status="queued")
+    db_session.add(t2)
+    db_session.commit()
+    analysis_service.analyze_task(db_session, t2.id)
+    db_session.refresh(t2)
+    assert t2.processing_status == "dimension_review"
+    assert t2.rfq_modules == rfq_modules
+    assert t2.dimension_draft is not None
+    assert t2.dimension_draft.get("baseline_version") == draft_first.get("baseline_version")
+    assert parse_calls["n"] == 1
+    assert match_calls["n"] == 1
+    # Owner isolation: task-local copy — mutating t2 draft must not rewrite t1
+    t2.dimension_draft["items"] = []
+    db_session.refresh(t1)
+    assert len(t1.dimension_draft.get("items") or []) >= 1
 
 
 def test_confirm_dimensions_generates_matrix(db_session, analysis_service, monkeypatch):

@@ -22,14 +22,27 @@ def test_reg_p02_demo_multifunction_rules_first(settings, demo_multifunction_pat
 
 
 def test_reg_p03_synthetic_timeline_rules_first(settings, tmp_path):
-    """Minimal docx when no third customer RFQ is available."""
+    """Minimal Chinese-shaped docx (rules-first overview + milestones) when no third customer RFQ exists."""
     doc = Document()
-    doc.add_paragraph("Customer: Regression Synthetic OEM")
-    doc.add_paragraph("RFQ — Compact BEV Platform Development")
-    doc.add_paragraph("Platform: MEB")
-    doc.add_paragraph("Project Duration: 18 months")
-    doc.add_paragraph("Scope includes Chassis design and PM coordination.")
-    doc.add_paragraph("Front suspension and rear suspension structural development.")
+    # Must match extractor patterns: 整车工程 / 包含…设计开发工作 / 年月日—年月日 / M0+SOP dates.
+    for line in (
+        "进行Compact BEV整车工程开发技术协议",
+        "甲方为Regression Synthetic汽车有限公司",
+        "平台类型为BEV Compact SUV",
+        "开发周期自2024年1月1日-2025年6月30日",
+        "本项目包含项目管理、底盘的设计开发工作。",
+        "工作内容及要求",
+        "4.1 项目管理",
+        "4.1.1 项目计划",
+        "负责项目计划编制与进度跟踪。",
+        "4.2 底盘",
+        "4.2.1 前悬架",
+        "前悬架结构设计与开发。",
+        "开发进度",
+        "M0 2024年1月1日",
+        "SOP 2025年6月30日",
+    ):
+        doc.add_paragraph(line)
     path = tmp_path / "synthetic_timeline_rfq.docx"
     doc.save(path)
 

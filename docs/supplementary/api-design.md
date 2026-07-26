@@ -1,8 +1,8 @@
 # ARIA — API 设计规范
 
-**版本：** v1.7
+**版本：** v1.8  
 **Base URL：** `/api/v1`  
-**日期：** 2026-07-09  
+**日期：** 2026-07-26  
 **基线：** [prod.md](../../prod.md) v1.9 · [rfq-dimension-baseline-spec.md](rfq-dimension-baseline-spec.md) · [使用场景问卷 v1.1](../客户使用场景与访问方式确认（客户版）.md)
 
 ---
@@ -250,6 +250,12 @@ Content-Type: multipart/form-data
 ```
 
 **格式错误（同步）：** 非 `.docx` / `.doc` → `400`，`msg`: `仅支持 Word RFQ 文件（.docx 或 .doc）`。
+
+**Phase1 解析缓存（R1-PERF08 · 内部行为，无新接口）：** worker 执行 `rfq_analysis` 时按
+`sha256(文件字节):parser_version:prompt_version:baseline_version` 查 PG 表 `rfq_parse_cache`。
+同 key 命中则跳过解析与自动维度匹配，直接进入 `dimension_review`（仍为独立 `task_id`）。
+仅缓存自动匹配草稿，**不**缓存工程师勾选；确认后的 `rfq_confirm`（对比矩阵）**不**使用本缓存。
+缓存 miss/损坏静默回落全量路径。详见 [rfq-concurrency-ux-plan.md §3.3](../R1/rfq-concurrency-ux-plan.md)。
 
 **内容门禁（异步 · R1+）：** 上传仍返回 `200` 并入队；worker 读入正文后若判定非预期文档，任务 `processing_status=failed`，`status` 轮询与任务详情可见下列 `message` / `error_msg`（**不**调用 LLM 补全，避免幻觉）：
 

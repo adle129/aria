@@ -303,6 +303,11 @@ def test_analyze_task_honours_cancel_set_during_match(db_session, monkeypatch, t
         Settings(database_url="sqlite://", mock_llm=True, mock_rag=True)
     )
     monkeypatch.setattr(
+        service.dimension_match.baseline_service,
+        "load",
+        lambda **_kwargs: MagicMock(version="test-baseline"),
+    )
+    monkeypatch.setattr(
         service.parse_service,
         "parse_rules_first",
         MagicMock(return_value={"modules": [], "project_name": "P"}),

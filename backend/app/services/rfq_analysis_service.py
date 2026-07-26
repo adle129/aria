@@ -25,6 +25,7 @@ from app.services.llm_service import LLMService
 from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.rfq_document_guard import RfqDocumentRejectedError
+from app.services.rfq_parse_cache_service import RfqParseCacheService
 from app.services.rfq_parse_service import RFQParseService
 from app.services.rfq_similarity_query import build_rfq_similarity_query
 from app.services.rfq_upload import validate_rfq_upload_filename
@@ -73,6 +74,7 @@ class RFQAnalysisService:
         self.rag = RAGService(self.settings)
         self.dimension_match = DimensionMatchService(self.settings)
         self.job_service = TaskJobService(self.settings)
+        self.parse_cache = RfqParseCacheService(self.settings)
 
     def save_upload(self, filename: str, content: bytes) -> tuple[str, str]:
         validate_rfq_upload_filename(filename)
@@ -542,6 +544,35 @@ class RFQAnalysisService:
             if cancel_check is not None:
                 cancel_check()
 
+            rfq_path = resolve_task_file_path(task.file_path, upload_dir=self.settings.upload_path)
+            baseline_version = self.dimension_match.baseline_service.load().version
+            content_hash, cached_modules, cached_draft = self.parse_cache.lookup(
+                db,
+                file_path=rfq_path,
+                baseline_version=baseline_version,
+            )
+
+            if cached_modules is not None and cached_draft is not None:
+                if cancel_check is not None:
+                    cancel_check()
+                task.rfq_modules = cached_modules
+                task.dimension_draft = cached_draft
+                task.processing_status = "dimension_review"
+                task.progress = "40"
+                task.status_message = "等待工程师确认基准维度清单"
+                repo.update(task)
+                if job is not None:
+                    self.job_service.update_progress(
+                        db, job, phase="dimension_review", current=2, total=2
+                    )
+                logger.info(
+                    "rfq_analyze_cache_hit task_id=%s content_hash=%s total_ms=%d",
+                    task.id,
+                    content_hash[:12],
+                    int((time.monotonic() - started) * 1000),
+                )
+                return
+
             task.processing_status = "parsing"
             task.progress = "20"
             task.status_message = "正在解析 RFQ 文档..."
@@ -551,9 +582,18 @@ class RFQAnalysisService:
                     db, job, phase="parsing", current=1, total=2
                 )
 
-            rfq_path = resolve_task_file_path(task.file_path, upload_dir=self.settings.upload_path)
             parse_started = time.monotonic()
-            rfq_modules = self.parse_service.parse_rules_first(rfq_path, cancel_check=cancel_check)
+            if cached_modules is not None:
+                rfq_modules = cached_modules
+                logger.info(
+                    "rfq_parse_cache_modules_only task_id=%s content_hash=%s",
+                    task.id,
+                    content_hash[:12],
+                )
+            else:
+                rfq_modules = self.parse_service.parse_rules_first(
+                    rfq_path, cancel_check=cancel_check
+                )
             if cancel_check is not None:
                 cancel_check()
             task.rfq_modules = rfq_modules
@@ -600,6 +640,13 @@ class RFQAnalysisService:
                 self.job_service.update_progress(
                     db, job, phase="dimension_review", current=2, total=2
                 )
+            self.parse_cache.store(
+                db,
+                content_hash=content_hash,
+                baseline_version=baseline_version,
+                rfq_modules=rfq_modules,
+                dimension_draft=dimension_draft,
+            )
             logger.info(
                 "rfq_dimension_match_ok task_id=%s items=%d match_ms=%d total_ms=%d",
                 task.id,
