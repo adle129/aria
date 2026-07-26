@@ -63,13 +63,13 @@ describe("formatTaskListStatus", () => {
     ).toBe("正在匹配基准维度库（1/3）");
   });
 
-  it("uses localized status when idle", () => {
+  it("uses human-review tag for dimension_review (PERF11)", () => {
     expect(
       formatTaskListStatus({
         processing_status: "dimension_review",
         status_message: "等待工程师确认基准维度清单",
       }),
-    ).toBe("等待基准维度勾选");
+    ).toBe("待您确认");
   });
 });
 

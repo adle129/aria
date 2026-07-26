@@ -1,7 +1,7 @@
 # R1+ · RFQ 多人并发等待体验改进方案
 
 **版本：** v1.2 · 2026-07-26  
-**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08–09 已落地** · **PERF10 已落地** · PERF11–12 待做  
+**状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08–09 已落地** · **PERF10–11 已落地** · PERF12 可选待做  
 **关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）  
 **实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`；PERF08/09：`feat/r1-perf09-embedding-cache`（含 poll 修复与 PERF08）
 
@@ -322,7 +322,7 @@ flowchart TB
 | ID | 任务 | 产出 / DoD | 依赖 | 状态 |
 |----|------|------------|------|------|
 | **R1-PERF10** | 忙时提示条 + 429/503 操作区文案 | §5.4；阈值见 `frontend/src/lib/rfqBusyUx.ts` | PERF07 | **已完成** |
-| **R1-PERF11** | TaskContextBar：排队位次/待确认强化 | 非 RFQ 页可理解；点击回任务；Vitest | PERF07 | 待开始 |
+| **R1-PERF11** | TaskContextBar：排队位次/待确认强化 | 非 RFQ 页可理解；点击回任务；Vitest | PERF07 | **已完成** |
 
 #### Wave 7E — 容量评估（可选 P2）
 
@@ -375,7 +375,7 @@ flowchart LR
 | [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — **§3.4.3 已同步** |
 | [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补 |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
-| 本文 | **PERF01–10 + BUG-POLL01 已回写已完成**；PERF11–12 仍待做 |
+| 本文 | **PERF01–11 + BUG-POLL01 已回写已完成**；PERF12 仍待做（可选） |
 
 ---
 
@@ -394,6 +394,7 @@ flowchart LR
 | 2026-07-26 | 本地分支合成 | poll-isolation 分支 cherry-pick PERF08，避免本地 DB 已 stamp `010` 时缺 migration 无法启动 |
 | 2026-07-26 | PERF09 落地 | query/`rfq` embedding 短 TTL 缓存（PG）；KB 索引路径不缓存；下一优先 **PERF10–11** |
 | 2026-07-26 | PERF10 落地 | 忙时提示条（位次≥3 或 ETA≥600s）+ 上传/确认 429 与检索 503 操作区文案；下一优先 **PERF11** |
+| 2026-07-26 | PERF11 落地 | TaskContextBar 排队/待确认文案 + 侧栏「待您确认」；轻量 status 轮询取位次；下一优先 **PERF12（可选）** |
 
 ---
 

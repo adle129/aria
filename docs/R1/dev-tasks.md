@@ -28,7 +28,7 @@
 **仍进行中：** R1-K09 / SPK-K04（内部 12/15 已达成 · 待客户 O-03）· R1-U06 · R1-A06 · K08-UX / K08-RESP  
 **仍依赖客户（阻塞）：** R1-F02 · R1-A02–A05/A07 · O-01～O-05  
 **可选 / 不阻塞 R1：** R1-OPS01–02 · SPK-F05 · SPK-K07 · R1-KH14–16（M6）  
-**R1+ 体验增强（不阻塞 R1-β 签字）：** [R1-PERF](rfq-concurrency-ux-plan.md) Wave 7 · **7A/7B（PERF01–07）已完成** · **PERF08–10 已完成** · PERF11 待开始
+**R1+ 体验增强（不阻塞 R1-β 签字）：** [R1-PERF](rfq-concurrency-ux-plan.md) Wave 7 · **7A/7B（PERF01–07）已完成** · **PERF08–11 已完成** · PERF12 可选
 
 ---
 
@@ -405,10 +405,10 @@
 | R1-PERF08 | P1 | RFQ content_hash 解析缓存 | 同文件+版本命中；owner 隔离勾选 | PERF01 | **已完成** |
 | R1-PERF09 | P1 | query embedding 短缓存 | 模型变更失效；不上 Redis | PERF02 | **已完成** |
 | R1-PERF10 | P1 | 忙时提示条 + 429/503 操作区文案 | 方案 §5.4 | PERF07 | **已完成** |
-| R1-PERF11 | P1 | TaskContextBar 排队/待确认强化 | 非 RFQ 页可理解；Vitest | PERF07 | 待开始 |
+| R1-PERF11 | P1 | TaskContextBar 排队/待确认强化 | 非 RFQ 页可理解；Vitest | PERF07 | **已完成** |
 | R1-PERF12 | P2 | 并发=2 / 双卡评估备忘录 | 通过才改生产默认；默认保持 1 | PERF04 | 待开始 |
 
-**Gate：** 不阻塞 R1-β 签字；**7A/7B + PERF08–10 + BUG-POLL01 已完成**。下一优先 PERF11。彩排须补「双人排队」剧本。
+**Gate：** 不阻塞 R1-β 签字；**7A/7B + PERF08–11 + BUG-POLL01 已完成**。下一优先 PERF12（可选）或彩排「双人排队」剧本。
 
 > **本地分支提示（2026-07-26）：** `fix/r1-rfq-phase2-poll-isolation` 已 cherry-pick PERF08（含 Alembic `010_rfq_parse_cache`）。若本地 PG 的 `alembic_version` 已是 `010_rfq_parse_cache`，却检出不含该迁移的分支，backend 启动会报 `Can't locate revision identified by '010_rfq_parse_cache'`——须带回该 migration，或将 DB stamp 回 `009_kh08_knowledge_imports`（并视情况丢弃 `rfq_parse_cache` 表）。
 

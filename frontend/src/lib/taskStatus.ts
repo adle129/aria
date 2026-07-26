@@ -4,7 +4,7 @@ export const PROCESSING_STATUS_LABELS: Record<string, string> = {
   queued: "排队等待中",
   pending: "等待处理",
   parsing: "解析中",
-  dimension_review: "等待基准维度勾选",
+  dimension_review: "待您确认",
   retrieving: "检索相似项目",
   generating: "生成对比矩阵",
   cancelling: "正在取消",
@@ -105,6 +105,10 @@ export function formatTaskListStatus(task: {
   processing_status: string;
   status_message?: string | null;
 }): string {
+  // PERF11: human-review must not look like "machine running".
+  if (task.processing_status === "dimension_review") {
+    return "待您确认";
+  }
   const message = task.status_message?.trim();
   if (message && IN_FLIGHT_STATUSES.has(task.processing_status)) {
     return message.replace(/\.\.\.$/, "");
