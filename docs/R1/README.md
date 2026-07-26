@@ -2,7 +2,8 @@
 
 **里程碑：** R1（第 1–8 周 · ¥76,300）  
 **版本：** v1.8 · 2026-07-25  
-**状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · **PERF08–11 + BUG-POLL01 已完成** · **下一优先 PERF12**（待 GPU 机时）
+**状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · **PERF08–11 + BUG-POLL01 已完成** · **下一优先 PERF12**（待 GPU 机时）  
+**客户变更包（2026-07）：** 方案已落盘 [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) · 任务见 [dev-tasks.md](dev-tasks.md) **R1-CHG** · 分支 `feat/r1-confirmed-change-w1`  
 **基线：** [prod.md](../../prod.md) v1.9 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.5
 
 ### R1-PERF 剩余（防遗漏）
@@ -19,7 +20,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| [dev-tasks.md](dev-tasks.md) | **开发任务主清单**（含 **R1-SPK** spike 后续 · **R1-OPS**） |
+| [dev-tasks.md](dev-tasks.md) | **开发任务主清单**（含 **R1-SPK** · **R1-PERF** · **R1-CHG** · **R1-OPS**） |
 | [r1-execution-plan.md](r1-execution-plan.md) | **Wave 1–6 执行顺序**（Spike 后正式实施） |
 | [knowledge-development-standards.md](knowledge-development-standards.md) | **知识库全栈开发规范**：分层、事务、迁移、幂等、兼容、可观测性、测试 |
 | [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md) | **知识库生产化 UI/UX**：状态词典、页面任务、角色/异常/响应式 DoD |
@@ -37,6 +38,8 @@
 | [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) | **R1「签完即用」** 内部共识（金标准 ≥5 + bulk 档位） |
 | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) | **客户历史项目库 bulk 导入** 工作量 · 试点 · 验收档位 A/B/C |
 | [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md) | **多人 RFQ 排队体验**：架构（不引入 Redis/Celery）· UI 文案 · **R1-PERF** 任务 |
+| [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) | **已定变更范围**：角色分流 · 九模块多源选源 · Word 入口 · 起草台分期与架构（**待确认单**） |
+| [customer-feedback-draft-2026-07-25.md](customer-feedback-draft-2026-07-25.md) | **对客反馈稿**（邮件完整版 + 微信短版） |
 | [change-map-vision-spike-plan.md](change-map-vision-spike-plan.md) | **红旅图/色标变更图** PPT·PDF 识别 Spike（**待排期 · R1 外变更候选**） |
 | [pdf-ppt-de-rfq-vision-eval.md](pdf-ppt-de-rfq-vision-eval.md) | **PDF/PPT + 德语 RFQ + 跨语种对标**：云 API vs 本地双路线与硬件评估 |
 | [customer-pm-de-rfq-vision-brief.md](customer-pm-de-rfq-vision-brief.md) | **给客户 PM**：红旅图/德语需求非技术说明 + 本地硬件分档与价格参考 |

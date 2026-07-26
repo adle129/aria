@@ -1,7 +1,7 @@
 # R1 开发任务清单
 
 **版本：** v1.13 · 2026-07-25
-**索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)（**R1-PERF**） · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
+**索引：** [README.md](README.md) · **[r1-execution-plan.md](r1-execution-plan.md)**（执行顺序） · [spike-follow-up-tasks.md](spike-follow-up-tasks.md) · [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) · [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md)（**R1-PERF**） · [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md)（**R1-CHG**） · [人力报价 baselines 规格](../supplementary/manpower-baselines-spec.md)  
 **排序：** 开发时以 **r1-execution-plan Wave 序** 为准；本表按 ID 索引
 
 > 状态枚举：`待开始` · `进行中` · `已完成` · `阻塞`  
@@ -414,6 +414,31 @@
 
 ---
 
+## R1-CHG 客户变更包（角色分流 · 模块选源 · Word 口径）
+
+> **规格：** [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) v0.3 · 对客稿 [customer-feedback-draft-2026-07-25.md](customer-feedback-draft-2026-07-25.md)  
+> **分支：** `feat/r1-confirmed-change-w1`  
+> **原则：** 确认单签字前可做 **W1 体验壳**；真多源拼装归 **M3**；起草台 B1 **默认不进本期**（待客户勾选）；`prod.md` / M3 规格正文确认单后再改。
+
+| ID | 优先级 | 任务 | DoD | 依赖 | 状态 |
+|----|--------|------|-----|------|------|
+| R1-CHG01 | P0 | T1 工程师隐藏知识库导航；人天/证据 RFQ 内嵌抽屉 | 工程师无运维菜单；无死链 `/knowledge`；Vitest/可见性单测 | 架构 T1 | 待开始 |
+| R1-CHG02 | P0 | T2 矩阵表头：项目名·公司·车型（缺则 —）；去工程师「验证」外链 | ComparisonMatrix 展示；有字段即显示 | CHG01 | 待开始 |
+| R1-CHG03 | P0 | T3 选源壳：RFQ 页九模块 Radio + 保存 `function_source_map`（可先前端/API 持久化） | 文案标明真拼装属后续；`/quote` 不改 map | CHG02 · 架构 Q5 | 待开始 |
+| R1-CHG04 | P1 | T7 管理员壳：项目文档 IA 文案/导航；概览占位 + AI 健康一条 | 不做回收站深逻辑 | CHG01 | 待开始 |
+| R1-CHG05 | P1 | T2a 车型字段规范（metadata / 回填）+ 矩阵用字段 | 入库或解析约定；避免表头长期 — | CHG02 · 客户 | 待开始 |
+| R1-CHG06 | P1 | 历史源文件授权下载（矩阵内） | 鉴权+审计；确认单勾选后做 | CHG02 · 安全 | 待开始 |
+| R1-CHG07 | P0 | T3 真多源拼装 + `quote_fill_report`（M3） | scope 内多 engagement；单测+API；接真实 baselines | CHG03 · M3 · 确认单 | 待开始 |
+| R1-CHG08 | P1 | T4 模块关键字摘要缓存（矩阵后异步） | 选源读缓存；禁 3×9 现场检索 | CHG03 · 客户关键字表 | 待开始 |
+| R1-CHG09 | P2 | T7 回收站 30 天（文件+索引+baselines） | 确认单单列验收 | 确认单勾选 | 待开始 |
+| R1-CHG10 | P2 | T6 起草台 B1（默认不勾） | 拆页/模板 Word/入解析；独立草稿区 | 客户勾选+模板 | 待开始 |
+| R1-CHG11 | P2 | T6-B2 色标识别 | Spike 后另议 | 样例+出内网 | 待开始 |
+
+**W1 建议开工顺序：** CHG01 → CHG02 → CHG03（体验壳）→ CHG04。  
+**明确不做（本包）：** 多库 ACL · 三级角色 · PPT 直接进矩阵 · 模型用量/Token 看板。
+
+---
+
 ## R1-OPS 内部运维增强（非合同 · 可选）
 
 > **决策（2026-07-06）：** F5.6 **引用反馈 L1**（一键反馈 + CSV 导出）为 **乙方内部运维增强**；**不写入客户合同**、**不绑 R1～M6 验收与付款**；R1～M6 开发中 **视进度可选做**。  
@@ -440,5 +465,6 @@
 - 财务助手 · OA 对接
 - **F5.6 引用反馈 L1/L2 作为客户交付物**（见 **R1-OPS** · 内部可选）
 - **Redis / Celery 替换现有 PG 任务队列**（见 **R1-PERF** · 已否决）
+- **R1-CHG 包内后置：** 多知识库 ACL · 三级角色 · PPT/PDF 直接对标报价 · 模型用量/Token 看板（见 [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) T8）
 
 客户依赖明细见 [customer-dependencies.md](customer-dependencies.md)。验收勾选项见 [acceptance-checklist.md](acceptance-checklist.md)。
