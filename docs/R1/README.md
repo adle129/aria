@@ -5,6 +5,14 @@
 **状态：** **Wave 1–6 代码主体已完成** · 剩余联调手验 / 客户 O-01～O-05 / UX 打磨 · **Wave 7A/7B（PERF01–07）已完成** · **PERF08–11 + BUG-POLL01 已完成** · **下一优先 PERF12**（待 GPU 机时）
 **基线：** [prod.md](../../prod.md) v1.9 · [formal-delivery-strategy.md](../supplementary/formal-delivery-strategy.md) v1.5
 
+### R1-PERF 剩余（防遗漏）
+
+| 项 | 状态 | 详情入口 |
+|----|------|----------|
+| **R1-PERF01–11** + BUG-POLL01 | **已完成**（已合入 `release/r1`） | [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md) · [dev-tasks.md](dev-tasks.md) |
+| **R1-PERF12** 并发=2 / 双卡评估备忘录 | **下一优先** · 待 GPU 机时；默认仍 `OLLAMA_MAX_CONCURRENT=1` | [dev-tasks.md](dev-tasks.md) `R1-PERF12` · 方案 Wave 7E |
+| 彩排「双人排队」剧本（非 PERF 编号） | **待补** | [r1-rehearsal-script.md](r1-rehearsal-script.md) §8 |
+
 ---
 
 ## 本目录文件

@@ -1,8 +1,9 @@
 # R1 客户验收彩排脚本（内部 · 15–20 分钟）
 
-**版本：** v1.0 · 2026-07-08  
+**版本：** v1.1 · 2026-07-26  
 **用途：** R1-β 内网签字前内部彩排；**不含** Demo Mock 路径、方案/QA/报价 Stub。  
-**前置：** `ARIA_UI_PROFILE=r1` · `MOCK_LLM=false` · `MOCK_RAG=false` · Ollama + pgvector · ≥1 套 Engagement 已索引 · **`AUTH_ENABLED=true`**（登录手验）
+**前置：** `ARIA_UI_PROFILE=r1` · `MOCK_LLM=false` · `MOCK_RAG=false` · Ollama + pgvector · ≥1 套 Engagement 已索引 · **`AUTH_ENABLED=true`**（登录手验）  
+**关联待办：** §8 双人排队场景 · [R1-PERF12](dev-tasks.md)（GPU 机时评估，非本脚本）
 
 **环境：** 使用 `scripts/start.ps1`（Docker + Nginx `http://localhost`）。`.env` 参考 [.env.docker.example](../../.env.docker.example) + [.env.r1-dev.example](../../.env.r1-dev.example)。账号：`.\scripts\create_dev_users.ps1` → `engineer` / `kbadmin`。
 
@@ -84,3 +85,24 @@ O-01 基准清单 · O-02a/c bulk · O-03 检索 15 题 · O-04 三份 RFQ · O-
 | 登录报用户名密码错误 | 栈重建后须重跑 `.\scripts\create_dev_users.ps1` |
 
 详细步骤：[README.md § Docker 常见问题](../../README.md#docker-常见问题与方案) · [ops-guide.md §6.1](../ops-guide.md#61-常见问题)
+
+---
+
+## 8. 待补场景（R1-PERF 体验 · 防遗漏）
+
+> **状态：待编写步骤表**（代码侧 PERF01–11 已落地；本节能在签字彩排前补齐即可）
+
+### 8.1 双人排队 + 确认后离开再回
+
+| 步骤 | 操作 | 期望 |
+|------|------|------|
+| 8.1.1 | 账号 A 上传 RFQ，保持排队/解析中 | 进度卡显示位次 /「预计还需」 |
+| 8.1.2 | 账号 B（或同账号第二任务）再上传 | 两任务均入队；侧栏可见；不互相卡死进度 |
+| 8.1.3 | A 进入 `dimension_review` → 确认维度 | Toast/进度：「对比表排队/生成」；可离开 `/rfq` |
+| 8.1.4 | A 打开 `/quote`（或其它 quoting 页）再回 `/rfq` | TaskContextBar / 任务列表可回到该任务；Phase2 不幽灵卡住 |
+| 8.1.5 | （可选）队列满时再上传 | 操作区 429 文案含 `depth/max`，非仅 toast |
+
+### 8.2 与 PERF12 的边界
+
+- **本脚本不覆盖** `OLLAMA_MAX_CONCURRENT=2` / 双卡压测（见 [dev-tasks.md](dev-tasks.md) **R1-PERF12** · 待 GPU）。
+- 彩排默认仍按并发 **1** 演示排队体验。

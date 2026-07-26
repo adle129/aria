@@ -374,7 +374,7 @@ flowchart LR
 | [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队；phase；**PERF08/09 缓存行为已同步** |
 | [prod.md](../../prod.md) §4.4 / §5.5 | Phase2 异步入队 + 忙时体验 — **已同步** |
 | [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — **§3.4.3 已同步** |
-| [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补（非编码） |
+| [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — **§8 步骤骨架已挂账**（可再润色） |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
 | 本文 | **PERF01–11 + BUG-POLL01 已回写已完成**；**PERF12 为下一优先**（待 GPU 机时后再跑） |
 
