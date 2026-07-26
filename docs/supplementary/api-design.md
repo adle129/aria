@@ -1119,10 +1119,11 @@ Phase 2 可选 WebSocket/SSE 推送进度。
 | 变量 | 默认（容器内） |
 |------|----------------|
 | `CHROMA_PATH` | `/app/data/chroma_db` | **Demo 遗留**；R1 后向量在 PostgreSQL pgvector |
-| `OLLAMA_MAX_CONCURRENT` | `1` | worker 内 LLM 并发上限（TBD） |
-| `TASK_MAX_QUEUE_SIZE` | `20` | 上传队列深度上限；满时 429 |
+| `OLLAMA_MAX_CONCURRENT` | `1` | worker 内 LLM 并发上限（PERF12 评估前保持 1） |
+| `TASK_MAX_QUEUE_SIZE` | `20` | 上传/确认队列深度上限；满时 429 |
 | `TASK_JOB_STALE_SECONDS` | `900` | running 作业超时阈值（秒） |
 | `TASK_WORKER_INLINE` | `false` | 测试/SQLite 同步执行 worker |
+| `QUERY_EMBEDDING_CACHE_TTL_SECONDS` | `86400` | PERF09 query/rfq embedding 短缓存 TTL；`0` 关闭 |
 | `UPLOAD_PATH` | `/app/data/uploads` |
 | `OUTPUT_PATH` | `/app/data/outputs` |
 | `KNOWLEDGE_BASE_PATH` | `/app/data/knowledge_base` |

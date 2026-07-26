@@ -3,7 +3,7 @@
 **版本：** v1.2 · 2026-07-26  
 **状态：** 方案已共识 · **Wave 7A/7B（PERF01–07）已落地** · **Wave 7C PERF08–09 已落地** · **PERF10–11 已落地** · **下一优先 PERF12**（待 GPU 机时）  
 **关联：** [dev-tasks.md](dev-tasks.md)（**R1-PERF**） · [r1-execution-plan.md](r1-execution-plan.md) Wave 7 · [api-design.md](../supplementary/api-design.md) §3 · [kh00-architecture-decisions.md](kh00-architecture-decisions.md) · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)（文案风格对齐）  
-**实现分支：** `feat/r1-perf01-rfq-confirm` → `release/r1`；PERF08/09：`feat/r1-perf09-embedding-cache`（含 poll 修复与 PERF08）
+**实现分支：** PERF01–11 + BUG-POLL01 经 `feat/r1-perf11-task-context-bar`（含 PERF08–11 与 poll 修复）合入 `release/r1`；**PERF12** 待 GPU 机时
 
 ---
 
@@ -48,15 +48,16 @@ flowchart LR
   KB[kb_index] -->|lease 100/200| Ollama
 ```
 
-| 已具备 | 缺口 |
-|--------|------|
-| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | 忙时提示条 + 429/503 操作区（PERF10，**已落地**） |
-| 跨进程 Ollama 租约 + 优先级 | TaskContextBar 排队/待确认强化（PERF11） |
-| 排队位次 / ETA / queue_wait_ms / run_ms / phase | 彩排「双人排队」剧本 |
-| 429 队列满、取消、stale 恢复 | confirm 后离开页面体验仍可打磨 |
+| 已具备 | 缺口 / 后续 |
+|--------|-------------|
+| PG 队列 + worker + SKIP LOCKED；Phase2 `rfq_confirm` 入队 | 彩排「双人排队」剧本 |
+| 跨进程 Ollama 租约 + 优先级 | PERF12：并发=2 / 双卡评估（待 GPU） |
+| 排队位次 / ETA / queue_wait_ms / run_ms / phase | confirm 后离开页面体验仍可打磨 |
+| 429 队列满、取消、stale 恢复 | — |
 | Phase1 content_hash 解析缓存（PERF08） | — |
 | Query embedding 短缓存（PERF09） | — |
-| TaskContextBar + 轮询（含 BUG-POLL01 隔离） | — |
+| 忙时提示条 + 429/503 操作区（PERF10） | — |
+| TaskContextBar 排队/待确认（PERF11）+ BUG-POLL01 轮询隔离 | — |
 
 ---
 
@@ -370,10 +371,10 @@ flowchart LR
 
 | 文档 | 待更新点 |
 |------|----------|
-| [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队；phase；**PERF08 解析缓存行为说明已同步** |
-| [prod.md](../../prod.md) §5.x | Phase2 异步；体验验收一句 — 待补 |
+| [api-design.md](../supplementary/api-design.md) §3 | `rfq_confirm` job；confirm 入队；phase；**PERF08/09 缓存行为已同步** |
+| [prod.md](../../prod.md) §4.4 / §5.5 | Phase2 异步入队 + 忙时体验 — **已同步** |
 | [ops-guide.md](../ops-guide.md) | 忙时运维：错峰 KB、队列观察 — **§3.4.3 已同步** |
-| [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补 |
+| [r1-rehearsal-script.md](r1-rehearsal-script.md) | 双人排队彩排 — 待补（非编码） |
 | [customer-it-infrastructure.md](../customer-it-infrastructure.md) | 仍推荐并发=1；评估路径备注 — 待 PERF12 |
 | 本文 | **PERF01–11 + BUG-POLL01 已回写已完成**；**PERF12 为下一优先**（待 GPU 机时后再跑） |
 

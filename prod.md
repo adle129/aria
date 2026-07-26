@@ -437,8 +437,8 @@ R1 须同时支持客户历史 **`.docx`** 与旧版 **`.doc`** RFQ（验证语�
 | RFQ 解析 + 对标 P95 | < 5 分钟 (14B+GPU) | < 3 分钟 (32B+4090) |
 | Excel 生成 | < 60 秒 | < 30 秒 |
 | 并发用户（浏览） | 1–3 人 | **10–15 人**（团队 10–20 人 · 问卷确认） |
-| RFQ 长任务排队 | — | 单 worker + `OLLAMA_MAX_CONCURRENT=1`；忙时 3–5 人连排 **≤10 分钟**（问卷可接受） |
-| RFQ 队列深度上限 | — | `task_max_queue_size` 默认 **20**；满时上传返回 **429**，提示稍后重试 |
+| RFQ 长任务排队 | — | 单 worker + `OLLAMA_MAX_CONCURRENT=1`；忙时 3–5 人连排 **≤10 分钟**（问卷可接受）；UI 展示位次/ETA/阶段文案（R1-PERF） |
+| RFQ 队列深度上限 | — | `task_max_queue_size` 默认 **20**；满时上传/确认返回 **429**，操作区友好提示 |
 | RFQ 文件大小上限 | 50 MB | 50 MB |
 | KB 索引并行策略 | — | 单 GPU 下低优先级分批执行；RFQ/检索到达时可让路；全量重建默认非高峰 |
 | KB 索引可用性 | — | 构建期间继续读取上一稳定 generation；失败不得出现空库 |
@@ -564,7 +564,9 @@ draft → in_review → approved → exported
 
 > **命名区分：** 本节 **任务归档** = 列表隐藏，**不**删除数据盘文件；**archive-to-knowledge**（§11.3 · 合同外）= 定稿项目写入 Engagement 知识库，二者独立。
 
-**队列保护：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）时，`POST /rfq/upload` 返回 **429**，响应含 `queue_depth` 与友好提示。
+**队列保护：** 当 `task_jobs` 排队数 ≥ `task_max_queue_size`（默认 20）时，`POST /rfq/upload` 与确认维度入队返回 **429**，响应含 `queue_depth` 与友好提示。
+
+**Phase2 异步（R1-PERF）：** 工程师确认基准维度后，`confirm-dimensions` **快速入队** `rfq_confirm`（worker 执行 retrieving → generating）；可离开页面，稍后从任务列表继续。解析命中 content_hash 缓存或 embedding 短缓存时可缩短 GPU 占用（不影响正确性门禁）。
 
 **僵死任务恢复：** worker 轮询时检测 `running` 超过 `task_job_stale_seconds`（默认 900s）的作业，经 `mark_failed` 尊重 `max_attempts` 后自动重排队或标为 `failed`。
 

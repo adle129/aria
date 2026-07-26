@@ -149,10 +149,11 @@ PROMPT_VERSION=v1
 # Demo 遗留；R1 后向量存 PostgreSQL pgvector
 CHROMA_PATH=/app/data/chroma_db
 UPLOAD_PATH=/app/data/uploads
-OLLAMA_MAX_CONCURRENT=1          # worker 内 LLM 并发闸（正式版，TBD 1 或 2）
-TASK_MAX_QUEUE_SIZE=20           # 上传队列深度上限；满时 429
+OLLAMA_MAX_CONCURRENT=1          # worker 内 LLM 并发闸（默认 1；PERF12 评估前勿改生产）
+TASK_MAX_QUEUE_SIZE=20           # 上传/确认队列深度上限；满时 429
 TASK_JOB_STALE_SECONDS=900        # running 作业超时（秒）；worker 自动恢复/重试
 TASK_WORKER_INLINE=false          # 测试/SQLite 同步执行 worker
+QUERY_EMBEDDING_CACHE_TTL_SECONDS=86400  # PERF09；0=关闭 query/rfq embedding 短缓存
 KNOWLEDGE_BASE_PATH=/app/data/knowledge_base
 TEMPLATE_PATH=/app/data/templates
 ```
