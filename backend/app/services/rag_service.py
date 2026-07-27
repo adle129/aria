@@ -656,6 +656,76 @@ class RAGService:
         )
         return table
 
+    def live_engagement_display_fields(self, engagement_id: str | None) -> dict[str, Any]:
+        """Current manifest business fields (prefer over stale indexed chunk metadata)."""
+        if not engagement_id:
+            return {}
+        folder = Path(self.settings.knowledge_base_path) / str(engagement_id)
+        if not folder.is_dir():
+            return {}
+        try:
+            from app.services.engagement_manifest_service import (
+                ManifestLoadError,
+                resolve_manifest,
+            )
+
+            manifest = resolve_manifest(folder)
+        except ManifestLoadError:
+            return {}
+        except Exception:
+            logger.debug(
+                "live_engagement_display_fields failed engagement_id=%s",
+                engagement_id,
+                exc_info=True,
+            )
+            return {}
+        out: dict[str, Any] = {}
+        if (manifest.project_name or "").strip():
+            out["project_name"] = manifest.project_name.strip()
+        if (manifest.customer or "").strip():
+            out["customer"] = manifest.customer.strip()
+        vehicle = getattr(manifest, "vehicle_model", None)
+        if vehicle is not None and str(vehicle).strip():
+            out["vehicle_model"] = str(vehicle).strip()
+        if manifest.year is not None:
+            out["year"] = manifest.year
+        if manifest.functions:
+            out["functions"] = list(manifest.functions)
+        return out
+
+    @staticmethod
+    def apply_live_engagement_fields(
+        project: dict[str, Any],
+        live: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not live:
+            return project
+        proj = dict(project)
+        for key in ("project_name", "customer", "vehicle_model", "year", "functions"):
+            value = live.get(key)
+            if value is None or value == "" or value == []:
+                continue
+            proj[key] = value
+        return proj
+
+    def enrich_comparison_projects(
+        self,
+        projects: list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]]:
+        """Overlay live customer/vehicle_model onto comparison projects for display."""
+        if not projects:
+            return []
+        out: list[dict[str, Any]] = []
+        for project in projects:
+            if not isinstance(project, dict):
+                continue
+            eid = project.get("engagement_id")
+            live = self.live_engagement_display_fields(
+                str(eid) if eid else None
+            )
+            out.append(self.apply_live_engagement_fields(project, live))
+        return out
+
     def _projects_from_hits(self, hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
         projects: list[dict[str, Any]] = []
         seen_keys: set[str] = set()
@@ -681,36 +751,50 @@ class RAGService:
                     )
                     if engagement_id:
                         project["engagement_id"] = engagement_id
-                    projects.append(project)
+                    projects.append(
+                        self.apply_live_engagement_fields(
+                            project,
+                            self.live_engagement_display_fields(
+                                str(engagement_id) if engagement_id else None
+                            ),
+                        )
+                    )
                     continue
 
             # Production: build project entry from real chunk metadata.
             dims = meta.get("dimensions")
             if not isinstance(dims, dict):
                 dims = {}
+            project = {
+                "project_name": name,
+                "similarity_score": hit.get("similarity_score", 0.5),
+                "vector_score": meta.get("vector_score"),
+                "structured_score": meta.get("structured_score"),
+                "same_source": bool(meta.get("same_source")),
+                "source_doc": meta.get("source_doc", ""),
+                "engagement_id": engagement_id,
+                "customer": meta.get("customer", ""),
+                "vehicle_model": meta.get("vehicle_model") or meta.get("platform_type") or "",
+                "year": meta.get("year"),
+                "functions": list(meta.get("functions") or []),
+                "dimensions": dims,
+                "actual_man_days": "—",
+                "deviation_rate": "—",
+                "summary": (
+                    "同源 RFQ（文件内容一致）"
+                    if meta.get("same_source")
+                    else (hit.get("content") or "")[:120]
+                ),
+                "section_coverage": meta.get("section_coverage"),
+                "section_content_mean": meta.get("section_content_mean"),
+            }
             projects.append(
-                {
-                    "project_name": name,
-                    "similarity_score": hit.get("similarity_score", 0.5),
-                    "vector_score": meta.get("vector_score"),
-                    "structured_score": meta.get("structured_score"),
-                    "same_source": bool(meta.get("same_source")),
-                    "source_doc": meta.get("source_doc", ""),
-                    "engagement_id": engagement_id,
-                    "customer": meta.get("customer", ""),
-                    "year": meta.get("year"),
-                    "functions": list(meta.get("functions") or []),
-                    "dimensions": dims,
-                    "actual_man_days": "—",
-                    "deviation_rate": "—",
-                    "summary": (
-                        "同源 RFQ（文件内容一致）"
-                        if meta.get("same_source")
-                        else (hit.get("content") or "")[:120]
+                self.apply_live_engagement_fields(
+                    project,
+                    self.live_engagement_display_fields(
+                        str(engagement_id) if engagement_id else None
                     ),
-                    "section_coverage": meta.get("section_coverage"),
-                    "section_content_mean": meta.get("section_content_mean"),
-                }
+                )
             )
 
         if self.settings.mock_rag and not projects:
@@ -825,6 +909,7 @@ class RAGService:
                     p
                     for p in (
                         (manifest.customer or "").strip() or None,
+                        (getattr(manifest, "vehicle_model", None) or "").strip() or None,
                         str(manifest.year) if manifest.year is not None else None,
                         " / ".join(manifest.functions) if manifest.functions else None,
                     )
@@ -837,12 +922,20 @@ class RAGService:
                     "doc_type": doc.doc_type,
                     "status": status,
                     "customer": manifest.customer,
+                    "vehicle_model": getattr(manifest, "vehicle_model", None),
                     "year": manifest.year,
                     "functions": list(manifest.functions or []),
                     "metadata_summary": " · ".join(summary_parts) if summary_parts else None,
                 }
                 if doc_path.is_file():
-                    entry["file_size_bytes"] = doc_path.stat().st_size
+                    st = doc_path.stat()
+                    entry["file_size_bytes"] = st.st_size
+                    entry["modified_at"] = (
+                        datetime.fromtimestamp(st.st_mtime, UTC)
+                        .replace(microsecond=0)
+                        .isoformat()
+                        .replace("+00:00", "Z")
+                    )
                 documents.append(entry)
 
         return documents

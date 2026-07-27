@@ -31,6 +31,12 @@ export type KnowledgeEngagementRow = {
   last_indexed_at?: string | null;
   last_error?: string | null;
   folder_path: string;
+  space_id?: string | null;
+  has_hard_refs?: boolean;
+  /** Unarchived RFQ task ids that hard-reference this engagement. */
+  ref_task_ids?: string[];
+  document_count?: number;
+  deletable?: boolean;
 };
 
 export type KnowledgeProjectTreeRow = KnowledgeEngagementRow & {

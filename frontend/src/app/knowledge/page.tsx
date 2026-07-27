@@ -140,6 +140,8 @@ export default function KnowledgePage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadMetaIncomplete, setUploadMetaIncomplete] = useState(false);
   const [pendingReindexCount, setPendingReindexCount] = useState(0);
+  /** After project delete: ask to reindex without using the pending-upload badge. */
+  const [indexCleanupNeeded, setIndexCleanupNeeded] = useState(false);
 
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -188,6 +190,7 @@ export default function KnowledgePage() {
   }, [loadDocuments, loadStats, loadPendingReindexCount]);
 
   const handleIndexCompleted = useCallback(async () => {
+    setIndexCleanupNeeded(false);
     await refreshAll();
   }, [refreshAll]);
 
@@ -344,7 +347,9 @@ export default function KnowledgePage() {
         <Space wrap style={{ marginBottom: 12 }} size={12}>
           {visibility.showUpload && (
             <Button
-              type={pendingReindexCount > 0 ? "default" : "primary"}
+              type={
+                pendingReindexCount > 0 || indexCleanupNeeded ? "default" : "primary"
+              }
               icon={<UploadOutlined />}
               disabled={writeProtected}
               onClick={() => setUploadOpen(true)}
@@ -356,7 +361,9 @@ export default function KnowledgePage() {
             <Badge count={pendingReindexCount} size="small" offset={[4, 0]}>
               <Button
                 disabled={writeProtected}
-                type={pendingReindexCount > 0 ? "primary" : "default"}
+                type={
+                  pendingReindexCount > 0 || indexCleanupNeeded ? "primary" : "default"
+                }
                 onClick={() => setIndexStartSignal((n) => n + 1)}
               >
                 更新检索
@@ -378,6 +385,10 @@ export default function KnowledgePage() {
           {pendingReindexCount > 0 ? (
             <Text type="warning" style={{ fontSize: 13 }}>
               有 {pendingReindexCount} 个项目资料待写入检索库，请点击「更新检索」
+            </Text>
+          ) : indexCleanupNeeded ? (
+            <Text type="warning" style={{ fontSize: 13 }}>
+              有项目已移入回收站，请点击「更新检索」以便对标不再命中旧资料
             </Text>
           ) : null}
         </Space>
@@ -408,6 +419,7 @@ export default function KnowledgePage() {
                 documentsLoading={docsLoading}
                 hideBuiltinRefresh
                 onChanged={refreshAll}
+                onDeleted={() => setIndexCleanupNeeded(true)}
                 emptyText={knowledgeDocumentsEmptyText({
                   canWriteKb,
                   showDemoChrome,

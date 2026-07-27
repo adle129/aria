@@ -162,7 +162,7 @@
 - [ ] pending/processing/indexed/failed 有文字、图标/Tag 和可读说明。
 - [ ] 宽屏表格支持 `scroll.x`；≤md 使用 Card + Drawer。
 - [ ] 上传人默认可放详情，避免主表过宽。
-- [ ] R1 不显示替换/回滚/删除操作。
+- [ ] ~~R1 不显示替换/回滚/删除操作。~~ **已废止（2026-07-27）**：按 [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md) — L1 起展示文档「补传/替换」；L2 起条件允许的「删除项目」；L3 回收站与文档删除。回滚/版本链仍属 KH15 后置。
 
 ### R1-U-KB · 跨页面工程师体验（P0-3）
 

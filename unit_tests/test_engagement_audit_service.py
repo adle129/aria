@@ -9,12 +9,15 @@ from sqlalchemy.pool import StaticPool
 
 from app.config import get_settings
 from app.database import Base
+from app.models.customer import Customer
 from app.models.engagement import Engagement
+from app.models.vehicle_model import VehicleModel
 from app.repositories.engagement_repository import EngagementRepository
 from app.services.engagement_audit_service import EngagementAuditService
 from app.services.engagement_content_hash import compute_engagement_content_hash
 from app.services.engagement_ingest_service import EngagementIngestService
 from app.services.engagement_manifest_service import resolve_manifest
+from app.services.master_data_service import MasterDataService
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_RFQ = ROOT / "samples" / "rfq" / "mock_chassis_rfq.docx"
@@ -31,7 +34,10 @@ def audit_session(tmp_path, monkeypatch):
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    Base.metadata.create_all(bind=engine, tables=[Engagement.__table__])
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[Engagement.__table__, Customer.__table__, VehicleModel.__table__],
+    )
     session = sessionmaker(bind=engine)()
     yield session, kb
     session.close()
@@ -76,23 +82,29 @@ def test_update_metadata_writes_manifest_and_db(audit_session):
     settings = get_settings()
     service = EngagementAuditService(settings, session)
     service.record_upload(folder, uploaded_by="user-1", tier="copper")
+    MasterDataService(session).create_customer("OEM-Z")
+    MasterDataService(session).create_vehicle_model("MEB")
     data = service.update_metadata(
         "meta_eng",
         project_name="Updated Name",
         customer="OEM-Z",
+        vehicle_model="MEB",
         year=2025,
         functions=["BIW", "PM"],
     )
     assert data["project_name"] == "Updated Name"
     assert data["customer"] == "OEM-Z"
+    assert data["vehicle_model"] == "MEB"
     assert data["year"] == 2025
     assert data["functions"] == ["BIW", "PM"]
     assert data["metadata_complete"] is True
     manifest = resolve_manifest(folder)
     assert manifest.customer == "OEM-Z"
+    assert manifest.vehicle_model == "MEB"
     row = EngagementRepository(session).get_by_id("meta_eng")
     assert row is not None
     assert row.project_name == "Updated Name"
+    assert row.vehicle_model == "MEB"
     assert row.functions == ["BIW", "PM"]
 
 

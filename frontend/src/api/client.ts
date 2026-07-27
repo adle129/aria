@@ -199,6 +199,88 @@ export async function updateUser(
   return data.data;
 }
 
+export type MasterDataItem = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export async function listCustomers(includeInactive = false): Promise<MasterDataItem[]> {
+  const { data } = await apiClient.get<{ code: number; data: { customers: MasterDataItem[] } }>(
+    "/knowledge/customers",
+    { params: { include_inactive: includeInactive } },
+  );
+  return data.data.customers;
+}
+
+export async function createCustomer(name: string): Promise<MasterDataItem> {
+  const { data } = await apiClient.post<{ code: number; data: MasterDataItem }>(
+    "/knowledge/customers",
+    { name },
+  );
+  return data.data;
+}
+
+export async function updateCustomer(
+  id: string,
+  patch: { name?: string; is_active?: boolean },
+): Promise<MasterDataItem & { renamed_engagements?: number }> {
+  const { data } = await apiClient.patch<{
+    code: number;
+    data: MasterDataItem & { renamed_engagements?: number };
+  }>(`/knowledge/customers/${id}`, patch);
+  return data.data;
+}
+
+export async function deleteCustomer(id: string): Promise<{ id: string; name: string; deleted: boolean }> {
+  const { data } = await apiClient.delete<{
+    code: number;
+    data: { id: string; name: string; deleted: boolean };
+  }>(`/knowledge/customers/${id}`);
+  return data.data;
+}
+
+export async function listVehicleModels(includeInactive = false): Promise<MasterDataItem[]> {
+  const { data } = await apiClient.get<{
+    code: number;
+    data: { vehicle_models: MasterDataItem[] };
+  }>("/knowledge/vehicle-models", {
+    params: { include_inactive: includeInactive },
+  });
+  return data.data.vehicle_models;
+}
+
+export async function createVehicleModel(name: string): Promise<MasterDataItem> {
+  const { data } = await apiClient.post<{ code: number; data: MasterDataItem }>(
+    "/knowledge/vehicle-models",
+    { name },
+  );
+  return data.data;
+}
+
+export async function updateVehicleModel(
+  id: string,
+  patch: { name?: string; is_active?: boolean },
+): Promise<MasterDataItem & { renamed_engagements?: number }> {
+  const { data } = await apiClient.patch<{
+    code: number;
+    data: MasterDataItem & { renamed_engagements?: number };
+  }>(`/knowledge/vehicle-models/${id}`, patch);
+  return data.data;
+}
+
+export async function deleteVehicleModel(
+  id: string,
+): Promise<{ id: string; name: string; deleted: boolean }> {
+  const { data } = await apiClient.delete<{
+    code: number;
+    data: { id: string; name: string; deleted: boolean };
+  }>(`/knowledge/vehicle-models/${id}`);
+  return data.data;
+}
+
 /** Build absolute API URL for browser navigation (download links). */
 export function buildApiUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";

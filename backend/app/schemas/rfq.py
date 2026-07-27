@@ -14,4 +14,5 @@ class RFQTaskUpdateRequest(BaseModel):
     status: Literal["in_review", "approved", "exported"] | None = None
     comparison_table: dict[str, Any] | None = None
     dimension_draft: dict[str, Any] | None = None
+    function_source_map: dict[str, Any] | None = None
     confirmed: bool | None = None

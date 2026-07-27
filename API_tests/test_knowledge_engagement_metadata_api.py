@@ -34,6 +34,10 @@ def test_engagements_metadata_patch_and_list(client, upload_dir):
     )
     assert incomplete.status_code == 422
 
+    assert client.post("/api/v1/knowledge/customers", json={"name": "OEM"}).status_code == 200
+    assert client.post("/api/v1/knowledge/customers", json={"name": "OEM-API"}).status_code == 200
+    assert client.post("/api/v1/knowledge/vehicle-models", json={"name": "MEB"}).status_code == 200
+
     missing = client.patch(
         "/api/v1/knowledge/engagements/does_not_exist/metadata",
         json={
@@ -50,6 +54,7 @@ def test_engagements_metadata_patch_and_list(client, upload_dir):
         json={
             "project_name": "API Meta Project",
             "customer": "OEM-API",
+            "vehicle_model": "MEB",
             "year": 2024,
             "functions": ["Chassis", "PM"],
         },
@@ -58,6 +63,7 @@ def test_engagements_metadata_patch_and_list(client, upload_dir):
     data = patched.json()["data"]
     assert data["project_name"] == "API Meta Project"
     assert data["customer"] == "OEM-API"
+    assert data["vehicle_model"] == "MEB"
     assert data["year"] == 2024
     assert data["functions"] == ["Chassis", "PM"]
     assert data["metadata_complete"] is True
@@ -67,10 +73,10 @@ def test_engagements_metadata_patch_and_list(client, upload_dir):
     rows = listed.json()["data"]["engagements"]
     row = next(r for r in rows if r["engagement_id"] == "meta_api_eng")
     assert row["customer"] == "OEM-API"
+    assert row["vehicle_model"] == "MEB"
     assert row["functions"] == ["Chassis", "PM"]
     assert row["metadata_complete"] is True
 
-    manifest_path = Path(upload_dir) / "meta_api_eng" / "manifest.json"
     # upload_dir fixture may be KB root or uploads — resolve via settings
     kb = Path(get_settings().knowledge_base_path)
     manifest_path = kb / "meta_api_eng" / "manifest.json"
@@ -78,3 +84,4 @@ def test_engagements_metadata_patch_and_list(client, upload_dir):
     text = manifest_path.read_text(encoding="utf-8")
     assert "OEM-API" in text
     assert "API Meta Project" in text
+    assert "MEB" in text

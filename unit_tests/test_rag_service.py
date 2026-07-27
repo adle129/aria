@@ -315,6 +315,81 @@ def test_projects_from_hits_dedupes_engagement():
     assert projects[1]["engagement_id"] == "eng_b"
 
 
+def test_projects_from_hits_prefers_live_manifest_vehicle_model(tmp_path):
+    import json
+
+    eng = tmp_path / "test"
+    eng.mkdir()
+    (eng / "manifest.json").write_text(
+        json.dumps(
+            {
+                "engagement_id": "test",
+                "project_name": "上海通用汽车",
+                "customer": "上海通用汽车",
+                "vehicle_model": "新能源纯电",
+                "year": 2026,
+                "functions": ["PM"],
+                "documents": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    rag = RAGService(Settings(mock_rag=False, knowledge_base_path=str(tmp_path)))
+    projects = rag._projects_from_hits(
+        [
+            {
+                "content": "stale",
+                "similarity_score": 1.0,
+                "metadata": {
+                    "engagement_id": "test",
+                    "project_name": "上海通用汽车",
+                    "customer": "上海通用",
+                    "vehicle_model": "",
+                    "source_doc": "test/rfq.docx",
+                },
+            }
+        ]
+    )
+    assert projects[0]["customer"] == "上海通用汽车"
+    assert projects[0]["vehicle_model"] == "新能源纯电"
+
+
+def test_enrich_comparison_projects_overlays_live_fields(tmp_path):
+    import json
+
+    eng = tmp_path / "test"
+    eng.mkdir()
+    (eng / "manifest.json").write_text(
+        json.dumps(
+            {
+                "engagement_id": "test",
+                "project_name": "上海通用汽车",
+                "customer": "上海通用汽车",
+                "vehicle_model": "新能源纯电",
+                "year": 2026,
+                "functions": ["PM"],
+                "documents": [],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    rag = RAGService(Settings(mock_rag=False, knowledge_base_path=str(tmp_path)))
+    enriched = rag.enrich_comparison_projects(
+        [
+            {
+                "engagement_id": "test",
+                "project_name": "上海通用汽车",
+                "customer": "上海通用",
+                "vehicle_model": "",
+            }
+        ]
+    )
+    assert enriched[0]["customer"] == "上海通用汽车"
+    assert enriched[0]["vehicle_model"] == "新能源纯电"
+
+
 def test_mock_search_returns_top_k():
     rag = RAGService(Settings(mock_rag=True, knowledge_base_path="./data/knowledge_base"))
     results = rag.search_similar_projects("MEB chassis", top_k=2)

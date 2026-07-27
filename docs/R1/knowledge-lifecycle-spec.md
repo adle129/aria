@@ -1,7 +1,7 @@
 # 知识库文档 / 项目生命周期规格（补传 · 删除 · 回收站）
 
-**版本：** v0.3 · 2026-07-27  
-**状态：** L1（CHG13）**已实现** · L2/L3 待做 · 完整回收站建议确认单单列  
+**版本：** v0.4 · 2026-07-27  
+**状态：** L1（CHG13）**已实现** · L2（CHG14）**已实现** · L3 待做 · 完整回收站建议确认单单列  
 **关联：** [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) T7 · [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) · [dev-tasks.md](dev-tasks.md) R1-CHG09 / CHG13 / CHG14 · KH14/KH15 · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)  
 
 ---
@@ -39,7 +39,7 @@
 - 任一未归档任务 `comparison_table.projects[]` / `similar_projects` 含该 `engagement_id`（实现可先查 map + comparison，similar 可二期）  
 - `manpower_baselines` 中该 ID 被上述任务选为报价源（可由 map 覆盖）  
 
-**产品行为：** 禁止删除项目；按钮禁用 + Tooltip「有报价任务在使用本项目，无法删除」。
+**产品行为：** 禁止删除项目；按钮禁用 + Tooltip「有报价任务在使用本项目，无法删除（任务：…）」（`ref_task_ids`，最多列 3 个）。
 
 ### 2.2 软引用（可删，强提示）
 
@@ -185,7 +185,7 @@ POST   /api/v1/knowledge/trash/{trash_id}/restore
 | 条件 | UI |
 |------|-----|
 | 无硬引用，且（无文档 / 检索待评估或失败 / 产品允许的空壳） | 链接 **删除项目**（danger） |
-| 有硬引用 | 不展示或禁用 + Tooltip「有报价任务在使用」 |
+| 有硬引用 | 禁用 + Tooltip（含任务 ID，见 §2.1） |
 | 金级且可检索的「健康」项目 | **默认不提供一键删除**（防误删生产线数据）；若产品坚持可删，必须二次输入项目编号确认（L3 再议） |
 
 **删除确认 Modal：**
@@ -248,6 +248,17 @@ L2 若无回收站 UI：Modal 仍写「30 天可恢复」，恢复可通过 API/
 | 索引 | 不自动触发；项目级 `pending`；文档行随项目状态；增量 import 跳过未改项目 |
 | 性能后续 | 文档级 hash/只重嵌变更 source_doc（不改项目主模型） |
 
+### 8.2 L2 落地说明（CHG14 · 2026-07-27）
+
+| 项 | 实现 |
+|----|------|
+| API | `DELETE /knowledge/engagements/{id}`；`POST /knowledge/trash/engagements/{id}/restore` |
+| 列表字段 | `has_hard_refs`、`ref_task_ids[]`、`document_count`、`deletable` |
+| Service | `engagement_reference_service`（硬引用）+ `engagement_trash_service`（`trash/{space_id}/…` + `trash_meta.json`） |
+| 策略 | 硬引用 → 禁止；金级+indexed 且有文件 → 禁止；**0 文档空壳**无引用可删 |
+| UI | 项目行「删除项目」+ 确认 Modal；硬引用灰按钮 Tooltip 含任务 ID；删后顶栏「更新检索」清理提示（非 pending 角标） |
+| L2 范围外 | 回收站列表 UI、文档级删除、到期物理清理定时任务 → L3/CHG09 |
+
 ---
 
 ## 9. 文档与任务勘误
@@ -267,3 +278,4 @@ L2 若无回收站 UI：Modal 仍写「30 天可恢复」，恢复可通过 API/
 | v0.1 | 2026-07-27 | 对话方案文档化；拆 L1/L2/L3 |
 | v0.2 | 2026-07-27 | 补架构结论、API 草案、前端 IA/交互、与 UI 任务勘误 |
 | v0.3 | 2026-07-27 | L1（CHG13）已实现；补落地说明与 api-design 正式路径 |
+| v0.4 | 2026-07-27 | L2（CHG14）已实现；列表 `ref_task_ids` Tooltip；落地说明 |

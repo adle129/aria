@@ -852,7 +852,25 @@ Content-Type: multipart/form-data
 - RFQ 对标固定 quoting。向量 generation namespace 仍为 `production`（兼容现网）；物理目录迁入 `knowledge_base/quoting/` 属多库 P1。  
 - 规格：[knowledge-space-preembed-spec.md](../R1/knowledge-space-preembed-spec.md)。
 
-**其余生命周期：** 项目删除、回收站见 [knowledge-lifecycle-spec.md](../R1/knowledge-lifecycle-spec.md) §5（R1-CHG14 / CHG09）。
+**项目级软删 / 恢复（R1-CHG14 · 已实现）：**
+
+```
+DELETE /api/v1/knowledge/engagements/{engagement_id}
+POST   /api/v1/knowledge/trash/engagements/{engagement_id}/restore?space_id=
+```
+
+需 `kb_admin`。`DELETE 200`：`moved_to_trash`、`purge_after` 等。磁盘落盘 `trash/{space_id}/{engagement_id}/` + `trash_meta.json`（默认 30 天可恢复）。**不自动全量索引**；恢复后 `needs_reindex`，须点「更新检索」。
+
+| 状态 | 条件 |
+|------|------|
+| `409` | 硬引用（未归档 RFQ 的 `function_source_map` / `comparison_table.projects[].engagement_id`）；body `data.ref_task_ids[]` |
+| `409` | 金级且 `indexed` 且仍有文档（防误删健康项目） |
+| `404` | 项目不存在 / 回收站无此条目 |
+| `507` | 容量 |
+
+`GET /knowledge/engagements` 每行另含：`has_hard_refs`、`ref_task_ids[]`、`document_count`、`deletable`（供 UI 灰删与 Tooltip）。
+
+**L3 回收站列表 / 文档级删除：** 见 [knowledge-lifecycle-spec.md](../R1/knowledge-lifecycle-spec.md) §5.3（R1-CHG09）。
 
 **容量错误：**
 

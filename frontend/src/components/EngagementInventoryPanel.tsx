@@ -1,11 +1,17 @@
 "use client";
 
-import { EditOutlined, InfoCircleOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  InfoCircleOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import {
   Button,
   Card,
   Drawer,
   Input,
+  Modal,
   Select,
   Space,
   Table,
@@ -45,14 +51,19 @@ import {
   type KnowledgeEngagementRow,
   type KnowledgeProjectTreeRow,
 } from "@/lib/knowledgeProjectTree";
+import {
+  INFER_DOC_TYPE_HINT,
+  inferDocTypeFromFilename,
+} from "@/lib/inferDocType";
 import { masterDataSelectOptions } from "@/lib/masterData";
+import { formatHardRefDeleteTip } from "@/lib/hardRefDeleteTip";
 import {
   matchesProjectKeyword,
   PROJECT_ID_LABEL,
   PROJECT_ID_TIP,
 } from "@/lib/projectIdentity";
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   rfq: "RFQ",
@@ -69,10 +80,13 @@ const DOC_TYPE_ACCEPT: Record<string, string> = {
   summary: ".doc,.docx,.txt,.md,.pdf",
 };
 
-const SUPPLEMENT_TYPES: { doc_type: string; label: string }[] = [
-  { doc_type: "rfq", label: "补传 RFQ" },
-  { doc_type: "qa", label: "补传问答" },
-  { doc_type: "quote_manpower", label: "补传报价" },
+const SUPPLEMENT_ACCEPT =
+  ".doc,.docx,.xlsx,.txt,.md,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+const CORE_DOC_TYPES: { doc_type: string; label: string }[] = [
+  { doc_type: "rfq", label: "RFQ" },
+  { doc_type: "qa", label: "问答清单" },
+  { doc_type: "quote_manpower", label: "人力报价" },
 ];
 
 const SAVE_REINDEX_TIP = "已保存。请点击上方「更新检索」后才会用于相似项目对标。";
@@ -125,6 +139,8 @@ interface EngagementInventoryPanelProps {
   hideBuiltinRefresh?: boolean;
   /** Parent refresh after document upsert (documents + engagements). */
   onChanged?: () => void | Promise<void>;
+  /** Fired after a project is moved to trash (index cleanup is separate from pending uploads). */
+  onDeleted?: () => void;
 }
 
 export default function EngagementInventoryPanel({
@@ -137,6 +153,7 @@ export default function EngagementInventoryPanel({
   headerExtra,
   hideBuiltinRefresh = false,
   onChanged,
+  onDeleted,
 }: EngagementInventoryPanelProps) {
   const [engagements, setEngagements] = useState<KnowledgeEngagementRow[]>([]);
   const [localDocuments, setLocalDocuments] = useState<KnowledgeDocRow[]>([]);
@@ -149,10 +166,13 @@ export default function EngagementInventoryPanel({
   const [customers, setCustomers] = useState<MasterDataItem[]>([]);
   const [vehicleModels, setVehicleModels] = useState<MasterDataItem[]>([]);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<KnowledgeProjectTreeRow | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingUploadRef = useRef<{
     engagementId: string;
-    docType: string;
+    /** When set (replace), use as-is; otherwise infer from filename. */
+    docType?: string;
   } | null>(null);
 
   const loadEngagements = useCallback(async () => {
@@ -227,8 +247,13 @@ export default function EngagementInventoryPanel({
   }, [onChanged, loadEngagements, loadDocuments]);
 
   const uploadDocument = useCallback(
-    async (engagementId: string, docType: string, file: File) => {
-      const key = `${engagementId}:${docType}`;
+    async (
+      engagementId: string,
+      docType: string,
+      file: File,
+      loadingKey?: string,
+    ) => {
+      const key = loadingKey || `${engagementId}:${docType}`;
       setUploadingKey(key);
       try {
         const form = new FormData();
@@ -254,14 +279,17 @@ export default function EngagementInventoryPanel({
     [refreshAfterWrite],
   );
 
-  const openFilePicker = useCallback((engagementId: string, docType: string) => {
-    pendingUploadRef.current = { engagementId, docType };
-    const input = fileInputRef.current;
-    if (!input) return;
-    input.accept = DOC_TYPE_ACCEPT[docType] || "";
-    input.value = "";
-    input.click();
-  }, []);
+  const openFilePicker = useCallback(
+    (engagementId: string, docType?: string) => {
+      pendingUploadRef.current = { engagementId, docType };
+      const input = fileInputRef.current;
+      if (!input) return;
+      input.accept = docType ? DOC_TYPE_ACCEPT[docType] || "" : SUPPLEMENT_ACCEPT;
+      input.value = "";
+      input.click();
+    },
+    [],
+  );
 
   const onFileSelected = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -269,10 +297,43 @@ export default function EngagementInventoryPanel({
       const pending = pendingUploadRef.current;
       pendingUploadRef.current = null;
       if (!file || !pending) return;
-      void uploadDocument(pending.engagementId, pending.docType, file);
+      const docType = pending.docType || inferDocTypeFromFilename(file.name);
+      if (!docType) {
+        message.warning(INFER_DOC_TYPE_HINT);
+        return;
+      }
+      const loadingKey = pending.docType
+        ? `${pending.engagementId}:${docType}`
+        : `${pending.engagementId}:supplement`;
+      void uploadDocument(pending.engagementId, docType, file, loadingKey);
     },
     [uploadDocument],
   );
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleting) return;
+    setDeleteSubmitting(true);
+    try {
+      await apiClient.delete(
+        `/knowledge/engagements/${encodeURIComponent(deleting.engagement_id)}`,
+      );
+      message.success("已移入回收站，保留 30 天可恢复");
+      setDeleting(null);
+      onDeleted?.();
+      await refreshAfterWrite();
+    } catch (err: unknown) {
+      const body = (err as { response?: { data?: { msg?: string; data?: { ref_task_ids?: string[] } } } })
+        ?.response?.data;
+      const refIds = body?.data?.ref_task_ids;
+      const detail =
+        Array.isArray(refIds) && refIds.length > 0
+          ? formatHardRefDeleteTip(refIds)
+          : body?.msg || "删除失败";
+      message.error(detail);
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }, [deleting, onDeleted, refreshAfterWrite]);
 
   return (
     <Card
@@ -360,11 +421,26 @@ export default function EngagementInventoryPanel({
               Boolean(row.last_error) &&
               /信息不完整|项目信息未齐|需填写项目显示名/i.test(row.last_error || "");
             const presentTypes = new Set(row.documents.map((d) => d.doc_type));
-            const missingActions = SUPPLEMENT_TYPES.filter(
+            const missingTypes = CORE_DOC_TYPES.filter(
               (item) => !presentTypes.has(item.doc_type),
             );
             const canWriteDocs =
               canEdit && !writeProtected && !row.synthetic;
+            type DocRowView = KnowledgeDocRow & { placeholder?: boolean };
+            const docRows: DocRowView[] = [
+              ...row.documents,
+              ...(canWriteDocs
+                ? missingTypes.map((item) => ({
+                    path: `__missing__:${row.engagement_id}:${item.doc_type}`,
+                    project_name: row.project_name,
+                    doc_type: item.doc_type,
+                    status: "pending",
+                    engagement_id: row.engagement_id,
+                    placeholder: true,
+                  }))
+                : []),
+            ];
+            const actionLinkStyle = { color: "rgba(0, 0, 0, 0.65)" };
             return (
               <div style={{ padding: "4px 0 8px" }}>
                 <Space direction="vertical" size={8} style={{ width: "100%" }}>
@@ -384,37 +460,22 @@ export default function EngagementInventoryPanel({
                       项目落盘时间：{formatApiTime(row.uploaded_at)}
                     </Text>
                   ) : null}
-                  {canWriteDocs && missingActions.length > 0 ? (
-                    <Space wrap size={8}>
-                      {missingActions.map((item) => {
-                        const key = `${row.engagement_id}:${item.doc_type}`;
-                        return (
-                          <Button
-                            key={item.doc_type}
-                            size="small"
-                            icon={<UploadOutlined />}
-                            loading={uploadingKey === key}
-                            disabled={Boolean(uploadingKey)}
-                            onClick={() =>
-                              openFilePicker(row.engagement_id, item.doc_type)
-                            }
-                          >
-                            {item.label}
-                          </Button>
-                        );
-                      })}
-                    </Space>
+                  {canWriteDocs && missingTypes.length > 0 ? (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      还缺 {missingTypes.map((m) => m.label).join("、")}
+                      ，请在下表对应行右侧点击「补传」。
+                    </Text>
                   ) : null}
-                  <Table<KnowledgeDocRow>
+                  <Table<DocRowView>
                     size="small"
                     pagination={false}
                     rowKey="path"
-                    dataSource={row.documents}
+                    dataSource={docRows}
                     scroll={{ x: canWriteDocs ? 720 : 640 }}
                     tableLayout="fixed"
                     locale={{
                       emptyText: canWriteDocs
-                        ? "该项目下暂无文档，可使用上方「补传」或「添加历史项目」"
+                        ? "该项目下暂无文档"
                         : "该项目下暂无文档，请通过「添加历史项目」补充",
                     }}
                     columns={[
@@ -429,27 +490,37 @@ export default function EngagementInventoryPanel({
                         key: "file_name",
                         width: 180,
                         ellipsis: true,
-                        render: (_: unknown, doc: KnowledgeDocRow) => (
-                          <Tooltip title={doc.path}>{fileNameFromPath(doc.path)}</Tooltip>
-                        ),
+                        render: (_: unknown, doc: DocRowView) =>
+                          doc.placeholder ? (
+                            <Text type="secondary">未上传</Text>
+                          ) : (
+                            <Tooltip title={doc.path}>
+                              {fileNameFromPath(doc.path)}
+                            </Tooltip>
+                          ),
                       },
                       {
                         title: "大小",
                         dataIndex: "file_size_bytes",
                         width: 88,
-                        render: (v?: number) => formatBytes(v),
+                        render: (v?: number, doc?: DocRowView) =>
+                          doc?.placeholder ? "—" : formatBytes(v),
                       },
                       {
                         title: "文件时间",
                         dataIndex: "modified_at",
                         width: 160,
-                        render: (v?: string | null) => formatApiTime(v),
+                        render: (v?: string | null, doc?: DocRowView) =>
+                          doc?.placeholder ? "—" : formatApiTime(v),
                       },
                       {
                         title: "检索状态",
                         dataIndex: "status",
                         width: 96,
-                        render: (v: string, doc: KnowledgeDocRow) => {
+                        render: (v: string, doc: DocRowView) => {
+                          if (doc.placeholder) {
+                            return <Tag>待补传</Tag>;
+                          }
                           const cfg = DOC_STATUS_TAG[v] || {
                             color: "default",
                             label: v || "等待",
@@ -467,8 +538,9 @@ export default function EngagementInventoryPanel({
                               title: "操作",
                               key: "doc_actions",
                               width: 88,
-                              render: (_: unknown, doc: KnowledgeDocRow) => {
+                              render: (_: unknown, doc: DocRowView) => {
                                 const key = `${row.engagement_id}:${doc.doc_type}`;
+                                const isPlaceholder = Boolean(doc.placeholder);
                                 return (
                                   <Button
                                     type="link"
@@ -476,11 +548,17 @@ export default function EngagementInventoryPanel({
                                     icon={<UploadOutlined />}
                                     loading={uploadingKey === key}
                                     disabled={Boolean(uploadingKey)}
+                                    style={
+                                      isPlaceholder ? undefined : actionLinkStyle
+                                    }
                                     onClick={() =>
-                                      openFilePicker(row.engagement_id, doc.doc_type)
+                                      openFilePicker(
+                                        row.engagement_id,
+                                        doc.doc_type,
+                                      )
                                     }
                                   >
-                                    替换
+                                    {isPlaceholder ? "补传" : "替换"}
                                   </Button>
                                 );
                               },
@@ -607,7 +685,7 @@ export default function EngagementInventoryPanel({
                 {
                   title: "操作",
                   key: "actions",
-                  width: 120,
+                  width: 200,
                   render: (_: unknown, row: KnowledgeProjectTreeRow) => {
                     if (row.synthetic) {
                       return (
@@ -624,22 +702,56 @@ export default function EngagementInventoryPanel({
                         year: row.year,
                         functions: row.functions,
                       });
+                    const emptyShell = row.documents.length === 0;
+                    const refTaskIds = row.ref_task_ids ?? [];
+                    const hasHardRefs =
+                      row.has_hard_refs === true || refTaskIds.length > 0;
+                    const showDelete =
+                      row.deletable === true ||
+                      (emptyShell && !hasHardRefs);
+                    const deleteBlockedTip = hasHardRefs
+                      ? formatHardRefDeleteTip(refTaskIds)
+                      : !emptyShell &&
+                          row.tier === "gold" &&
+                          row.index_status === "indexed"
+                        ? "资料齐全且可检索的项目不支持一键删除"
+                        : undefined;
                     return (
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<EditOutlined />}
-                        disabled={writeProtected}
-                        danger={!complete}
-                        style={
-                          complete
-                            ? { color: "rgba(0, 0, 0, 0.45)" }
-                            : undefined
-                        }
-                        onClick={() => setEditing(row)}
-                      >
-                        {complete ? "编辑信息" : "完善信息"}
-                      </Button>
+                      <Space size={0} wrap>
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<EditOutlined />}
+                          disabled={writeProtected}
+                          danger={!complete}
+                          style={
+                            complete
+                              ? { color: "rgba(0, 0, 0, 0.45)" }
+                              : undefined
+                          }
+                          onClick={() => setEditing(row)}
+                        >
+                          {complete ? "编辑信息" : "完善信息"}
+                        </Button>
+                        {showDelete ? (
+                          <Button
+                            type="link"
+                            size="small"
+                            danger
+                            icon={<DeleteOutlined />}
+                            disabled={writeProtected}
+                            onClick={() => setDeleting(row)}
+                          >
+                            删除项目
+                          </Button>
+                        ) : deleteBlockedTip ? (
+                          <Tooltip title={deleteBlockedTip}>
+                            <Button type="link" size="small" danger disabled>
+                              删除项目
+                            </Button>
+                          </Tooltip>
+                        ) : null}
+                      </Space>
                     );
                   },
                 },
@@ -647,6 +759,27 @@ export default function EngagementInventoryPanel({
             : []),
         ]}
       />
+
+      <Modal
+        title="删除历史项目？"
+        open={Boolean(deleting)}
+        onCancel={() => (deleteSubmitting ? undefined : setDeleting(null))}
+        onOk={() => void confirmDelete()}
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true, loading: deleteSubmitting }}
+        cancelButtonProps={{ disabled: deleteSubmitting }}
+        destroyOnClose
+      >
+        <Paragraph style={{ marginBottom: 8 }}>
+          将移入回收站，保留 30 天，可恢复；期间相似对标不再使用本项目。
+        </Paragraph>
+        {deleting ? (
+          <Text type="secondary">
+            {deleting.project_name} · {deleting.engagement_id}
+          </Text>
+        ) : null}
+      </Modal>
 
       <Drawer
         title={

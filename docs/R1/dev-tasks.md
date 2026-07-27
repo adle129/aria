@@ -436,7 +436,7 @@
 | R1-CHG11 | P2 | T6-B2 色标识别 | Spike 后另议 | 样例+出内网 | 待开始 |
 | R1-CHG12 | P1 | Knowledge Space **代码**预埋（默认 `quoting`） | 规格 [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) **v0.3**；`space_id`/chunk meta/API 默认；行为与现网一致 | 架构 | **已完成** |
 | R1-CHG13 | P0 | 文档级补传/替换（L1） | 按 doc_type 补传或替换；完整度刷新；提示更新检索；unit+API+UI | 生命周期规格 | **已完成** |
-| R1-CHG14 | P1 | 项目级删除（L2，无硬引用） | 空/失败/待评估可删→trash；有引用禁用；确认框；unit+API+UI | CHG13 · 建议 CHG12 | 待开始 |
+| R1-CHG14 | P1 | 项目级删除（L2，无硬引用） | 空/失败/待评估可删→trash；有引用禁用+任务 ID Tooltip；确认框；unit+API+UI | CHG13 · CHG12 | **已完成** |
 
 **知识库运维建议顺序：** CHG13（补传）→ CHG12（Space 预埋）→ CHG14（项目删除）→ CHG09（回收站+文档删除）。  
 **W1 体验壳：** CHG01 → CHG02 → CHG03 → CHG04（多已完成/待检查）。  
@@ -448,7 +448,7 @@
 |--------|-----|------|------|------|
 | P0 | R1-CHG13 | 单文档补传/替换 | [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md) **v0.3** L1（含 UI/API） | **已完成** |
 | P1 | R1-CHG12 | Space 代码预埋 | [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) **v0.3** | **已完成** |
-| P1 | R1-CHG14 | 无引用项目删除 | lifecycle L2 | 待开始 |
+| P1 | R1-CHG14 | 无引用项目删除 | lifecycle **v0.4** L2 | **已完成** |
 | P2 | R1-CHG09 | 回收站 30 天 + 文档删除 | lifecycle L3 | 待开始（建议确认单勾选） |
 | 后置 | — | 多库产品 / ACL / 财务 Space | Space 规格 P1 | 不排本期 |
 

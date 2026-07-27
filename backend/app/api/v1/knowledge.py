@@ -27,6 +27,16 @@ from app.services.engagement_document_service import (
     EngagementDocumentService,
 )
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
+from app.services.engagement_reference_service import (
+    EngagementReferenceService,
+    can_soft_delete_engagement,
+)
+from app.services.engagement_trash_service import (
+    EngagementTrashConflict,
+    EngagementTrashError,
+    EngagementTrashNotFound,
+    EngagementTrashService,
+)
 from app.services.disk_guard_service import (
     DiskCapacityError,
     DiskGuardService,
@@ -409,6 +419,7 @@ def knowledge_engagements(
     except KnowledgeSpaceError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     audit = EngagementAuditService(settings, db)
+    ref_map = EngagementReferenceService(db).engagement_ref_task_ids()
     items = []
     for row in EngagementRepository(db).list_all(
         customer=customer,
@@ -418,6 +429,23 @@ def knowledge_engagements(
         data = audit.serialize_engagement(row)
         data["uploaded_at"] = to_api_utc_iso(data.get("uploaded_at"))
         data["last_indexed_at"] = to_api_utc_iso(data.get("last_indexed_at"))
+        ref_task_ids = ref_map.get(row.id, [])
+        has_refs = bool(ref_task_ids)
+        manifest_docs = []
+        if isinstance(row.manifest, dict):
+            raw_docs = row.manifest.get("documents") or []
+            if isinstance(raw_docs, list):
+                manifest_docs = raw_docs
+        document_count = len(manifest_docs)
+        data["has_hard_refs"] = has_refs
+        data["ref_task_ids"] = ref_task_ids
+        data["document_count"] = document_count
+        data["deletable"] = can_soft_delete_engagement(
+            tier=row.tier,
+            index_status=row.index_status,
+            has_hard_refs=has_refs,
+            document_count=document_count,
+        )
         items.append(data)
     return {
         "code": 200,
@@ -617,5 +645,73 @@ async def knowledge_engagement_document_upsert(
     except DiskCapacityError as exc:
         return JSONResponse(status_code=507, content=exc.as_response())
     except EngagementDocumentError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.delete("/engagements/{engagement_id}")
+def knowledge_engagement_soft_delete(
+    engagement_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Move engagement folder to trash (R1-CHG14). Hard refs → 409."""
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(required_bytes=4096)
+        data = EngagementTrashService(settings, db).soft_delete(
+            engagement_id,
+            deleted_by=getattr(admin, "id", None),
+        )
+    except EngagementTrashNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except EngagementTrashConflict as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": 409,
+                "msg": str(exc),
+                "data": {"ref_task_ids": exc.ref_task_ids},
+            },
+        )
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementTrashError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.post("/trash/engagements/{engagement_id}/restore")
+def knowledge_engagement_restore(
+    engagement_id: str,
+    space_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Restore a trashed engagement back to the knowledge base (R1-CHG14)."""
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(required_bytes=4096)
+        data = EngagementTrashService(settings, db).restore(
+            engagement_id,
+            restored_by=getattr(admin, "id", None),
+            space_id=space_id,
+        )
+    except EngagementTrashNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except EngagementTrashConflict as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": 409,
+                "msg": str(exc),
+                "data": {"ref_task_ids": exc.ref_task_ids},
+            },
+        )
+    except KnowledgeSpaceError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementTrashError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}
