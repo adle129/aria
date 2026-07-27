@@ -51,8 +51,10 @@ interface KnowledgeIndexJob {
 interface KnowledgeIndexJobPanelProps {
   onCompleted: () => void | Promise<void>;
   writeProtected?: boolean;
-  /** Increment to trigger the same action as「更新知识库索引」. */
+  /** Increment to trigger the same action as「更新检索」. */
   startSignal?: number;
+  /** Hide the start button when parent toolbar owns the CTA. */
+  hideStartButton?: boolean;
 }
 
 interface CapacityErrorData {
@@ -74,6 +76,7 @@ export default function KnowledgeIndexJobPanel({
   onCompleted,
   writeProtected = false,
   startSignal = 0,
+  hideStartButton = false,
 }: KnowledgeIndexJobPanelProps) {
   const [job, setJob] = useState<KnowledgeIndexJob | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -93,7 +96,7 @@ export default function KnowledgeIndexJobPanel({
       ) {
         completedJobs.current.add(next.job_id);
         message.success(
-          `索引完成：${next.new_documents ?? 0} 篇文档，${next.new_chunks ?? 0} 个片段`,
+          `更新完成：${next.new_documents ?? 0} 篇文档，${next.new_chunks ?? 0} 条知识`,
         );
         await onCompleted();
       }
@@ -102,7 +105,7 @@ export default function KnowledgeIndexJobPanel({
         !failedJobs.current.has(next.job_id)
       ) {
         failedJobs.current.add(next.job_id);
-        message.error(next.error || "知识库索引失败，请查看失败详情");
+        message.error(next.error || "检索更新失败，请查看下方项目列表状态");
       }
     },
     [onCompleted],
@@ -155,7 +158,7 @@ export default function KnowledgeIndexJobPanel({
 
   const start = useCallback(async () => {
     if (writeProtected) {
-      message.error("数据盘处于写保护，暂时无法更新索引");
+      message.error("数据盘处于写保护，暂时无法更新检索");
       return;
     }
     setSubmitting(true);
@@ -173,13 +176,13 @@ export default function KnowledgeIndexJobPanel({
       }>("/knowledge/import");
       if (!resp.data.data.job_id) {
         message.success(
-          `索引完成：${resp.data.data.new_documents ?? 0} 篇文档，${resp.data.data.new_chunks ?? 0} 个片段`,
+          `更新完成：${resp.data.data.new_documents ?? 0} 篇文档，${resp.data.data.new_chunks ?? 0} 条知识`,
         );
         await onCompleted();
         return;
       }
       if (resp.data.data.reused) {
-        message.info("已有索引任务，已显示当前进度");
+        message.info("已有更新任务，已显示当前进度");
       }
       await loadJob(resp.data.data.job_id);
     } catch (error) {
@@ -219,9 +222,21 @@ export default function KnowledgeIndexJobPanel({
   const completedWithWarnings =
     job?.status === "completed" && failedGuidance.length > 0;
 
+  const showBody =
+    Boolean(job) ||
+    Boolean(capacityError) ||
+    pollError ||
+    active ||
+    submitting ||
+    !hideStartButton;
+
+  if (!showBody && hideStartButton) {
+    return null;
+  }
+
   return (
     <Card
-      title="知识库索引任务"
+      title="检索更新"
       size="small"
       style={{ marginBottom: 16 }}
       extra={
@@ -236,15 +251,17 @@ export default function KnowledgeIndexJobPanel({
               取消
             </Button>
           )}
-          <Button
-            type="primary"
-            size="small"
-            loading={submitting}
-            disabled={active || writeProtected}
-            onClick={() => void start()}
-          >
-            更新知识库索引
-          </Button>
+          {!hideStartButton && (
+            <Button
+              type="primary"
+              size="small"
+              loading={submitting}
+              disabled={active || writeProtected}
+              onClick={() => void start()}
+            >
+              更新检索
+            </Button>
+          )}
         </Space>
       }
     >
@@ -255,7 +272,7 @@ export default function KnowledgeIndexJobPanel({
           style={{ marginBottom: 12 }}
           role="alert"
           aria-live="assertive"
-          message="更新索引所需空间不足"
+          message="更新检索所需空间不足"
           description={`需要保留 ${formatCapacityBytes(capacityError.required_bytes)}，当前可用 ${formatCapacityBytes(capacityError.available_bytes)}。请清理数据盘或联系 IT 扩容后再试。${capacityError.action ? `（${capacityError.action}）` : ""}`}
         />
       )}
@@ -264,15 +281,17 @@ export default function KnowledgeIndexJobPanel({
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message="无法刷新索引任务状态"
+          message="无法刷新更新任务状态"
           description="请检查网络或重新打开本页；任务可能仍在后台运行。"
         />
       )}
       {!job ? (
         <Text type="secondary">
           {pollError
-            ? "暂时无法加载索引任务状态。"
-            : "当前没有索引任务。上传项目包后可启动更新。"}
+            ? "暂时无法加载更新任务状态。"
+            : hideStartButton
+              ? "资料落盘或替换后不会自动进检索库；点击上方「更新检索」写入（仅重算有变更的项目）。"
+              : "当前没有更新任务。添加历史项目后可启动更新。"}
         </Text>
       ) : (
         <Space direction="vertical" style={{ width: "100%" }} size={8}>
@@ -282,33 +301,13 @@ export default function KnowledgeIndexJobPanel({
                 ? "完成（有警告）"
                 : INDEX_JOB_STATUS_LABEL[job.status]}
             </Tag>
-            <Text>{phaseLabel}</Text>
-            <Text type="secondary" copyable={{ text: job.job_id }}>
-              任务 {job.job_id.slice(0, 8)}
-            </Text>
-            {job.mode && (
-              <Text type="secondary">
-                {job.mode === "full" ? "全量" : "增量"}
-              </Text>
-            )}
-            {job.import_id && (
-              <Text type="secondary" copyable={{ text: job.import_id }}>
-                批次 {job.import_id.slice(0, 8)}
-              </Text>
-            )}
+            <Text type="secondary">{phaseLabel}</Text>
             {job.queue_position != null && (
               <Text type="secondary">
                 队列第 {job.queue_position} 位
                 {job.estimated_wait_seconds != null && job.estimated_wait_seconds > 0
-                  ? ` · 预计还需约 ${Math.ceil(job.estimated_wait_seconds / 60)} 分钟`
-                  : job.queue_position > 0
-                    ? " · 预计剩余等待时间暂不可用"
-                    : ""}
-              </Text>
-            )}
-            {(job.active_generation ?? job.generation_id) && (
-              <Text type="secondary" copyable>
-                Generation {(job.active_generation ?? job.generation_id)?.slice(0, 8)}
+                  ? ` · 预计约 ${Math.ceil(job.estimated_wait_seconds / 60)} 分钟`
+                  : ""}
               </Text>
             )}
           </Space>
@@ -332,54 +331,82 @@ export default function KnowledgeIndexJobPanel({
           />
           {job.status === "completed" && (
             <Text type="secondary">
-              新增 {job.new_documents ?? 0} 篇文档，{job.new_chunks ?? 0} 个片段，跳过{" "}
-              {job.skipped ?? 0} 篇
+              新增 {job.new_documents ?? 0} 篇文档 · {job.new_chunks ?? 0} 条知识
+              {(job.skipped ?? 0) > 0 ? ` · 跳过 ${job.skipped}` : ""}
             </Text>
           )}
           {job.error && <Alert type="error" showIcon message={job.error} />}
           {failedGuidance.length > 0 && (
-            <>
-              <Alert
-                type="warning"
-                showIcon
-                message={`${failedGuidance.length} 个项目未进入本次生效索引`}
-                description="其余处理成功的项目已正常生效。请展开详情，修复资料后重新上传并再次更新索引。"
-              />
-              <Collapse
-                size="small"
-                items={[
-                  {
-                    key: "failed-files",
-                    label: `查看 ${failedGuidance.length} 项失败详情与修复建议`,
-                    children: (
-                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                        {failedGuidance.map((failure, index) => (
-                          <div
-                            key={`${failure.itemName}-${index}`}
-                            style={{
-                              borderBottom:
-                                index < failedGuidance.length - 1
-                                  ? "1px solid #f0f0f0"
-                                  : undefined,
-                              paddingBottom:
-                                index < failedGuidance.length - 1 ? 12 : 0,
-                            }}
-                          >
-                            <Space direction="vertical" size={2}>
-                              <Text strong>{failure.itemName}</Text>
-                              <Text type="danger">失败原因：{failure.reason}</Text>
-                              <Text>影响：{failure.impact}</Text>
-                              <Text>处理建议：{failure.action}</Text>
-                            </Space>
-                          </div>
-                        ))}
-                      </Space>
-                    ),
-                  },
-                ]}
-              />
-            </>
+            <Alert
+              type="warning"
+              showIcon
+              message={`${failedGuidance.length} 个项目未能加入检索`}
+              description={
+                <div>
+                  <ul style={{ margin: "6px 0 8px", paddingLeft: 18 }}>
+                    {failedGuidance.slice(0, 8).map((failure, index) => (
+                      <li key={`${failure.itemName}-${index}`}>
+                        <Text strong>{failure.itemName}</Text>
+                        <Text type="secondary">
+                          {" — "}
+                          {/信息不完整|项目信息|metadata/i.test(failure.reason)
+                            ? "项目信息不完整（显示名、客户、年份、工程领域）"
+                            : failure.reason.length > 80
+                              ? `${failure.reason.slice(0, 80)}…`
+                              : failure.reason}
+                        </Text>
+                      </li>
+                    ))}
+                    {failedGuidance.length > 8 ? (
+                      <li>
+                        <Text type="secondary">另有 {failedGuidance.length - 8} 项…</Text>
+                      </li>
+                    ) : null}
+                  </ul>
+                  <Text>
+                    请在下方列表点击「完善信息」，保存后再点「更新检索」。
+                  </Text>
+                </div>
+              }
+            />
           )}
+          <Collapse
+            size="small"
+            ghost
+            items={[
+              {
+                key: "ops",
+                label: <Text type="secondary">运维编号（排查用）</Text>,
+                children: (
+                  <Space direction="vertical" size={4}>
+                    <Text type="secondary" copyable={{ text: job.job_id }}>
+                      任务 {job.job_id}
+                    </Text>
+                    {job.import_id ? (
+                      <Text type="secondary" copyable={{ text: job.import_id }}>
+                        批次 {job.import_id}
+                      </Text>
+                    ) : null}
+                    {(job.active_generation ?? job.generation_id) ? (
+                      <Text
+                        type="secondary"
+                        copyable={{
+                          text: String(job.active_generation ?? job.generation_id),
+                        }}
+                      >
+                        Generation {job.active_generation ?? job.generation_id}
+                      </Text>
+                    ) : null}
+                    {job.mode ? (
+                      <Text type="secondary">
+                        模式 {job.mode === "full" ? "全量" : "增量"}
+                      </Text>
+                    ) : null}
+                  </Space>
+                ),
+              },
+            ]}
+          />
         </Space>
       )}
     </Card>

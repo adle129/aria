@@ -12,11 +12,19 @@ from app.schemas.knowledge import (
     EngagementMetadataUpdate,
     EngagementUploadPackResult,
     KnowledgeSearchRequest,
+    MasterDataCreate,
+    MasterDataUpdate,
 )
 from app.services.engagement_audit_service import (
     EngagementAuditError,
     EngagementAuditNotFound,
     EngagementAuditService,
+)
+from app.services.engagement_document_service import (
+    EngagementDocumentConflict,
+    EngagementDocumentError,
+    EngagementDocumentNotFound,
+    EngagementDocumentService,
 )
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
 from app.services.disk_guard_service import (
@@ -28,8 +36,15 @@ from app.services.engagement_upload_service import (
     EngagementUploadError,
     EngagementUploadService,
 )
+from app.services.knowledge_document_status import overlay_document_index_status
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.knowledge_import_service import KnowledgeImportService
+from app.services.master_data_service import (
+    MasterDataConflict,
+    MasterDataError,
+    MasterDataNotFound,
+    MasterDataService,
+)
 from app.services.ollama_concurrency import OllamaLeaseTimeout
 from app.services.rag_service import RAGService
 from app.services.task_job_service import TaskJobService
@@ -44,8 +59,17 @@ def get_rag_service() -> RAGService:
 
 
 @router.get("/documents")
-def knowledge_documents(rag: RAGService = Depends(get_rag_service)):
-    return {"code": 200, "data": {"documents": rag.list_documents()}}
+def knowledge_documents(
+    db: Session = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
+    _user=Depends(get_current_user),
+):
+    documents = rag.list_documents()
+    status_by_id = {
+        row.id: row.index_status for row in EngagementRepository(db).list_all()
+    }
+    documents = overlay_document_index_status(documents, status_by_id)
+    return {"code": 200, "data": {"documents": documents}}
 
 
 @router.get("/stats")
@@ -366,6 +390,8 @@ def knowledge_import_batch_detail(
 
 @router.get("/engagements")
 def knowledge_engagements(
+    customer: str | None = Query(default=None),
+    vehicle_model: str | None = Query(default=None),
     db: Session = Depends(get_db),
     _user=Depends(get_current_user),
 ):
@@ -373,12 +399,150 @@ def knowledge_engagements(
     settings = get_settings()
     audit = EngagementAuditService(settings, db)
     items = []
-    for row in EngagementRepository(db).list_all():
+    for row in EngagementRepository(db).list_all(
+        customer=customer,
+        vehicle_model=vehicle_model,
+    ):
         data = audit.serialize_engagement(row)
         data["uploaded_at"] = to_api_utc_iso(data.get("uploaded_at"))
         data["last_indexed_at"] = to_api_utc_iso(data.get("last_indexed_at"))
         items.append(data)
     return {"code": 200, "data": {"engagements": items}}
+
+
+@router.get("/customers")
+def knowledge_customers(
+    include_inactive: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """List customers for pickers (active by default)."""
+    items = MasterDataService(db).list_customers(include_inactive=include_inactive)
+    return {"code": 200, "data": {"customers": items}}
+
+
+@router.post("/customers")
+def knowledge_create_customer(
+    body: MasterDataCreate,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    _ = admin
+    try:
+        data = MasterDataService(db).create_customer(body.name)
+    except MasterDataConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except MasterDataError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.patch("/customers/{customer_id}")
+def knowledge_update_customer(
+    customer_id: str,
+    body: MasterDataUpdate,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    _ = admin
+    try:
+        data = MasterDataService(db).update_customer(
+            customer_id,
+            name=body.name,
+            is_active=body.is_active,
+        )
+    except MasterDataNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except MasterDataConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except MasterDataError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.delete("/customers/{customer_id}")
+def knowledge_delete_customer(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    _ = admin
+    try:
+        data = MasterDataService(db).delete_customer(customer_id)
+    except MasterDataNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except MasterDataConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except MasterDataError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.get("/vehicle-models")
+def knowledge_vehicle_models(
+    include_inactive: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    items = MasterDataService(db).list_vehicle_models(include_inactive=include_inactive)
+    return {"code": 200, "data": {"vehicle_models": items}}
+
+
+@router.post("/vehicle-models")
+def knowledge_create_vehicle_model(
+    body: MasterDataCreate,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    _ = admin
+    try:
+        data = MasterDataService(db).create_vehicle_model(body.name)
+    except MasterDataConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except MasterDataError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.patch("/vehicle-models/{model_id}")
+def knowledge_update_vehicle_model(
+    model_id: str,
+    body: MasterDataUpdate,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    _ = admin
+    try:
+        data = MasterDataService(db).update_vehicle_model(
+            model_id,
+            name=body.name,
+            is_active=body.is_active,
+        )
+    except MasterDataNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except MasterDataConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except MasterDataError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.delete("/vehicle-models/{model_id}")
+def knowledge_delete_vehicle_model(
+    model_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    _ = admin
+    try:
+        data = MasterDataService(db).delete_vehicle_model(model_id)
+    except MasterDataNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except MasterDataConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except MasterDataError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
 
 
 @router.patch("/engagements/{engagement_id}/metadata")
@@ -406,4 +570,37 @@ def knowledge_engagement_metadata(
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     data["uploaded_at"] = to_api_utc_iso(data.get("uploaded_at"))
     data["last_indexed_at"] = to_api_utc_iso(data.get("last_indexed_at"))
+    return {"code": 200, "data": data}
+
+
+@router.post("/engagements/{engagement_id}/documents")
+async def knowledge_engagement_document_upsert(
+    engagement_id: str,
+    doc_type: str = Form(...),
+    replace: bool = Form(default=True),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Upsert one document by doc_type for an existing engagement (R1-CHG13)."""
+    _ = admin
+    settings = get_settings()
+    content = await file.read()
+    try:
+        DiskGuardService(settings).assert_writable(required_bytes=max(len(content) * 2, 4096))
+        data = EngagementDocumentService(settings, db).upsert_document(
+            engagement_id,
+            doc_type=doc_type,
+            filename=file.filename or "upload.bin",
+            content=content,
+            replace=replace,
+        )
+    except EngagementDocumentNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except EngagementDocumentConflict as exc:
+        return JSONResponse(status_code=409, content={"code": 409, "msg": str(exc)})
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementDocumentError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}

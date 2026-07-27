@@ -19,9 +19,15 @@ export const ENGAGEMENT_TIER_TIP: Record<EngagementTier, string> = {
 };
 
 export const ENGAGEMENT_INDEX_STATUS_LABEL: Record<string, string> = {
-  indexed: "已索引",
-  pending: "待索引",
-  failed: "索引失败",
+  indexed: "可检索",
+  pending: "待更新",
+  failed: "更新失败",
+};
+
+export const ENGAGEMENT_INDEX_STATUS_TIP: Record<string, string> = {
+  indexed: "资料已就绪，可出现在 RFQ 相似项目结果中。",
+  pending: "资料已变更或新上传，请点击「更新检索」后才会用于相似项目对标。",
+  failed: "更新未成功，该项目暂时不会出现在相似检索中。",
 };
 
 export const ENGAGEMENT_INDEX_STATUS_COLOR: Record<string, string> = {
@@ -47,12 +53,22 @@ export function formatEngagementTier(
   };
 }
 
-export function formatEngagementIndexStatus(status: string): {
+export function formatEngagementIndexStatus(
+  status: string,
+  opts?: { lastError?: string | null },
+): {
   label: string;
   color: string;
+  tip: string;
 } {
+  const baseTip = ENGAGEMENT_INDEX_STATUS_TIP[status] ?? "项目检索更新状态。";
+  const tip =
+    status === "failed" && opts?.lastError
+      ? `${baseTip} 原因：${opts.lastError}`
+      : baseTip;
   return {
     label: ENGAGEMENT_INDEX_STATUS_LABEL[status] ?? status,
     color: ENGAGEMENT_INDEX_STATUS_COLOR[status] ?? "default",
+    tip,
   };
 }

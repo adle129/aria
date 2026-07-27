@@ -365,7 +365,10 @@ PUT /api/v1/rfq/tasks/{task_id}
 | status | string | in_review / approved |
 | comparison_table | object | 编辑后的对比表 |
 | dimension_draft | object | **F1.10：** 基准匹配结果（见 [rfq-dimension-baseline-spec §4](rfq-dimension-baseline-spec.md)）；工程师勾选/编辑 |
+| function_source_map | object | **R1-CHG03：** 九大 Function → `engagement_id` \| `null`（仅 scope 内可非空；须为当前相似列表中的 ID）。真多源拼装属 M3 |
 | confirmed | boolean | 用户确认已审阅 |
+
+`GET /tasks/{id}` 响应可含同名字段 `function_source_map`。未知模块键或非法 engagement → `400`。
 
 #### 重新解析失败任务（R1 · F1.11）
 
@@ -764,6 +767,8 @@ POST /api/v1/knowledge/imports/{job_id}/cancel
 
 完成响应字段：`status`、`progress`、`started_at`、`finished_at`、`triggered_by`、`new_documents`、`new_chunks`、`skipped`、`failed_files[]`、`active_generation`。失败不得切换 active generation。
 
+ji**项目信息索引门禁：** `project_name` / `customer` / `year` / `functions`（≥1）未齐的 engagement **不写入向量**，记入 `failed_files` 与 `engagements[].status=failed`（`missing` 含 `metadata`）；整任务仍可对其它齐全项目成功切换 generation。
+
 `cancel` 仅在 Engagement/embedding 批次边界生效，须幂等并清理 staging；取消前后 active generation 不变。
 `pause/resume` 不进入 R1 首批 API；仅在 R1-KH11c checkpoint（last engagement / batch offset）设计及恢复测试通过后增加。
 
@@ -800,13 +805,49 @@ POST /api/v1/knowledge/engagements/upload
 
 上传完成后调用 `POST /knowledge/import?batch_id=<batch_id>`（优先本批增量）；Embedding/chunk schema 变更时由管理员显式请求全量 generation。
 
+**客户 / 车型主数据（kb_admin 维护 · R1-CHG05）：**
+
+```
+GET    /api/v1/knowledge/customers?include_inactive=false
+POST   /api/v1/knowledge/customers          { "name": "..." }   # kb_admin
+PATCH  /api/v1/knowledge/customers/{id}     { "name"?, "is_active"? }
+DELETE /api/v1/knowledge/customers/{id}     # 无项目引用时可删；否则 409
+GET    /api/v1/knowledge/vehicle-models?include_inactive=false
+POST   /api/v1/knowledge/vehicle-models     { "name": "..." }   # kb_admin
+PATCH  /api/v1/knowledge/vehicle-models/{id}{ "name"?, "is_active"? }
+DELETE /api/v1/knowledge/vehicle-models/{id}
+```
+
+读接口任意已登录用户可用（供表单下拉）；写接口需 `kb_admin`。停用后不可再选用；名称唯一，重名停用项可被 POST 重新启用。重命名会同步 `engagements` 与 manifest 中同名引用；删除仅在无历史项目引用时允许（否则 409，可先停用）。
+
 **完善项目信息（Web 表单 · 系统写回 manifest）：**
 
 ```
 PATCH /api/v1/knowledge/engagements/{engagement_id}/metadata
+GET   /api/v1/knowledge/engagements?customer=&vehicle_model=
 ```
 
-请求体（均必填）：`project_name`、`customer`、`year`、`functions[]`（至少一项）。写入 `knowledge_base/<id>/manifest.json` 并同步 `engagements` 表。不改动资料文件；工程领域进入向量 metadata 需随后更新索引。`GET /knowledge/engagements` 额外返回 `customer` / `year` / `functions` / `metadata_complete`。`GET /knowledge/documents` 每条含同项目 `metadata_summary`（客户 · 年 · 领域）。
+请求体：`project_name`、`customer`、`year`、`functions[]`（至少一项）必填；`vehicle_model` 可选（不进索引硬门禁）。`customer` / `vehicle_model` 须为**启用中的主数据名称**，否则 `400`。写入 `manifest.json` 并同步 `engagements`（含 `vehicle_model` 列）。工程领域与车型进入向量 metadata 需随后更新索引。列表支持按 `customer` / `vehicle_model` 精确筛选。`GET /knowledge/documents` 每条含同项目 `metadata_summary`。
+
+**单文档补传 / 替换（R1-CHG13 · 已实现）：**
+
+```
+POST /api/v1/knowledge/engagements/{engagement_id}/documents
+Content-Type: multipart/form-data
+```
+
+| 字段 | 说明 |
+|------|------|
+| `doc_type` | `rfq` \| `qa` \| `quote_manpower` \| `summary` |
+| `file` | 单文件；格式规则同类型门禁 |
+| `replace` | 默认 `true`；同类型已存在且为 `false` → `409` |
+
+需 `kb_admin`。成功 `200`：`engagement_id`、`doc_type`、`path`、`tier`、`metadata_complete`、`index_status=pending`、`needs_reindex=true`。副作用：更新 manifest 与完整度；**不自动全量索引**（须点「更新检索」；增量模式仅重算变更项目）。`GET /knowledge/documents` 在项目 `pending`/`failed` 时覆盖路径级「可检索」，避免替换后假绿。
+
+**Knowledge Space 预埋 / 其余生命周期：**
+
+- Space 默认 `quoting`、可选 `space_id`：见 [knowledge-space-preembed-spec.md](../R1/knowledge-space-preembed-spec.md)（R1-CHG12）。  
+- 项目删除、回收站：见 [knowledge-lifecycle-spec.md](../R1/knowledge-lifecycle-spec.md) §5（R1-CHG14 / CHG09）。
 
 **容量错误：**
 

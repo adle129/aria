@@ -422,20 +422,37 @@
 
 | ID | 优先级 | 任务 | DoD | 依赖 | 状态 |
 |----|--------|------|-----|------|------|
-| R1-CHG01 | P0 | T1 工程师隐藏知识库导航；人天/证据 RFQ 内嵌抽屉 | 工程师无运维菜单；无死链 `/knowledge`；Vitest/可见性单测 | 架构 T1 | 待开始 |
-| R1-CHG02 | P0 | T2 矩阵表头：项目名·公司·车型（缺则 —）；去工程师「验证」外链 | ComparisonMatrix 展示；有字段即显示 | CHG01 | 待开始 |
-| R1-CHG03 | P0 | T3 选源壳：RFQ 页九模块 Radio + 保存 `function_source_map`（可先前端/API 持久化） | 文案标明真拼装属后续；`/quote` 不改 map | CHG02 · 架构 Q5 | 待开始 |
-| R1-CHG04 | P1 | T7 管理员壳：项目文档 IA 文案/导航；概览占位 + AI 健康一条 | 不做回收站深逻辑 | CHG01 | 待开始 |
-| R1-CHG05 | P1 | T2a 车型字段规范（metadata / 回填）+ 矩阵用字段 | 入库或解析约定；避免表头长期 — | CHG02 · 客户 | 待开始 |
+| R1-CHG01 | P0 | T1 工程师隐藏知识库导航；人天/证据 RFQ 内嵌抽屉 | 工程师无运维菜单；无死链 `/knowledge`；Vitest/可见性单测 | 架构 T1 | **已完成** |
+| R1-CHG02 | P0 | T2 矩阵表头：项目名·公司·车型（缺则 —）；去工程师「验证」外链 | ComparisonMatrix 展示；有字段即显示 | CHG01 | **待你检查** |
+| R1-CHG02a | P0 | 入库索引门禁：`project_name`/`customer`/`year`/`functions` 未齐则不写入向量（IT/全量同等） | ingest `failed_files` + unit/API；车型不纳入 | CHG02 | **已完成** |
+| R1-CHG03 | P0 | T3 选源壳：RFQ 页九模块勾选 + 保存 `function_source_map`；`/quote` 只读确认 | 文案标明真拼装属后续；`/quote` 不改 map | CHG02 · 架构 Q5 | **待你检查** |
+| R1-CHG04 | P1 | T7 管理员壳：项目文档 IA 文案/导航；概览占位 + AI 健康一条 | 不做回收站深逻辑 | CHG01 | **已完成**（UX 已收口，待你抽查） |
+| R1-CHG05 | P1 | T2a 车型 + 客户/车型主数据（kb_admin 维护）+ 列表筛选 | manifest/`engagements.vehicle_model`；主数据 CRUD；表单下拉；`GET engagements` 筛选 | CHG02 | **已完成** |
 | R1-CHG06 | P1 | 历史源文件授权下载（矩阵内） | 鉴权+审计；确认单勾选后做 | CHG02 · 安全 | 待开始 |
 | R1-CHG07 | P0 | T3 真多源拼装 + `quote_fill_report`（M3） | scope 内多 engagement；单测+API；接真实 baselines | CHG03 · M3 · 确认单 | 待开始 |
 | R1-CHG08 | P1 | T4 模块关键字摘要缓存（矩阵后异步） | 选源读缓存；禁 3×9 现场检索 | CHG03 · 客户关键字表 | 待开始 |
-| R1-CHG09 | P2 | T7 回收站 30 天（文件+索引+baselines） | 确认单单列验收 | 确认单勾选 | 待开始 |
+| R1-CHG09 | P2 | T7 回收站 30 天 + 文档级删除（L3） | 见 [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md)；恢复/清理/索引·baselines 联动；确认单单列 | CHG13–14 · 确认单 | 待开始 |
 | R1-CHG10 | P2 | T6 起草台 B1（默认不勾） | 拆页/模板 Word/入解析；独立草稿区 | 客户勾选+模板 | 待开始 |
 | R1-CHG11 | P2 | T6-B2 色标识别 | Spike 后另议 | 样例+出内网 | 待开始 |
+| R1-CHG12 | P1 | Knowledge Space **代码**预埋（默认 `quoting`） | 规格 [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) **已完成**；`space_id`/chunk meta/API 默认；行为与现网一致 | 架构 | **规格已完成** · 代码待开始 |
+| R1-CHG13 | P0 | 文档级补传/替换（L1） | 按 doc_type 补传或替换；完整度刷新；提示更新检索；unit+API+UI | 生命周期规格 | **已完成** |
+| R1-CHG14 | P1 | 项目级删除（L2，无硬引用） | 空/失败/待评估可删→trash；有引用禁用；确认框；unit+API+UI | CHG13 · 建议 CHG12 | 待开始 |
 
-**W1 建议开工顺序：** CHG01 → CHG02 → CHG03（体验壳）→ CHG04。  
-**明确不做（本包）：** 多库 ACL · 三级角色 · PPT 直接进矩阵 · 模型用量/Token 看板。
+**知识库运维建议顺序：** CHG13（补传）→ CHG12（Space 预埋）→ CHG14（项目删除）→ CHG09（回收站+文档删除）。  
+**W1 体验壳：** CHG01 → CHG02 → CHG03 → CHG04（多已完成/待检查）。  
+**明确不做（本包）：** 多库 ACL · 三级角色 · PPT 直接进矩阵 · 模型用量/Token 看板（Space **产品**后置；仅允许预埋）。
+
+### 知识库扩展 / 生命周期 · 优先级总览（2026-07-27）
+
+| 优先级 | ID | 内容 | 规格 | 状态 |
+|--------|-----|------|------|------|
+| P0 | R1-CHG13 | 单文档补传/替换 | [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md) **v0.3** L1（含 UI/API） | **已完成** |
+| P1 | R1-CHG12 | Space 代码预埋 | [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) **v0.2** | 规格完成 · 代码待开始 |
+| P1 | R1-CHG14 | 无引用项目删除 | lifecycle L2 | 待开始 |
+| P2 | R1-CHG09 | 回收站 30 天 + 文档删除 | lifecycle L3 | 待开始（建议确认单勾选） |
+| 后置 | — | 多库产品 / ACL / 财务 Space | Space 规格 P1 | 不排本期 |
+
+**架构/UI 评审摘要：** 两块均**演进现网、不大拆**；Space 预埋期几乎无新 UI；生命周期操作落在历史项目展开行/项目行，L3 再加回收站 Tab。详见两规格 §0。
 
 ---
 

@@ -19,8 +19,11 @@ describe("formatEngagementTier", () => {
 
 describe("formatEngagementIndexStatus", () => {
   it("maps index statuses to Chinese labels", () => {
-    expect(formatEngagementIndexStatus("indexed").label).toBe("已索引");
-    expect(formatEngagementIndexStatus("pending").label).toBe("待索引");
-    expect(formatEngagementIndexStatus("failed").label).toBe("索引失败");
+    expect(formatEngagementIndexStatus("indexed").label).toBe("可检索");
+    expect(formatEngagementIndexStatus("pending").label).toBe("待更新");
+    expect(formatEngagementIndexStatus("failed").label).toBe("更新失败");
+    expect(formatEngagementIndexStatus("failed", { lastError: "缺 RFQ" }).tip).toMatch(
+      /缺 RFQ/,
+    );
   });
 });
