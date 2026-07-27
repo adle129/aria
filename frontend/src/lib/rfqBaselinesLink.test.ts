@@ -26,10 +26,8 @@ describe("resolveEngagementId", () => {
 });
 
 describe("buildBaselinesKnowledgeHref", () => {
-  it("builds knowledge baselines deep link", () => {
-    expect(buildBaselinesKnowledgeHref("eng-42")).toBe(
-      "/knowledge?tab=baselines&engagement_id=eng-42#manpower-baselines-engagement",
-    );
+  it("does not deep-link to knowledge baselines tab (RFQ drawer only)", () => {
+    expect(buildBaselinesKnowledgeHref("eng-42")).toBeNull();
   });
 });
 

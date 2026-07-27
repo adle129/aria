@@ -423,10 +423,10 @@
 | ID | 优先级 | 任务 | DoD | 依赖 | 状态 |
 |----|--------|------|-----|------|------|
 | R1-CHG01 | P0 | T1 工程师隐藏知识库导航；人天/证据 RFQ 内嵌抽屉 | 工程师无运维菜单；无死链 `/knowledge`；Vitest/可见性单测 | 架构 T1 | **已完成** |
-| R1-CHG02 | P0 | T2 矩阵表头：项目名·公司·车型（缺则 —）；去工程师「验证」外链 | ComparisonMatrix 展示；有字段即显示 | CHG01 | **待你检查** |
+| R1-CHG02 | P0 | T2 矩阵表头：项目名·公司·车型（缺则 —）；去工程师「验证」外链 | ComparisonMatrix 展示；有字段即显示 | CHG01 | **已完成** |
 | R1-CHG02a | P0 | 入库索引门禁：`project_name`/`customer`/`year`/`functions` 未齐则不写入向量（IT/全量同等） | ingest `failed_files` + unit/API；车型不纳入 | CHG02 | **已完成** |
-| R1-CHG03 | P0 | T3 选源壳：RFQ 页九模块勾选 + 保存 `function_source_map`；`/quote` 只读确认 | 文案标明真拼装属后续；`/quote` 不改 map | CHG02 · 架构 Q5 | **待你检查** |
-| R1-CHG04 | P1 | T7 管理员壳：项目文档 IA 文案/导航；概览占位 + AI 健康一条 | 不做回收站深逻辑 | CHG01 | **已完成**（UX 已收口，待你抽查） |
+| R1-CHG03 | P0 | T3 选源壳：RFQ 页九模块勾选 + 保存 `function_source_map`；`/quote` 只读确认 | 文案标明真拼装属后续；`/quote` 不改 map | CHG02 · 架构 Q5 | **已完成** |
+| R1-CHG04 | P1 | T7 管理员壳：项目文档 IA 文案/导航；概览占位 + AI 健康一条 | 不做回收站深逻辑 | CHG01 | **已完成** |
 | R1-CHG05 | P1 | T2a 车型 + 客户/车型主数据（kb_admin 维护）+ 列表筛选 | manifest/`engagements.vehicle_model`；主数据 CRUD；表单下拉；`GET engagements` 筛选 | CHG02 | **已完成** |
 | R1-CHG06 | P1 | 历史源文件授权下载（矩阵内） | 鉴权+审计；确认单勾选后做 | CHG02 · 安全 | 待开始 |
 | R1-CHG07 | P0 | T3 真多源拼装 + `quote_fill_report`（M3） | scope 内多 engagement；单测+API；接真实 baselines | CHG03 · M3 · 确认单 | 待开始 |

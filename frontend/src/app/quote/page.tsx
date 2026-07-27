@@ -22,6 +22,13 @@ import DemoModuleCapability from "@/components/DemoModuleCapability";
 import MilestoneStepScaffold from "@/components/MilestoneStepScaffold";
 import { useTaskContext } from "@/context/TaskContext";
 import { useUiProfile } from "@/hooks/useUiProfile";
+import {
+  buildFunctionSourceSummaryRows,
+  coalesceFunctionSourceMap,
+  collectSourceCandidates,
+  countMappedInScope,
+  resolveInScopeFunctions,
+} from "@/lib/functionSourceMap";
 import { showsMilestoneScaffold } from "@/lib/uiProfile";
 import type { ManpowerBreakdownItem } from "@/types/task";
 
@@ -116,6 +123,28 @@ function QuotePageContent() {
     task?.processing_status === "completed" &&
     (task.status === "in_review" || task.status === "approved" || task.status === "exported" || confirmed);
 
+  const projects =
+    (task?.comparison_table as { projects?: Array<Record<string, unknown>> } | undefined)
+      ?.projects || [];
+  const inScopeFunctions = resolveInScopeFunctions(
+    task?.rfq_modules as Record<string, unknown> | undefined,
+  );
+  const sourceCandidates = collectSourceCandidates(projects, task?.similar_projects);
+  const sourceMap = coalesceFunctionSourceMap(
+    task?.function_source_map,
+    inScopeFunctions,
+    null,
+  );
+  const sourceSummaryRows = buildFunctionSourceSummaryRows(
+    sourceMap,
+    inScopeFunctions,
+    sourceCandidates,
+  );
+  const { mapped: mappedSourceCount, total: inScopeSourceTotal } = countMappedInScope(
+    sourceMap,
+    inScopeFunctions,
+  );
+
   return (
     <div>
       <Title level={3}>人力报价</Title>
@@ -159,6 +188,46 @@ function QuotePageContent() {
           </Card>
         )}
       </Spin>
+
+      {task && task.processing_status === "completed" && (
+        <Card
+          title={
+            <Space>
+              <span>报价数据源（只读）</span>
+              <Tag>
+                已选用 {mappedSourceCount}/{inScopeSourceTotal}
+              </Tag>
+            </Space>
+          }
+          style={{ marginBottom: 24 }}
+          extra={
+            <Link href={`/rfq?task_id=${task.task_id}`}>在 RFQ 分析修改选源</Link>
+          }
+        >
+          <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            以下为 RFQ 页已保存的模块选源意向。本页不可改选；按多源真正拼装 Excel 属后续里程碑。
+          </Paragraph>
+          <Table
+            size="small"
+            pagination={false}
+            rowKey="key"
+            dataSource={sourceSummaryRows}
+            columns={[
+              { title: "报价模块", dataIndex: "moduleLabel", width: 140 },
+              {
+                title: "历史项目来源",
+                dataIndex: "sourceLabel",
+                render: (label: string, row) =>
+                  row.inScope ? (
+                    label
+                  ) : (
+                    <Text type="secondary">{label}</Text>
+                  ),
+              },
+            ]}
+          />
+        </Card>
+      )}
 
       {breakdown.length > 0 && (
         <Card

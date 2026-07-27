@@ -211,11 +211,13 @@ flowchart TB
 
 | 字段 | 主责 | 必填 | 缺省影响 |
 |------|------|------|----------|
-| `documents` / `doc_type` | 系统按文件类型推断 | 有 RFQ 即可索引 | 缺件→金/银/铜提示 |
+| `documents` / `doc_type` | 系统按文件类型推断 | 有 RFQ 才可解析 | 缺件→金/银/铜提示 |
 | `engagement_id` | 系统或散文件表单 ID | 稳定 ID | 无则无法成套 |
-| `project_name` | 默认=目录名；表单可改 | 建议有 | 展示名变差 |
-| `customer` / `year` | 表单必填 | **必填** | 参与弱身份匹配 |
-| `functions` | 表单必填（后续可自动推断预填） | **必填** | 结构加分与领域过滤；空标签会拉低融合分 |
+| `project_name` | 默认=目录名；表单可改 | **必填（索引门禁）** | 未齐→**不写入/不更新**检索索引 |
+| `customer` / `year` | 表单必填 | **必填（索引门禁）** | 同上；并参与弱身份匹配 |
+| `functions` | 表单必填（后续可自动推断预填） | **必填（索引门禁）** | 同上；空标签会拉低融合分 |
+
+**索引门禁（R1）：** `project_name` + `customer` + `year` + `functions`（≥1）四项齐全才可进入 pgvector generation。IT 批量与全量/增量重建同等生效；未齐 engagement 记入 `failed_files`，`index_status=failed`，矩阵表头所需项目名/公司因此有稳定来源。车型字段暂不纳入门禁（见确认变更 T2a）。
 
 ```json
 {

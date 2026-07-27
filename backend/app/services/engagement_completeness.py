@@ -22,6 +22,10 @@ def classify_engagement(missing: Collection[str]) -> EngagementCompleteness:
         tier = "copper"
 
     impacts: list[str] = []
+    if "metadata" in missing_set:
+        impacts.append(
+            "项目信息未齐：须填写项目显示名、客户、年份、工程领域后方可写入检索索引"
+        )
     if "rfq" in missing_set:
         impacts.append("缺 RFQ：无法参与 RFQ 相似检索与对标")
     if "qa" in missing_set:
@@ -31,6 +35,6 @@ def classify_engagement(missing: Collection[str]) -> EngagementCompleteness:
 
     return {
         "tier": tier,
-        "indexable": "rfq" not in missing_set,
+        "indexable": "rfq" not in missing_set and "metadata" not in missing_set,
         "automation_impacts": impacts,
     }

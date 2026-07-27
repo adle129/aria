@@ -238,6 +238,51 @@ def test_update_task_comparison_and_confirm(client, sample_rfq_bytes):
     assert updated["comparison_table"]["matrix_rows"][0]["new_project"] == "MEB-修订"
 
 
+def test_update_function_source_map_shell(client, sample_rfq_bytes):
+    task_id = _upload_and_complete(client, sample_rfq_bytes)
+    task = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
+    assert task.get("function_source_map") in (None, {})
+
+    candidates = []
+    for hit in task.get("similar_projects") or []:
+        meta = hit.get("metadata") or {}
+        eid = hit.get("engagement_id") or meta.get("engagement_id")
+        if eid:
+            candidates.append(str(eid))
+    assert candidates, "mock similar projects should expose engagement_id"
+    eng_a = candidates[0]
+
+    bad = client.put(
+        f"/api/v1/rfq/tasks/{task_id}",
+        json={"function_source_map": {"NotASheet": eng_a}},
+    )
+    assert bad.status_code == 400
+
+    payload = {
+        "PM": eng_a,
+        "Chassis": eng_a,
+        "BIW": None,
+        "Interior": None,
+        "GI": None,
+        "Test validation": None,
+        "CAE": None,
+        "EE": None,
+        "PS": None,
+    }
+    resp = client.put(
+        f"/api/v1/rfq/tasks/{task_id}",
+        json={"function_source_map": payload},
+    )
+    assert resp.status_code == 200, resp.text
+    saved = resp.json()["data"]["function_source_map"]
+    assert saved["PM"] == eng_a
+    assert saved["Chassis"] == eng_a
+    assert saved["BIW"] is None
+
+    again = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
+    assert again["function_source_map"]["PM"] == eng_a
+
+
 def test_generate_excel_and_download(client, sample_rfq_bytes):
     task_id = _upload_and_complete(client, sample_rfq_bytes)
 

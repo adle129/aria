@@ -1,10 +1,14 @@
 "use client";
 
 import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
-import { Input, Table, Tag, Tooltip } from "antd";
+import { Input, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import Link from "next/link";
-import { buildBaselinesKnowledgeHref } from "@/lib/rfqBaselinesLink";
+import {
+  formatMatrixHeaderTooltip,
+  truncateHeaderText,
+  type MatrixProjectHeader,
+} from "@/lib/matrixProjectHeader";
+import { formatProjectIdLine } from "@/lib/projectIdentity";
 
 export interface MatrixHistoryCell {
   project_name?: string;
@@ -25,10 +29,14 @@ export interface MatrixRow {
 
 interface ComparisonMatrixProps {
   matrixRows: MatrixRow[];
-  projectNames: string[];
+  /** @deprecated prefer projectHeaders (R1-CHG02) */
+  projectNames?: string[];
+  projectHeaders?: MatrixProjectHeader[];
   projectBaselinesEngagementIds?: (string | null)[];
   editable?: boolean;
   onNewProjectChange?: (dimension: string, value: string) => void;
+  /** Open in-page baselines drawer (R1-CHG01); do not link to /knowledge. */
+  onOpenBaselines?: (engagementId: string) => void;
 }
 
 function MatchIcon({ match }: { match?: boolean | null }) {
@@ -40,10 +48,22 @@ function MatchIcon({ match }: { match?: boolean | null }) {
 export function ComparisonMatrix({
   matrixRows,
   projectNames,
+  projectHeaders,
   projectBaselinesEngagementIds,
   editable = false,
   onNewProjectChange,
+  onOpenBaselines,
 }: ComparisonMatrixProps) {
+  const headers: MatrixProjectHeader[] =
+    projectHeaders && projectHeaders.length > 0
+      ? projectHeaders
+      : (projectNames || []).map((name) => ({
+          project_name: name,
+          customer: "—",
+          vehicle_model: "—",
+          engagement_id: null,
+        }));
+
   const columns: ColumnsType<MatrixRow> = [
     {
       title: "对比维度",
@@ -69,28 +89,50 @@ export function ComparisonMatrix({
         );
       },
     },
-    ...projectNames.map((name, index) => {
-      const engagementId = projectBaselinesEngagementIds?.[index] ?? null;
+    ...headers.map((header, index) => {
+      const engagementId =
+        header.engagement_id || projectBaselinesEngagementIds?.[index] || null;
+      const tip = formatMatrixHeaderTooltip({
+        ...header,
+        engagement_id: engagementId,
+      });
+      const idLine = formatProjectIdLine(engagementId);
       return {
       title: (
         <div style={{ lineHeight: 1.35 }}>
-          <Tooltip title={name}>
-            <span>{name.length > 18 ? `${name.slice(0, 18)}…` : name}</span>
+          <Tooltip title={<span style={{ whiteSpace: "pre-line" }}>{tip}</span>}>
+            <div>
+              <div style={{ fontWeight: 600 }}>
+                {truncateHeaderText(header.project_name, 16)}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 400, color: "#8c8c8c", marginTop: 2 }}>
+                {truncateHeaderText(header.customer, 12)} ·{" "}
+                {truncateHeaderText(header.vehicle_model, 12)}
+              </div>
+              {idLine ? (
+                <div style={{ fontSize: 11, fontWeight: 400, color: "#bfbfbf", marginTop: 2 }}>
+                  {truncateHeaderText(idLine, 22)}
+                </div>
+              ) : null}
+            </div>
           </Tooltip>
-          {engagementId ? (
+          {engagementId && onOpenBaselines ? (
             <div style={{ marginTop: 2 }}>
-              <Link
-                href={buildBaselinesKnowledgeHref(engagementId)}
+              <Typography.Link
                 style={{ fontSize: 11, fontWeight: 500 }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onOpenBaselines(engagementId);
+                }}
               >
-                人天基线
-              </Link>
+                人天明细
+              </Typography.Link>
             </div>
           ) : null}
         </div>
       ),
       key: `history_${index}`,
-      width: 160,
+      width: 168,
       render: (_: unknown, record: MatrixRow) => {
         const cell = record.history[index];
         if (!cell) return "—";

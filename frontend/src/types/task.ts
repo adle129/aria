@@ -100,6 +100,8 @@ export interface TaskPayload {
   dimension_draft?: DimensionDraft;
   similar_projects?: Array<Record<string, unknown>>;
   comparison_table?: Record<string, unknown>;
+  /** Per-Function Sheet → engagement_id | null (R1-CHG03) */
+  function_source_map?: Record<string, string | null> | null;
   solution_draft?: SolutionDraft;
   qa_items?: QAItem[];
   artifacts_status?: ArtifactsStatus;

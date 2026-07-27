@@ -26,3 +26,11 @@ def test_classify_missing_rfq_as_not_indexable():
     assert result["tier"] == "copper"
     assert result["indexable"] is False
     assert result["automation_impacts"] == ["缺 RFQ：无法参与 RFQ 相似检索与对标"]
+
+
+def test_classify_missing_metadata_as_not_indexable():
+    result = classify_engagement(["metadata"])
+
+    assert result["tier"] == "copper"
+    assert result["indexable"] is False
+    assert any("项目信息未齐" in item for item in result["automation_impacts"])

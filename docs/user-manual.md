@@ -191,15 +191,15 @@ knowledge_base/
     └── quote.xlsx         ← 可缺；须为 .xlsx
 ```
 
-**`manifest.json` 必填业务字段（与网页表单一致）：**
+**`manifest.json` 必填业务字段（与网页表单一致；未齐则无法建立检索索引）：**
 
 | 字段 | 说明 |
 |------|------|
 | `engagement_id` | 与文件夹名一致 |
-| `project_name` | 界面显示名 |
-| `customer` | 客户 |
-| `year` | 年份（整数） |
-| `functions` | 工程领域数组，至少一项（如 `Chassis`、`PM`） |
+| `project_name` | 界面显示名（**索引门禁**） |
+| `customer` | 客户（**索引门禁**；对比矩阵「公司」列） |
+| `year` | 年份（整数，**索引门禁**） |
+| `functions` | 工程领域数组，至少一项（如 `Chassis`、`PM`；**索引门禁**） |
 | `documents[]` | `path` + `doc_type`：`rfq` / `qa` / `quote_manpower` / `summary` |
 
 **操作步骤：**
@@ -210,7 +210,7 @@ knowledge_base/
 4. 资料库管理员打开 **平台 → 知识库** → **更新知识库索引**
 5. 在 **文档清单** 核对状态与「说明」中的客户 · 年 · 领域；在 **历史资料检索** 抽检
 
-无 `manifest.json` 时系统仍可按文件名推断文档类型并索引，但客户/年份/领域为空，相似比对结构加分会变差——正式批量请勿省略。
+无 `manifest.json` 时系统仍可按文件名推断文档类型，但客户/年份/领域为空时**不会写入检索索引**——正式批量请勿省略完整 manifest。
 
 ### 5.3 客户 Demo 演示脚本
 

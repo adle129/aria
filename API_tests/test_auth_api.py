@@ -231,6 +231,16 @@ def test_engineer_cannot_patch_engagement_metadata(auth_client):
     assert resp.status_code == 403
 
 
+def test_engineer_cannot_create_customer_master_data(auth_client):
+    token = _login(auth_client, "eng01", "pass123")
+    resp = auth_client.post(
+        "/api/v1/knowledge/customers",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "ShouldFail"},
+    )
+    assert resp.status_code == 403
+
+
 def test_engineer_still_cannot_reindex(auth_client):
     token = _login(auth_client, "eng01", "pass123")
     resp = auth_client.post(

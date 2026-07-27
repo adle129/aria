@@ -13,6 +13,7 @@ export const ENGAGEMENT_FUNCTION_OPTIONS = [
 export interface EngagementMetadataFields {
   project_name?: string | null;
   customer?: string | null;
+  vehicle_model?: string | null;
   year?: number | null;
   functions?: string[] | null;
 }
@@ -48,6 +49,7 @@ export function formatEngagementMetadataSummary(
 ): string {
   const parts: string[] = [];
   if (fields.customer?.trim()) parts.push(fields.customer.trim());
+  if (fields.vehicle_model?.trim()) parts.push(fields.vehicle_model.trim());
   if (fields.year != null) parts.push(String(fields.year));
   const fns = (fields.functions || []).filter(Boolean);
   if (fns.length) parts.push(fns.join(" / "));

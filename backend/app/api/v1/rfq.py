@@ -181,14 +181,18 @@ def update_task(
     if not task:
         return JSONResponse(status_code=404, content={"code": 404, "msg": "任务 ID 不存在"})
 
-    updated = analysis_service.update_task_review(
-        db,
-        task,
-        review_status=body.status,
-        comparison_table=body.comparison_table,
-        dimension_draft=body.dimension_draft,
-        confirmed=body.confirmed,
-    )
+    try:
+        updated = analysis_service.update_task_review(
+            db,
+            task,
+            review_status=body.status,
+            comparison_table=body.comparison_table,
+            dimension_draft=body.dimension_draft,
+            function_source_map=body.function_source_map,
+            confirmed=body.confirmed,
+        )
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": analysis_service.get_task_payload(updated, db)}
 
 

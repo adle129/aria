@@ -484,6 +484,24 @@ rsync -avz ./knowledge_base/ /data/aria/app/knowledge_base/
 docker exec aria-backend python scripts/ingest_documents.py
 ```
 
+知识库管理页以「历史项目」列表为主工作面（上传抽屉 + 更新检索）。**导入审计 UI 已移除**；运维排查批次与失败文件请使用 API（需管理员鉴权）：
+
+```bash
+# 列出导入批次（审计）
+curl -s -H "Authorization: Bearer <token>" \
+  "$API_BASE/api/v1/knowledge/batches"
+
+# 单批次详情（含 failed_files 等）
+curl -s -H "Authorization: Bearer <token>" \
+  "$API_BASE/api/v1/knowledge/batches/<import_id>"
+
+# 最近索引任务
+curl -s -H "Authorization: Bearer <token>" \
+  "$API_BASE/api/v1/knowledge/imports?limit=5"
+```
+
+应用日志中亦会记录索引 job / 批次完成与失败原因，可与上述接口对照。
+
 ### 5.5 版本更新
 
 ```bash

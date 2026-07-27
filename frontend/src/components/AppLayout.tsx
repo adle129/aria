@@ -3,6 +3,7 @@
 import {
   BugOutlined,
   BulbOutlined,
+  DashboardOutlined,
   DatabaseOutlined,
   FileSearchOutlined,
   FileTextOutlined,
@@ -10,6 +11,7 @@ import {
   LogoutOutlined,
   QuestionCircleOutlined,
   SearchOutlined,
+  TagsOutlined,
   UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
@@ -37,6 +39,13 @@ import {
   type UiProfile,
 } from "@/lib/uiProfile";
 import { RFQ_BEGIN_NEW_EVENT, RFQ_BEGIN_NEW_FLAG } from "@/lib/rfqWorkspace";
+import {
+  ADMIN_NAV_GROUP_LABEL,
+  ADMIN_NAV_LABELS,
+  canAccessAdminOpsNav,
+  canAccessUserAdmin,
+} from "@/lib/adminNav";
+import { canAccessPlatformKnowledgeNav } from "@/lib/knowledgePageVisibility";
 import { matchesInboxFilter, type InboxFilterKey } from "@/lib/taskStatus";
 
 const { Header, Sider, Content } = Layout;
@@ -96,14 +105,35 @@ function buildQuotingMenuChildren(profile: UiProfile) {
   });
 }
 
-function buildPlatformKnowledgeChildren(profile: UiProfile, health: HealthData | null) {
-  const items = [
+function buildAdminOpsChildren(
+  profile: UiProfile,
+  health: HealthData | null,
+  showUserAdmin: boolean,
+) {
+  const items: NonNullable<MenuProps["items"]> = [
+    {
+      key: "/admin/overview",
+      icon: <DashboardOutlined />,
+      label: <Link href="/admin/overview">{ADMIN_NAV_LABELS.overview}</Link>,
+    },
     {
       key: "/knowledge",
       icon: <DatabaseOutlined />,
-      label: <Link href="/knowledge">知识库</Link>,
+      label: <Link href="/knowledge">{ADMIN_NAV_LABELS.documents}</Link>,
+    },
+    {
+      key: "/admin/master-data",
+      icon: <TagsOutlined />,
+      label: <Link href="/admin/master-data">{ADMIN_NAV_LABELS.masterData}</Link>,
     },
   ];
+  if (showUserAdmin) {
+    items.push({
+      key: "/admin/users",
+      icon: <UserOutlined />,
+      label: <Link href="/admin/users">{ADMIN_NAV_LABELS.users}</Link>,
+    });
+  }
   if (profile === "dev" && health?.kb_debug_enabled) {
     items.push({
       key: "/knowledge/debug",
@@ -114,23 +144,34 @@ function buildPlatformKnowledgeChildren(profile: UiProfile, health: HealthData |
   return items;
 }
 
-function buildMenuItems(profile: UiProfile, health: HealthData | null) {
-  return [
+function buildMenuItems(
+  profile: UiProfile,
+  health: HealthData | null,
+  showAdminOps: boolean,
+  showUserAdmin: boolean,
+) {
+  const items: MenuProps["items"] = [
     {
       type: "group" as const,
       label: "应用 · 报价流程",
       children: buildQuotingMenuChildren(profile),
     },
-    {
-      type: "group" as const,
-      label: "平台 · 知识库",
-      children: buildPlatformKnowledgeChildren(profile, health),
-    },
   ];
+  if (showAdminOps) {
+    items.push({
+      type: "group" as const,
+      label: ADMIN_NAV_GROUP_LABEL,
+      children: buildAdminOpsChildren(profile, health, showUserAdmin),
+    });
+  }
+  return items;
 }
 
 function selectedKey(pathname: string): string {
   if (pathname.startsWith("/knowledge/debug")) return "/knowledge/debug";
+  if (pathname.startsWith("/admin/overview")) return "/admin/overview";
+  if (pathname.startsWith("/admin/master-data")) return "/admin/master-data";
+  if (pathname.startsWith("/admin/users")) return "/admin/users";
   if (pathname.startsWith("/proposal")) return "/proposal";
   if (pathname.startsWith("/qa")) return "/qa";
   if (pathname.startsWith("/rfq")) return "/rfq";
@@ -336,12 +377,32 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
     }
   }, [authLoading, authEnabled, user, pathname, router]);
 
+  const isKbAdmin = user?.role === "kb_admin";
+  const showPlatformKnowledge = canAccessPlatformKnowledgeNav({
+    authEnabled,
+    isKbAdmin,
+  });
+  const showAdminOps = canAccessAdminOpsNav({ authEnabled, isKbAdmin });
+  const showUserAdmin = canAccessUserAdmin({ authEnabled, isKbAdmin });
+
   useEffect(() => {
     if (pathname.startsWith("/login")) return;
     if (shouldBlockPath(profile, pathname)) {
       router.replace("/rfq");
     }
   }, [profile, pathname, router]);
+
+  useEffect(() => {
+    if (pathname.startsWith("/login")) return;
+    if (authLoading) return;
+    if (pathname.startsWith("/knowledge") && !showPlatformKnowledge) {
+      router.replace("/rfq");
+      return;
+    }
+    if (pathname.startsWith("/admin") && !showAdminOps) {
+      router.replace("/rfq");
+    }
+  }, [authLoading, pathname, router, showPlatformKnowledge, showAdminOps]);
 
   if (pathname.startsWith("/login")) {
     return <>{children}</>;
@@ -355,25 +416,15 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
     return null;
   }
 
-  const isKbAdmin = user?.role === "kb_admin";
-  const menuItems = [
-    ...buildMenuItems(profile, health),
-    ...(authEnabled && isKbAdmin
-      ? [
-          {
-            type: "group" as const,
-            label: "管理",
-            children: [
-              {
-                key: "/admin/users",
-                icon: <UserOutlined />,
-                label: <Link href="/admin/users">用户管理</Link>,
-              },
-            ],
-          },
-        ]
-      : []),
-  ];
+  if (pathname.startsWith("/knowledge") && !showPlatformKnowledge) {
+    return null;
+  }
+
+  if (pathname.startsWith("/admin") && !showAdminOps) {
+    return null;
+  }
+
+  const menuItems = buildMenuItems(profile, health, showAdminOps, showUserAdmin);
   const showTaskContextBar = isTaskContextBarVisible(pathname);
   const siderWidth = pathname.startsWith("/rfq") ? 280 : 200;
 

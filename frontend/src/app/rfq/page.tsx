@@ -21,11 +21,14 @@ import DemoModuleCapability from "@/components/DemoModuleCapability";
 import DimensionBaselineReview, { type DimensionDraft } from "@/components/DimensionBaselineReview";
 import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/ComparisonMatrix";
 import RfqAnalysisProgress from "@/components/rfq/RfqAnalysisProgress";
+import RfqBaselinesDrawer from "@/components/rfq/RfqBaselinesDrawer";
+import { FunctionSourcePicker } from "@/components/rfq/FunctionSourcePicker";
 import RfqBusyHoursBanner from "@/components/rfq/RfqBusyHoursBanner";
 import RfqParseSummary from "@/components/rfq/RfqParseSummary";
 import RfqTaskHeader from "@/components/rfq/RfqTaskHeader";
 import RfqUploadZone from "@/components/rfq/RfqUploadZone";
 import WorkflowSteps from "@/components/WorkflowSteps";
+import { useAuth } from "@/context/AuthContext";
 import { useUiProfile } from "@/hooks/useUiProfile";
 import { TASK_CHANGED_EVENT, useTaskContext } from "@/context/TaskContext";
 import { actionAreaErrorFromAxios } from "@/lib/rfqBusyUx";
@@ -37,10 +40,19 @@ import {
 } from "@/lib/rfqStatusPoll";
 import { RFQ_BEGIN_NEW_EVENT, RFQ_BEGIN_NEW_FLAG, resolveRfqWorkspaceStage } from "@/lib/rfqWorkspace";
 import {
-  buildBaselinesKnowledgeHref,
   resolveEngagementId,
   resolveProjectBaselinesEngagementIds,
 } from "@/lib/rfqBaselinesLink";
+import { buildMatrixProjectHeaders } from "@/lib/matrixProjectHeader";
+import {
+  coalesceFunctionSourceMap,
+  collectSourceCandidates,
+  emptyFunctionSourceMap,
+  pickPreferredEngagementId,
+  resolveInScopeFunctions,
+  type FunctionSourceMap,
+} from "@/lib/functionSourceMap";
+import { canAccessPlatformKnowledgeNav } from "@/lib/knowledgePageVisibility";
 import { PROCESSING_STATUS_LABELS } from "@/lib/taskStatus";
 import type { ArtifactsStatus, TaskPayload } from "@/types/task";
 const { Paragraph, Title, Text } = Typography;
@@ -109,6 +121,12 @@ function buildKnowledgeVerifyQuery(task: TaskData): string {
 
 export default function RfqPage() {
   const { showDemoChrome, isFormalDelivery } = useUiProfile();
+  const { authEnabled, user } = useAuth();
+  const isKbAdmin = user?.role === "kb_admin";
+  const showKnowledgeVerifyLink = canAccessPlatformKnowledgeNav({
+    authEnabled,
+    isKbAdmin,
+  });
   const {
     syncFromPayload,
     refreshRecentTasks,
@@ -146,6 +164,20 @@ export default function RfqPage() {
   const [activePollTaskId, setActivePollTaskId] = useState<string | null>(null);
   /** PERF10: 429/队列满等须落在操作区，不能只 toast。 */
   const [actionAreaError, setActionAreaError] = useState<string | null>(null);
+  const [baselinesDrawerOpen, setBaselinesDrawerOpen] = useState(false);
+  const [baselinesEngagementId, setBaselinesEngagementId] = useState<string | null>(null);
+  const [functionSourceMap, setFunctionSourceMap] = useState<FunctionSourceMap>(
+    emptyFunctionSourceMap(),
+  );
+  const [savingSourceMap, setSavingSourceMap] = useState(false);
+  const [baselineAvailability, setBaselineAvailability] = useState<
+    Record<string, string[]>
+  >({});
+
+  const openBaselinesDrawer = useCallback((engagementId: string) => {
+    setBaselinesEngagementId(engagementId);
+    setBaselinesDrawerOpen(true);
+  }, []);
 
   useEffect(() => {
     displayedTaskIdRef.current = task?.task_id ?? null;
@@ -796,11 +828,73 @@ export default function RfqPage() {
   };
 
   const projects = (task?.comparison_table?.projects as Array<Record<string, unknown>>) || [];
-  const projectNames = projects.map((p) => String(p.project_name || "历史项目"));
+  const projectHeaders = buildMatrixProjectHeaders(projects);
   const projectBaselinesEngagementIds = resolveProjectBaselinesEngagementIds(
     projects,
     task?.similar_projects,
   );
+  const sourceCandidates = collectSourceCandidates(projects, task?.similar_projects);
+  const inScopeFunctions = resolveInScopeFunctions(
+    task?.rfq_modules as Record<string, unknown> | undefined,
+  );
+
+  useEffect(() => {
+    if (!task || task.processing_status !== "completed") return;
+    const preferred = pickPreferredEngagementId(projects, task.similar_projects);
+    setFunctionSourceMap(
+      coalesceFunctionSourceMap(
+        task.function_source_map as Record<string, unknown> | null | undefined,
+        inScopeFunctions,
+        preferred,
+      ),
+    );
+  }, [task?.task_id, task?.processing_status, task?.function_source_map]);
+
+  useEffect(() => {
+    if (task?.processing_status !== "completed" || sourceCandidates.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resp = await apiClient.get<{
+          code: number;
+          data: { projects?: Array<Record<string, unknown>> };
+        }>("/knowledge/baselines");
+        if (cancelled) return;
+        const availability: Record<string, string[]> = {};
+        for (const project of resp.data.data?.projects || []) {
+          const eid = project.engagement_id ? String(project.engagement_id) : "";
+          if (!eid) continue;
+          const fns = project.functions as Record<string, unknown> | undefined;
+          availability[eid] = fns ? Object.keys(fns) : [];
+        }
+        setBaselineAvailability(availability);
+      } catch {
+        if (!cancelled) setBaselineAvailability({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [task?.task_id, task?.processing_status, sourceCandidates.length]);
+
+  const handleSaveFunctionSourceMap = async () => {
+    if (!task) return;
+    setSavingSourceMap(true);
+    try {
+      const resp = await apiClient.put<{ code: number; data: TaskData }>(
+        `/rfq/tasks/${task.task_id}`,
+        { function_source_map: functionSourceMap },
+      );
+      setTask(resp.data.data);
+      syncFromPayload(resp.data.data);
+      message.success("报价数据源已保存");
+    } catch (err) {
+      const action = actionAreaErrorFromAxios(err);
+      message.error(action?.message || "保存报价数据源失败");
+    } finally {
+      setSavingSourceMap(false);
+    }
+  };
   const confidence = (task?.comparison_table as { overall_confidence?: string })?.overall_confidence;
   const isLowConfidence = confidence === "低";
   const insufficientEvidence = Boolean(
@@ -1078,10 +1172,11 @@ export default function RfqPage() {
             {matrixRows.length > 0 ? (
               <ComparisonMatrix
                 matrixRows={matrixRows}
-                projectNames={projectNames}
+                projectHeaders={projectHeaders}
                 projectBaselinesEngagementIds={projectBaselinesEngagementIds}
                 editable
                 onNewProjectChange={handleNewProjectChange}
+                onOpenBaselines={openBaselinesDrawer}
               />
             ) : (
               <Alert message="暂无对比矩阵数据" type="warning" />
@@ -1117,6 +1212,18 @@ export default function RfqPage() {
               )}
             </Space>
           </Card>
+        )}
+
+        {showComparisonMatrix && task.processing_status === "completed" && (
+          <FunctionSourcePicker
+            value={functionSourceMap}
+            inScope={inScopeFunctions}
+            candidates={sourceCandidates}
+            baselineAvailability={baselineAvailability}
+            saving={savingSourceMap}
+            onChange={setFunctionSourceMap}
+            onSave={() => void handleSaveFunctionSourceMap()}
+          />
         )}
 
         {showComparisonMatrix && task.processing_status === "completed" && (
@@ -1202,9 +1309,9 @@ export default function RfqPage() {
                         if (!eid) return null;
                         return (
                           <Paragraph style={{ marginBottom: 0 }}>
-                            <Link href={buildBaselinesKnowledgeHref(eid)}>
-                              查看该项目人天基线
-                            </Link>
+                            <Typography.Link onClick={() => openBaselinesDrawer(eid)}>
+                              查看该项目人天明细
+                            </Typography.Link>
                           </Paragraph>
                         );
                       })()}
@@ -1261,13 +1368,15 @@ export default function RfqPage() {
                 { title: "来源", dataIndex: "source_doc" },
                 { title: "摘要", dataIndex: "summary" },
                 {
-                  title: "人天基线",
+                  title: "人天明细",
                   width: 110,
                   render: (_, row: Record<string, unknown>) => {
                     const eid = resolveEngagementId(row, task?.similar_projects);
                     if (!eid) return "—";
                     return (
-                      <Link href={buildBaselinesKnowledgeHref(eid)}>查看</Link>
+                      <Typography.Link onClick={() => openBaselinesDrawer(eid)}>
+                        查看
+                      </Typography.Link>
                     );
                   },
                 },
@@ -1275,14 +1384,27 @@ export default function RfqPage() {
             />
             {projects.length > 0 && (
               <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-                以上对标结果来自平台知识库同一检索引擎 ·{" "}
-                <Link href={`/knowledge?q=${encodeURIComponent(buildKnowledgeVerifyQuery(task))}`}>
-                  用相同关键词验证
-                </Link>
+                以上对标结果来自平台知识库同一检索引擎
+                {showKnowledgeVerifyLink ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <Link
+                      href={`/knowledge?q=${encodeURIComponent(buildKnowledgeVerifyQuery(task))}`}
+                    >
+                      用相同关键词验证
+                    </Link>
+                  </>
+                ) : null}
               </Paragraph>
             )}
           </Card>
         )}
+        <RfqBaselinesDrawer
+          open={baselinesDrawerOpen}
+          engagementId={baselinesEngagementId}
+          onClose={() => setBaselinesDrawerOpen(false)}
+        />
       </>
     );
   };

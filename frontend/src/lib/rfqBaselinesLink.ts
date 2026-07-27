@@ -12,8 +12,12 @@ export function resolveEngagementId(
   return meta?.engagement_id ? String(meta.engagement_id) : null;
 }
 
-export function buildBaselinesKnowledgeHref(engagementId: string): string {
-  return `/knowledge?tab=baselines&engagement_id=${encodeURIComponent(engagementId)}#manpower-baselines-engagement`;
+/**
+ * Man-day baselines are viewed in the RFQ page drawer only (not /knowledge).
+ * Kept for call-site clarity / tests — always null.
+ */
+export function buildBaselinesKnowledgeHref(_engagementId: string): null {
+  return null;
 }
 
 export function resolveProjectBaselinesEngagementIds(
