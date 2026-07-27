@@ -161,3 +161,82 @@ def test_soft_delete_conflict_when_referenced(trash_session):
     with pytest.raises(EngagementTrashConflict) as exc:
         service.soft_delete("trash_eng")
     assert "task-ref" in exc.value.ref_task_ids
+
+
+def test_document_soft_delete_list_restore_purge(trash_session):
+    session, kb, tmp = trash_session
+    settings = _seed(session, kb)
+    from app.services.engagement_document_service import EngagementDocumentService
+
+    SAMPLE_QA = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "data"
+        / "templates"
+        / "qa_template.xlsx"
+    )
+    if not SAMPLE_QA.exists():
+        pytest.skip("qa template missing")
+
+    EngagementDocumentService(settings, session).upsert_document(
+        "trash_eng",
+        doc_type="qa",
+        filename="Q_A_extra.xlsx",
+        content=SAMPLE_QA.read_bytes(),
+        replace=True,
+    )
+
+    service = EngagementTrashService(settings, session)
+    deleted = service.soft_delete_document("trash_eng", doc_type="qa", deleted_by="admin")
+    assert deleted["moved_to_trash"] is True
+    assert deleted["trash_id"].startswith("doc__")
+    assert (kb / "trash_eng" / "RFQ.docx").exists()
+
+    items = service.list_items()
+    assert any(i["trash_id"] == deleted["trash_id"] for i in items)
+    doc_row = next(i for i in items if i["trash_id"] == deleted["trash_id"])
+    assert doc_row["item_kind"] == "document"
+    assert doc_row["doc_type"] == "qa"
+    assert doc_row["days_remaining"] is not None
+
+    restored = service.restore_item(deleted["trash_id"])
+    assert restored["restored"] is True
+    assert service.list_items() == []
+
+    deleted2 = service.soft_delete_document("trash_eng", doc_type="qa")
+    purged = service.purge_item(deleted2["trash_id"])
+    assert purged["purged"] is True
+    assert service.list_items() == []
+
+def test_purge_expired_removes_old_items(trash_session):
+    from datetime import UTC, datetime, timedelta
+    import json
+
+    session, kb, tmp = trash_session
+    settings = _seed(session, kb)
+    service = EngagementTrashService(settings, session)
+    service.soft_delete("trash_eng")
+    trash_dir = tmp / "trash" / "quoting" / "trash_eng"
+    meta_path = trash_dir / "trash_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    past = (datetime.now(UTC) - timedelta(days=1)).replace(microsecond=0)
+    meta["purge_after"] = past.isoformat().replace("+00:00", "Z")
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    result = service.purge_expired()
+    assert result["purged_count"] == 1
+    assert not trash_dir.exists()
+
+
+def test_parse_trash_id_helpers():
+    from app.services.engagement_trash_service import (
+        document_trash_id,
+        engagement_trash_id,
+        parse_trash_id,
+    )
+
+    assert parse_trash_id(engagement_trash_id("abc"))["engagement_id"] == "abc"
+    parsed = parse_trash_id(document_trash_id("eng_1", "quote_manpower"))
+    assert parsed["kind"] == "document"
+    assert parsed["engagement_id"] == "eng_1"
+    assert parsed["doc_type"] == "quote_manpower"

@@ -89,3 +89,65 @@ def test_list_exposes_ref_task_ids_and_blocks_delete(client, upload_dir):
     assert blocked.status_code == 409
     body = blocked.json()
     assert "rfq-ref-task-1" in (body.get("data") or {}).get("ref_task_ids", [])
+
+
+def test_document_delete_and_trash_list_restore_purge(client, upload_dir):
+    SAMPLE_QA = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "data"
+        / "templates"
+        / "qa_template.xlsx"
+    )
+    eng_id = "trash_doc_api_eng"
+    if not SAMPLE_RFQ.exists() or not SAMPLE_QA.exists():
+        pytest.skip("sample files missing")
+    get_settings.cache_clear()
+    up = client.post(
+        "/api/v1/knowledge/engagements/upload",
+        data={"engagement_id": eng_id},
+        files=[
+            ("files", ("RFQ_mock.docx", SAMPLE_RFQ.read_bytes(), "application/octet-stream")),
+            ("files", ("Q_A_mock.xlsx", SAMPLE_QA.read_bytes(), "application/octet-stream")),
+        ],
+    )
+    assert up.status_code == 200
+
+    deleted = client.delete(
+        f"/api/v1/knowledge/engagements/{eng_id}/documents",
+        params={"doc_type": "qa"},
+    )
+    assert deleted.status_code == 200
+    body = deleted.json()["data"]
+    assert body["moved_to_trash"] is True
+    trash_id = body["trash_id"]
+    assert trash_id.startswith("doc__")
+
+    listed = client.get("/api/v1/knowledge/trash")
+    assert listed.status_code == 200
+    items = listed.json()["data"]["items"]
+    assert any(i["trash_id"] == trash_id for i in items)
+
+    restored = client.post(f"/api/v1/knowledge/trash/{trash_id}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["data"]["restored"] is True
+
+    deleted2 = client.delete(
+        f"/api/v1/knowledge/engagements/{eng_id}/documents",
+        params={"doc_type": "qa"},
+    )
+    tid2 = deleted2.json()["data"]["trash_id"]
+    purged = client.delete(f"/api/v1/knowledge/trash/{tid2}")
+    assert purged.status_code == 200
+    assert purged.json()["data"]["purged"] is True
+
+    empty = client.get("/api/v1/knowledge/trash")
+    assert empty.json()["data"]["items"] == []
+
+
+def test_document_delete_404(client, upload_dir):
+    missing = client.delete(
+        "/api/v1/knowledge/engagements/no_doc_eng/documents",
+        params={"doc_type": "qa"},
+    )
+    assert missing.status_code == 404

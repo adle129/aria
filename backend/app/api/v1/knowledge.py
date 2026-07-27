@@ -649,6 +649,40 @@ async def knowledge_engagement_document_upsert(
     return {"code": 200, "data": data}
 
 
+@router.delete("/engagements/{engagement_id}/documents")
+def knowledge_engagement_document_soft_delete(
+    engagement_id: str,
+    doc_type: str = Query(...),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Soft-delete one document by doc_type into trash (R1-CHG09)."""
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(required_bytes=4096)
+        data = EngagementTrashService(settings, db).soft_delete_document(
+            engagement_id,
+            doc_type=doc_type,
+            deleted_by=getattr(admin, "id", None),
+        )
+    except EngagementTrashNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except EngagementTrashConflict as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": 409,
+                "msg": str(exc),
+                "data": {"ref_task_ids": exc.ref_task_ids},
+            },
+        )
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementTrashError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
 @router.delete("/engagements/{engagement_id}")
 def knowledge_engagement_soft_delete(
     engagement_id: str,
@@ -676,6 +710,95 @@ def knowledge_engagement_soft_delete(
         )
     except DiskCapacityError as exc:
         return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementTrashError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.get("/trash")
+def knowledge_trash_list(
+    space_id: str | None = Query(default=None),
+    purge_expired: bool = Query(default=True),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """List trash items; optionally purge expired entries first (R1-CHG09)."""
+    _ = admin
+    settings = get_settings()
+    service = EngagementTrashService(settings, db)
+    try:
+        resolved = require_known_space(
+            space_id or settings.aria_default_knowledge_space
+        )
+        purged = (
+            service.purge_expired(space_id=resolved)
+            if purge_expired
+            else {"purged_count": 0, "purged": []}
+        )
+        items = service.list_items(space_id=resolved)
+    except KnowledgeSpaceError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    except EngagementTrashError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {
+        "code": 200,
+        "data": {
+            "space_id": resolved,
+            "items": items,
+            "purged_expired_count": purged.get("purged_count", 0),
+        },
+    }
+
+
+@router.post("/trash/{trash_id}/restore")
+def knowledge_trash_restore(
+    trash_id: str,
+    space_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Restore engagement or document from trash by trash_id (R1-CHG09)."""
+    settings = get_settings()
+    try:
+        DiskGuardService(settings).assert_writable(required_bytes=4096)
+        data = EngagementTrashService(settings, db).restore_item(
+            trash_id,
+            restored_by=getattr(admin, "id", None),
+            space_id=space_id,
+        )
+    except EngagementTrashNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except EngagementTrashConflict as exc:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": 409,
+                "msg": str(exc),
+                "data": {"ref_task_ids": exc.ref_task_ids},
+            },
+        )
+    except KnowledgeSpaceError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    except DiskCapacityError as exc:
+        return JSONResponse(status_code=507, content=exc.as_response())
+    except EngagementTrashError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return {"code": 200, "data": data}
+
+
+@router.delete("/trash/{trash_id}")
+def knowledge_trash_purge(
+    trash_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(require_kb_admin),
+):
+    """Permanently delete a trash item (R1-CHG09)."""
+    _ = admin
+    settings = get_settings()
+    try:
+        data = EngagementTrashService(settings, db).purge_item(trash_id)
+    except EngagementTrashNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
     except EngagementTrashError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}

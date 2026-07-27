@@ -168,6 +168,13 @@ export default function EngagementInventoryPanel({
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<KnowledgeProjectTreeRow | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState<{
+    engagementId: string;
+    docType: string;
+    fileName: string;
+    isLastRfq: boolean;
+  } | null>(null);
+  const [docDeleteSubmitting, setDocDeleteSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingUploadRef = useRef<{
     engagementId: string;
@@ -334,6 +341,28 @@ export default function EngagementInventoryPanel({
       setDeleteSubmitting(false);
     }
   }, [deleting, onDeleted, refreshAfterWrite]);
+
+  const confirmDeleteDocument = useCallback(async () => {
+    if (!deletingDoc) return;
+    setDocDeleteSubmitting(true);
+    try {
+      await apiClient.delete(
+        `/knowledge/engagements/${encodeURIComponent(deletingDoc.engagementId)}/documents`,
+        { params: { doc_type: deletingDoc.docType } },
+      );
+      message.success("已移入回收站。请点击上方「更新检索」后才会用于相似项目对标。");
+      setDeletingDoc(null);
+      onDeleted?.();
+      await refreshAfterWrite();
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { msg?: string } } })?.response?.data?.msg ||
+        "删除失败";
+      message.error(detail);
+    } finally {
+      setDocDeleteSubmitting(false);
+    }
+  }, [deletingDoc, onDeleted, refreshAfterWrite]);
 
   return (
     <Card
@@ -537,29 +566,56 @@ export default function EngagementInventoryPanel({
                             {
                               title: "操作",
                               key: "doc_actions",
-                              width: 88,
+                              width: 140,
                               render: (_: unknown, doc: DocRowView) => {
                                 const key = `${row.engagement_id}:${doc.doc_type}`;
                                 const isPlaceholder = Boolean(doc.placeholder);
+                                const rfqCount = row.documents.filter(
+                                  (d) => d.doc_type === "rfq",
+                                ).length;
                                 return (
-                                  <Button
-                                    type="link"
-                                    size="small"
-                                    icon={<UploadOutlined />}
-                                    loading={uploadingKey === key}
-                                    disabled={Boolean(uploadingKey)}
-                                    style={
-                                      isPlaceholder ? undefined : actionLinkStyle
-                                    }
-                                    onClick={() =>
-                                      openFilePicker(
-                                        row.engagement_id,
-                                        doc.doc_type,
-                                      )
-                                    }
-                                  >
-                                    {isPlaceholder ? "补传" : "替换"}
-                                  </Button>
+                                  <Space size={0}>
+                                    <Button
+                                      type="link"
+                                      size="small"
+                                      icon={<UploadOutlined />}
+                                      loading={uploadingKey === key}
+                                      disabled={Boolean(uploadingKey)}
+                                      style={
+                                        isPlaceholder ? undefined : actionLinkStyle
+                                      }
+                                      onClick={() =>
+                                        openFilePicker(
+                                          row.engagement_id,
+                                          doc.doc_type,
+                                        )
+                                      }
+                                    >
+                                      {isPlaceholder ? "补传" : "替换"}
+                                    </Button>
+                                    {!isPlaceholder ? (
+                                      <Button
+                                        type="link"
+                                        size="small"
+                                        danger
+                                        disabled={
+                                          writeProtected || Boolean(uploadingKey)
+                                        }
+                                        onClick={() =>
+                                          setDeletingDoc({
+                                            engagementId: row.engagement_id,
+                                            docType: doc.doc_type,
+                                            fileName: fileNameFromPath(doc.path),
+                                            isLastRfq:
+                                              doc.doc_type === "rfq" &&
+                                              rfqCount <= 1,
+                                          })
+                                        }
+                                      >
+                                        删除
+                                      </Button>
+                                    ) : null}
+                                  </Space>
                                 );
                               },
                             },
@@ -777,6 +833,36 @@ export default function EngagementInventoryPanel({
         {deleting ? (
           <Text type="secondary">
             {deleting.project_name} · {deleting.engagement_id}
+          </Text>
+        ) : null}
+      </Modal>
+
+      <Modal
+        title="删除文件？"
+        open={Boolean(deletingDoc)}
+        onCancel={() =>
+          docDeleteSubmitting ? undefined : setDeletingDoc(null)
+        }
+        onOk={() => void confirmDeleteDocument()}
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true, loading: docDeleteSubmitting }}
+        cancelButtonProps={{ disabled: docDeleteSubmitting }}
+        destroyOnClose
+      >
+        <Paragraph style={{ marginBottom: 8 }}>
+          将移入回收站，保留 30 天，可在「回收站」恢复。请随后点击「更新检索」。
+        </Paragraph>
+        {deletingDoc?.isLastRfq ? (
+          <Paragraph type="danger" style={{ marginBottom: 8 }}>
+            这是该项目唯一的 RFQ。删除后项目将无法参与相似对标检索，直至补传 RFQ
+            并更新检索。
+          </Paragraph>
+        ) : null}
+        {deletingDoc ? (
+          <Text type="secondary">
+            {DOC_TYPE_LABEL[deletingDoc.docType] || deletingDoc.docType} ·{" "}
+            {deletingDoc.fileName}
           </Text>
         ) : null}
       </Modal>

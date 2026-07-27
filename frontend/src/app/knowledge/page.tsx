@@ -29,6 +29,7 @@ import { apiClient } from "@/api/client";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
 import EngagementInventoryPanel from "@/components/EngagementInventoryPanel";
 import EngagementUploadPanel from "@/components/EngagementUploadPanel";
+import KnowledgeTrashPanel from "@/components/KnowledgeTrashPanel";
 import KbCapacityAlert from "@/components/KbCapacityAlert";
 import KnowledgeIndexJobPanel from "@/components/KnowledgeIndexJobPanel";
 import { useAuth } from "@/context/AuthContext";
@@ -601,6 +602,24 @@ export default function KnowledgePage() {
               </Card>
             ),
           },
+          ...(visibility.showTrash
+            ? [
+                {
+                  key: "trash",
+                  label: "回收站",
+                  children: (
+                    <KnowledgeTrashPanel
+                      refreshToken={listRefresh}
+                      writeProtected={writeProtected}
+                      onRestored={() => {
+                        setIndexCleanupNeeded(true);
+                        void refreshAll();
+                      }}
+                    />
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
 

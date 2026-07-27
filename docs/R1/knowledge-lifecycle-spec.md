@@ -1,7 +1,7 @@
 # 知识库文档 / 项目生命周期规格（补传 · 删除 · 回收站）
 
-**版本：** v0.4 · 2026-07-27  
-**状态：** L1（CHG13）**已实现** · L2（CHG14）**已实现** · L3 待做 · 完整回收站建议确认单单列  
+**版本：** v0.5 · 2026-07-27  
+**状态：** L1（CHG13）**已实现** · L2（CHG14）**已实现** · L3（CHG09）**已实现**（确认单单列验收）  
 **关联：** [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) T7 · [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) · [dev-tasks.md](dev-tasks.md) R1-CHG09 / CHG13 / CHG14 · KH14/KH15 · [knowledge-ui-design-tasks.md](knowledge-ui-design-tasks.md)  
 
 ---
@@ -259,6 +259,17 @@ L2 若无回收站 UI：Modal 仍写「30 天可恢复」，恢复可通过 API/
 | UI | 项目行「删除项目」+ 确认 Modal；硬引用灰按钮 Tooltip 含任务 ID；删后顶栏「更新检索」清理提示（非 pending 角标） |
 | L2 范围外 | 回收站列表 UI、文档级删除、到期物理清理定时任务 → L3/CHG09 |
 
+### 8.3 L3 落地说明（CHG09 · 2026-07-27）
+
+| 项 | 实现 |
+|----|------|
+| API | `DELETE …/documents?doc_type=`；`GET/DELETE/POST /knowledge/trash[/{trash_id}[/restore]]` |
+| trash_id | `eng__{id}` / `doc__{id}__{doc_type}` |
+| Service | `EngagementTrashService`：文档软删、列表、恢复、彻底删除、`purge_expired`（列表默认触发） |
+| UI | 知识库 Tab「回收站」；展开行「删除」+ 末份 RFQ 强提示 |
+| 索引 | 不自动触发；删/恢复后 `pending` + Toast 提示「更新检索」 |
+| 确认单 | 完整验收仍建议确认单勾选 |
+
 ---
 
 ## 9. 文档与任务勘误
@@ -279,3 +290,4 @@ L2 若无回收站 UI：Modal 仍写「30 天可恢复」，恢复可通过 API/
 | v0.2 | 2026-07-27 | 补架构结论、API 草案、前端 IA/交互、与 UI 任务勘误 |
 | v0.3 | 2026-07-27 | L1（CHG13）已实现；补落地说明与 api-design 正式路径 |
 | v0.4 | 2026-07-27 | L2（CHG14）已实现；列表 `ref_task_ids` Tooltip；落地说明 |
+| v0.5 | 2026-07-27 | L3（CHG09）已实现；回收站 Tab + 文档删除 + purge_expired |

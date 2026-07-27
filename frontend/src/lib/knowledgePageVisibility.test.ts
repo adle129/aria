@@ -22,6 +22,7 @@ describe("getKnowledgePageVisibility", () => {
     expect(v.showCapacityAlert).toBe(false);
     expect(v.showOpsMockRagAlert).toBe(false);
     expect(v.showEngagementInventory).toBe(true);
+    expect(v.showTrash).toBe(false);
   });
 
   it("shows list-centric admin console for kb_admin on formal profile", () => {
@@ -35,6 +36,7 @@ describe("getKnowledgePageVisibility", () => {
     expect(v.showIndexJob).toBe(true);
     expect(v.showEngagementInventory).toBe(true);
     expect(v.showOpsMockRagAlert).toBe(true);
+    expect(v.showTrash).toBe(true);
   });
 
   it("treats auth-disabled as writable (local/dev)", () => {
@@ -46,6 +48,7 @@ describe("getKnowledgePageVisibility", () => {
     expect(v.canWriteKb).toBe(true);
     expect(v.showUpload).toBe(true);
     expect(v.showEngagementInventory).toBe(false);
+    expect(v.showTrash).toBe(true);
   });
 });
 

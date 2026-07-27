@@ -870,7 +870,19 @@ POST   /api/v1/knowledge/trash/engagements/{engagement_id}/restore?space_id=
 
 `GET /knowledge/engagements` 每行另含：`has_hard_refs`、`ref_task_ids[]`、`document_count`、`deletable`（供 UI 灰删与 Tooltip）。
 
-**L3 回收站列表 / 文档级删除：** 见 [knowledge-lifecycle-spec.md](../R1/knowledge-lifecycle-spec.md) §5.3（R1-CHG09）。
+**文档级软删 + 回收站列表（R1-CHG09 · 已实现）：**
+
+```
+DELETE /api/v1/knowledge/engagements/{engagement_id}/documents?doc_type=
+GET    /api/v1/knowledge/trash?space_id=&purge_expired=true
+POST   /api/v1/knowledge/trash/{trash_id}/restore
+DELETE /api/v1/knowledge/trash/{trash_id}
+```
+
+- `trash_id`：`eng__{engagement_id}` 或 `doc__{engagement_id}__{doc_type}`  
+- 文档删除：移入 `trash/{space_id}/doc__…/`，更新 manifest / 完整度，`index_status=pending`；删 `quote_manpower` 时移除 baselines  
+- `GET /trash` 默认先清理已过 `purge_after` 的条目  
+- 恢复文档要求目标项目仍在库中且无同类型文件  
 
 **容量错误：**
 

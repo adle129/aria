@@ -11,6 +11,8 @@ export type KnowledgePageVisibility = {
   showIndexJob: boolean;
   showEngagementInventory: boolean;
   showOpsMockRagAlert: boolean;
+  /** Recycle bin tab — kb_admin / auth-off only (R1-CHG09). */
+  showTrash: boolean;
 };
 
 /** Role × profile → which /knowledge sections render. */
@@ -25,6 +27,7 @@ export function getKnowledgePageVisibility(
     showIndexJob: canWriteKb,
     showEngagementInventory: input.isFormalDelivery,
     showOpsMockRagAlert: canWriteKb,
+    showTrash: canWriteKb,
   };
 }
 
