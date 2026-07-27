@@ -81,8 +81,14 @@ def resolve_manifest(folder: Path) -> EngagementManifest:
     manifest_path = folder / "manifest.json"
     if manifest_path.is_file():
         manifest = load_manifest_file(manifest_path)
+        updates: dict[str, Any] = {}
         if manifest.engagement_id != folder.name:
-            manifest = manifest.model_copy(update={"engagement_id": folder.name})
+            updates["engagement_id"] = folder.name
+        # Normalize legacy manifests missing space_id → quoting (schema default).
+        if not (manifest.space_id or "").strip():
+            updates["space_id"] = "quoting"
+        if updates:
+            manifest = manifest.model_copy(update=updates)
         return manifest
     return infer_manifest_from_folder(folder)
 
@@ -90,6 +96,8 @@ def resolve_manifest(folder: Path) -> EngagementManifest:
 def write_manifest(folder: Path, manifest: EngagementManifest) -> Path:
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
+    if not (manifest.space_id or "").strip():
+        manifest = manifest.model_copy(update={"space_id": "quoting"})
     path = folder / "manifest.json"
     path.write_text(
         json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2) + "\n",
@@ -103,13 +111,14 @@ def update_manifest_metadata(
     *,
     project_name: str | None = ...,
     customer: str | None = ...,
+    vehicle_model: str | None = ...,
     year: int | None = ...,
     functions: list[str] | None = ...,
 ) -> EngagementManifest:
     """Merge business metadata into folder manifest; documents stay unchanged.
 
     Pass Ellipsis (default) to leave a field unchanged; pass None to clear
-    nullable fields (customer / year) or empty list for functions.
+    nullable fields (customer / vehicle_model / year) or empty list for functions.
     """
     folder = Path(folder)
     if not folder.is_dir():
@@ -126,6 +135,12 @@ def update_manifest_metadata(
         else:
             cleaned_customer = str(customer).strip()
             updates["customer"] = cleaned_customer or None
+    if vehicle_model is not ...:
+        if vehicle_model is None:
+            updates["vehicle_model"] = None
+        else:
+            cleaned_vm = str(vehicle_model).strip()
+            updates["vehicle_model"] = cleaned_vm or None
     if year is not ...:
         updates["year"] = year
     if functions is not ...:
@@ -150,7 +165,7 @@ def update_manifest_metadata(
 
 
 def metadata_fields_complete(manifest: EngagementManifest) -> bool:
-    """Soft completeness: display name + customer + year + at least one function."""
+    """Index gate: display name + customer + year + at least one function."""
     return bool(
         (manifest.project_name or "").strip()
         and (manifest.customer or "").strip()

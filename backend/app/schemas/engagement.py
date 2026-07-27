@@ -3,6 +3,7 @@ from pathlib import PurePosixPath
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.file_compat import normalize_manifest_path, normalize_unicode
+from app.services.knowledge_space import DEFAULT_KNOWLEDGE_SPACE, normalize_space_id
 
 
 class ManifestDocument(BaseModel):
@@ -37,11 +38,20 @@ class ManifestDocument(BaseModel):
 
 class EngagementManifest(BaseModel):
     engagement_id: str = Field(..., min_length=1, max_length=128)
+    space_id: str = Field(default=DEFAULT_KNOWLEDGE_SPACE, max_length=64)
     project_name: str = Field(..., min_length=1, max_length=256)
     customer: str | None = None
+    vehicle_model: str | None = None
     year: int | None = None
     functions: list[str] = Field(default_factory=list)
     documents: list[ManifestDocument] = Field(default_factory=list)
+
+    @field_validator("space_id", mode="before")
+    @classmethod
+    def validate_space_id(cls, value: object) -> str:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return DEFAULT_KNOWLEDGE_SPACE
+        return normalize_space_id(str(value))
 
     @model_validator(mode="after")
     def validate_document_formats(self) -> "EngagementManifest":

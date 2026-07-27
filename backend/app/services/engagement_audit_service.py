@@ -18,6 +18,7 @@ from app.services.engagement_manifest_service import (
     resolve_manifest,
     update_manifest_metadata,
 )
+from app.services.master_data_service import MasterDataError, MasterDataService
 
 class EngagementAuditError(ValueError):
     pass
@@ -51,8 +52,10 @@ class EngagementAuditService:
         return self.repo.upsert(
             Engagement(
                 id=manifest.engagement_id,
+                space_id=manifest.space_id or "quoting",
                 project_name=manifest.project_name,
                 customer=manifest.customer,
+                vehicle_model=getattr(manifest, "vehicle_model", None),
                 year=manifest.year,
                 functions=list(manifest.functions or []),
                 folder_path=rel,
@@ -105,17 +108,31 @@ class EngagementAuditService:
         *,
         project_name: str | None = ...,
         customer: str | None = ...,
+        vehicle_model: str | None = ...,
         year: int | None = ...,
         functions: list[str] | None = ...,
     ) -> dict[str, Any]:
         folder = self.kb_root / engagement_id
         if not folder.is_dir():
             raise EngagementAuditNotFound(f"项目不存在：{engagement_id}")
+
+        master = MasterDataService(self.db)
+        try:
+            if customer is not ... and customer is not None:
+                customer = master.resolve_active_customer_name(str(customer))
+            if vehicle_model is not ...:
+                vehicle_model = master.resolve_active_vehicle_model_name(
+                    None if vehicle_model is None else str(vehicle_model)
+                )
+        except MasterDataError as exc:
+            raise EngagementAuditError(str(exc)) from exc
+
         try:
             manifest = update_manifest_metadata(
                 folder,
                 project_name=project_name,
                 customer=customer,
+                vehicle_model=vehicle_model,
                 year=year,
                 functions=functions,
             )
@@ -131,6 +148,7 @@ class EngagementAuditService:
                     id=engagement_id,
                     project_name=manifest.project_name,
                     customer=manifest.customer,
+                    vehicle_model=manifest.vehicle_model,
                     year=manifest.year,
                     functions=list(manifest.functions or []),
                     folder_path=existing.folder_path,
@@ -178,10 +196,17 @@ class EngagementAuditService:
                 and list(row.functions or [])
             )
         )
+        vehicle = row.vehicle_model
+        if vehicle is None and manifest is not None:
+            vehicle = manifest.vehicle_model
         return {
             "engagement_id": row.id,
+            "space_id": row.space_id
+            or (manifest.space_id if manifest is not None else None)
+            or "quoting",
             "project_name": row.project_name,
             "customer": row.customer,
+            "vehicle_model": vehicle,
             "year": row.year,
             "functions": list(row.functions or []),
             "tier": row.tier,

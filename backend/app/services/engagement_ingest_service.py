@@ -14,7 +14,10 @@ from app.repositories.engagement_repository import EngagementRepository
 from app.services.engagement_completeness import classify_engagement
 from app.services.engagement_content_hash import compute_engagement_content_hash
 from app.schemas.engagement import EngagementManifest
-from app.services.engagement_manifest_service import resolve_manifest
+from app.services.engagement_manifest_service import (
+    metadata_fields_complete,
+    resolve_manifest,
+)
 from app.services.ingest.chunk_benchmarks import assert_vector_chunks_rfqa_only, summarize_doc_type_counts
 from app.services.ingest.engagement_preview import build_engagement_preview
 from app.services.ingest.quote_baseline_extractor import extract_manpower_baselines
@@ -25,6 +28,11 @@ from app.services.knowledge_index_service import (
 from app.services.manpower_baselines_store import ManpowerBaselinesStore
 
 logger = logging.getLogger(__name__)
+
+_METADATA_GATE_MSG = (
+    "{engagement_id}: 项目信息未齐（须填写项目显示名、客户、年份、工程领域），"
+    "已跳过写入检索索引"
+)
 
 
 class EngagementIngestError(ValueError):
@@ -60,6 +68,13 @@ class EngagementIngestService:
                 f"{engagement_id}: 入库门禁未通过，须包含可解析的 rfq chunks"
             )
 
+    @staticmethod
+    def assert_metadata_gate(manifest: EngagementManifest) -> None:
+        if not metadata_fields_complete(manifest):
+            raise EngagementIngestError(
+                _METADATA_GATE_MSG.format(engagement_id=manifest.engagement_id)
+            )
+
     def _persist_engagement(
         self,
         manifest: EngagementManifest,
@@ -82,8 +97,12 @@ class EngagementIngestService:
         repo.upsert(
             Engagement(
                 id=manifest.engagement_id,
+                space_id=manifest.space_id
+                or (existing.space_id if existing else None)
+                or "quoting",
                 project_name=manifest.project_name,
                 customer=manifest.customer,
+                vehicle_model=getattr(manifest, "vehicle_model", None),
                 year=manifest.year,
                 functions=list(manifest.functions or []),
                 folder_path=rel,
@@ -110,6 +129,7 @@ class EngagementIngestService:
                 f"{manifest.engagement_id}: RFQ 解析失败 — {report['errors'][0].get('error')}"
             )
 
+        self.assert_metadata_gate(manifest)
         chunks = flatten_engagement_chunks(report, manifest, self.kb_root, folder)
         self.assert_rfq_gate(chunks, manifest.engagement_id)
         assert_vector_chunks_rfqa_only(chunks)
@@ -192,6 +212,30 @@ class EngagementIngestService:
                 raise EngagementIngestCancelled("知识库索引任务已取消")
             try:
                 manifest = resolve_manifest(folder)
+                if not metadata_fields_complete(manifest):
+                    msg = _METADATA_GATE_MSG.format(
+                        engagement_id=manifest.engagement_id
+                    )
+                    failed_files.append({"path": folder.name, "error": msg[:200]})
+                    engagement_reports.append(
+                        {
+                            "engagement_id": manifest.engagement_id,
+                            "status": "failed",
+                            "missing": ["metadata"],
+                            "error": msg[:200],
+                            **classify_engagement(["metadata"]),
+                        }
+                    )
+                    self._persist_engagement(
+                        manifest,
+                        folder,
+                        index_status="failed",
+                        error=msg[:500],
+                    )
+                    if progress_callback:
+                        progress_callback("parsing", position, total)
+                    continue
+
                 content_hash = compute_engagement_content_hash(folder)
                 existing = (
                     EngagementRepository(self.db).get_by_id(manifest.engagement_id)

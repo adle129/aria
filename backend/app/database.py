@@ -31,6 +31,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
+    from app.models.customer import Customer
     from app.models.engagement import Engagement
     from app.models.knowledge_index_generation import KnowledgeIndexGeneration, KnowledgeIndexState
     from app.models.ollama_resource_lease import OllamaResourceLease
@@ -40,6 +41,7 @@ def init_db() -> None:
     from app.models.rfq_task import RFQTask
     from app.models.task_job import TaskJob
     from app.models.user import User
+    from app.models.vehicle_model import VehicleModel
 
     Base.metadata.create_all(
         bind=engine,
@@ -49,6 +51,8 @@ def init_db() -> None:
             RFQTask.__table__,
             TaskJob.__table__,
             Engagement.__table__,
+            Customer.__table__,
+            VehicleModel.__table__,
             KnowledgeIndexGeneration.__table__,
             KnowledgeIndexState.__table__,
             OllamaResourceLease.__table__,
@@ -57,6 +61,7 @@ def init_db() -> None:
         ],
     )
     _ensure_rfq_task_columns()
+    _ensure_engagement_columns()
     _ensure_pgvector()
 
 
@@ -91,8 +96,34 @@ def _ensure_rfq_task_columns() -> None:
     if "dimension_draft" not in existing:
         col_type = "JSON" if dialect == "postgresql" else "JSON"
         additions.append(f"dimension_draft {col_type}")
+    if "function_source_map" not in existing:
+        col_type = "JSON" if dialect == "postgresql" else "JSON"
+        additions.append(f"function_source_map {col_type}")
     if not additions:
         return
     with engine.begin() as conn:
         for spec in additions:
             conn.execute(text(f"ALTER TABLE rfq_tasks ADD COLUMN {spec}"))
+
+
+def _ensure_engagement_columns() -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if "engagements" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("engagements")}
+    additions: list[str] = []
+    if "vehicle_model" not in existing:
+        additions.append("vehicle_model VARCHAR(256)")
+    if "space_id" not in existing:
+        additions.append("space_id VARCHAR(64) DEFAULT 'quoting' NOT NULL")
+    if not additions:
+        return
+    with engine.begin() as conn:
+        for spec in additions:
+            conn.execute(text(f"ALTER TABLE engagements ADD COLUMN {spec}"))
+        if "space_id" not in existing:
+            conn.execute(
+                text("UPDATE engagements SET space_id = 'quoting' WHERE space_id IS NULL OR space_id = ''")
+            )

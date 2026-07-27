@@ -163,9 +163,11 @@ class EngagementDocumentService:
         row = self.repo.get_by_id(engagement_id)
         rel = str(folder.relative_to(self.kb_root)).replace("\\", "/")
         content_hash = compute_engagement_content_hash(folder)
+        space_id = updated.space_id or "quoting"
         if row is None:
             row = Engagement(
                 id=engagement_id,
+                space_id=space_id,
                 project_name=updated.project_name,
                 customer=updated.customer,
                 vehicle_model=getattr(updated, "vehicle_model", None),
@@ -179,6 +181,7 @@ class EngagementDocumentService:
                 last_error=None,
             )
         else:
+            row.space_id = space_id or row.space_id or "quoting"
             row.project_name = updated.project_name
             row.customer = updated.customer
             row.vehicle_model = getattr(updated, "vehicle_model", None)

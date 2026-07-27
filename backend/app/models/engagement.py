@@ -15,8 +15,10 @@ class Engagement(Base):
     __tablename__ = "engagements"
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    space_id: Mapped[str] = mapped_column(String(64), nullable=False, default="quoting", index=True)
     project_name: Mapped[str] = mapped_column(String(256), nullable=False)
     customer: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    vehicle_model: Mapped[str | None] = mapped_column(String(256), nullable=True)
     year: Mapped[int | None] = mapped_column(nullable=True)
     functions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     folder_path: Mapped[str] = mapped_column(String(512), nullable=False)

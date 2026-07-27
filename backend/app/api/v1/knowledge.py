@@ -39,6 +39,10 @@ from app.services.engagement_upload_service import (
 from app.services.knowledge_document_status import overlay_document_index_status
 from app.services.knowledge_index_job_service import KnowledgeIndexJobService
 from app.services.knowledge_import_service import KnowledgeImportService
+from app.services.knowledge_space import (
+    KnowledgeSpaceError,
+    require_known_space,
+)
 from app.services.master_data_service import (
     MasterDataConflict,
     MasterDataError,
@@ -392,22 +396,33 @@ def knowledge_import_batch_detail(
 def knowledge_engagements(
     customer: str | None = Query(default=None),
     vehicle_model: str | None = Query(default=None),
+    space_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
     _user=Depends(get_current_user),
 ):
     """Read-only inventory for any authenticated user (engineers included)."""
     settings = get_settings()
+    try:
+        resolved_space = require_known_space(
+            space_id or settings.aria_default_knowledge_space
+        )
+    except KnowledgeSpaceError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     audit = EngagementAuditService(settings, db)
     items = []
     for row in EngagementRepository(db).list_all(
         customer=customer,
         vehicle_model=vehicle_model,
+        space_id=resolved_space,
     ):
         data = audit.serialize_engagement(row)
         data["uploaded_at"] = to_api_utc_iso(data.get("uploaded_at"))
         data["last_indexed_at"] = to_api_utc_iso(data.get("last_indexed_at"))
         items.append(data)
-    return {"code": 200, "data": {"engagements": items}}
+    return {
+        "code": 200,
+        "data": {"engagements": items, "space_id": resolved_space},
+    }
 
 
 @router.get("/customers")

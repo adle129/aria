@@ -23,6 +23,7 @@ from app.services.dimension_match_service import DimensionMatchService
 from app.services.embedding_service import EmbeddingError
 from app.services.llm_service import LLMService
 from app.services.ollama_concurrency import OllamaLeaseTimeout
+from app.services.knowledge_space import DEFAULT_KNOWLEDGE_SPACE
 from app.services.rag_service import RAGService
 from app.services.rfq_document_guard import RfqDocumentRejectedError
 from app.services.rfq_parse_cache_service import RfqParseCacheService
@@ -69,6 +70,8 @@ class ConfirmEnqueueResult:
 class RFQAnalysisService:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
+        # RFQ / 对标固定报价 Space；忽略客户端乱传的其他 space（R1-CHG12）。
+        self.knowledge_space_id = DEFAULT_KNOWLEDGE_SPACE
         self.parse_service = RFQParseService(self.settings)
         self.llm = LLMService(self.settings)
         self.rag = RAGService(self.settings)
@@ -755,6 +758,16 @@ class RFQAnalysisService:
         )
 
     def get_task_payload(self, task: RFQTask, db: Session | None = None) -> dict[str, Any]:
+        comparison_table = task.comparison_table
+        # Overlay live engagement customer/vehicle_model so headers stay current
+        # even when indexed chunk metadata is stale (metadata edited after index).
+        if isinstance(comparison_table, dict):
+            raw_projects = comparison_table.get("projects")
+            if isinstance(raw_projects, list):
+                comparison_table = {
+                    **comparison_table,
+                    "projects": self.rag.enrich_comparison_projects(raw_projects),
+                }
         payload: dict[str, Any] = {
             "task_id": task.id,
             "file_name": task.file_name,
@@ -764,7 +777,8 @@ class RFQAnalysisService:
             "rfq_modules": task.rfq_modules,
             "dimension_draft": task.dimension_draft,
             "similar_projects": task.similar_projects,
-            "comparison_table": task.comparison_table,
+            "comparison_table": comparison_table,
+            "function_source_map": task.function_source_map,
             "solution_draft": task.solution_draft,
             "qa_items": task.qa_items,
             "artifacts_status": compute_artifacts_status(task),
@@ -914,8 +928,16 @@ class RFQAnalysisService:
         review_status: str | None = None,
         comparison_table: dict | None = None,
         dimension_draft: dict | None = None,
+        function_source_map: dict | None = None,
         confirmed: bool | None = None,
     ) -> RFQTask:
+        from app.services.function_source_map_service import (
+            FunctionSourceMapError,
+            collect_candidate_engagement_ids,
+            normalize_function_source_map,
+            resolve_in_scope_functions,
+        )
+
         repo = RFQTaskRepository(db)
         if review_status:
             task.review_status = review_status
@@ -928,6 +950,21 @@ class RFQAnalysisService:
                 raise ValueError("当前状态不可编辑 dimension_draft")
             merged = self._merge_confirm_body(task.dimension_draft, dimension_draft)
             task.dimension_draft = merged
+        if function_source_map is not None:
+            if task.processing_status != "completed":
+                raise ValueError("对比矩阵尚未生成，无法保存报价数据源")
+            table = task.comparison_table if isinstance(task.comparison_table, dict) else {}
+            projects = table.get("projects") if isinstance(table, dict) else None
+            similar = task.similar_projects if isinstance(task.similar_projects, list) else None
+            modules = task.rfq_modules if isinstance(task.rfq_modules, dict) else None
+            try:
+                task.function_source_map = normalize_function_source_map(
+                    function_source_map,
+                    in_scope=resolve_in_scope_functions(modules),
+                    candidate_ids=collect_candidate_engagement_ids(projects, similar),
+                )
+            except FunctionSourceMapError as exc:
+                raise ValueError(str(exc)) from exc
         if confirmed and task.review_status == "draft":
             task.review_status = "in_review"
         return repo.update(task)

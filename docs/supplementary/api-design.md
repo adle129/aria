@@ -844,10 +844,15 @@ Content-Type: multipart/form-data
 
 需 `kb_admin`。成功 `200`：`engagement_id`、`doc_type`、`path`、`tier`、`metadata_complete`、`index_status=pending`、`needs_reindex=true`。副作用：更新 manifest 与完整度；**不自动全量索引**（须点「更新检索」；增量模式仅重算变更项目）。`GET /knowledge/documents` 在项目 `pending`/`failed` 时覆盖路径级「可检索」，避免替换后假绿。
 
-**Knowledge Space 预埋 / 其余生命周期：**
+**Knowledge Space 预埋（R1-CHG12 · 已实现）：**
 
-- Space 默认 `quoting`、可选 `space_id`：见 [knowledge-space-preembed-spec.md](../R1/knowledge-space-preembed-spec.md)（R1-CHG12）。  
-- 项目删除、回收站：见 [knowledge-lifecycle-spec.md](../R1/knowledge-lifecycle-spec.md) §5（R1-CHG14 / CHG09）。
+- 默认 `space_id=quoting`（配置 `ARIA_DEFAULT_KNOWLEDGE_SPACE`）。  
+- `GET /knowledge/engagements?space_id=`：省略则 quoting；未知 space → `400`；响应 `data.space_id` + 各行 `space_id`。  
+- manifest / chunk metadata 带 `space_id`；旧 manifest 缺省 normalize 为 quoting。  
+- RFQ 对标固定 quoting。向量 generation namespace 仍为 `production`（兼容现网）；物理目录迁入 `knowledge_base/quoting/` 属多库 P1。  
+- 规格：[knowledge-space-preembed-spec.md](../R1/knowledge-space-preembed-spec.md)。
+
+**其余生命周期：** 项目删除、回收站见 [knowledge-lifecycle-spec.md](../R1/knowledge-lifecycle-spec.md) §5（R1-CHG14 / CHG09）。
 
 **容量错误：**
 

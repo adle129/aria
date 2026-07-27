@@ -6,11 +6,9 @@ export type KnowledgePageRoleInput = {
 
 export type KnowledgePageVisibility = {
   canWriteKb: boolean;
-  showIngestWizard: boolean;
   showCapacityAlert: boolean;
   showUpload: boolean;
   showIndexJob: boolean;
-  showImportAudit: boolean;
   showEngagementInventory: boolean;
   showOpsMockRagAlert: boolean;
 };
@@ -22,20 +20,36 @@ export function getKnowledgePageVisibility(
   const canWriteKb = !input.authEnabled || input.isKbAdmin;
   return {
     canWriteKb,
-    showIngestWizard: canWriteKb,
     showCapacityAlert: canWriteKb,
     showUpload: canWriteKb,
     showIndexJob: canWriteKb,
-    showImportAudit: canWriteKb && input.isFormalDelivery,
     showEngagementInventory: input.isFormalDelivery,
     showOpsMockRagAlert: canWriteKb,
   };
 }
 
+/**
+ * Platform knowledge nav / route access (R1-CHG01).
+ * Auth off → show (local/dev). Auth on → kb_admin only; quote_engineer stays on RFQ.
+ */
+export function canAccessPlatformKnowledgeNav(input: {
+  authEnabled: boolean;
+  isKbAdmin: boolean;
+}): boolean {
+  if (!input.authEnabled) return true;
+  return input.isKbAdmin;
+}
+
 export function knowledgePageIntro(canWriteKb: boolean): string {
   const base =
-    "历史项目 RFQ、方案、报价等工程资料 · 平台共享检索底座。日常在「RFQ 分析」查看对标结果；本页可检索与查看统计";
-  return canWriteKb ? `${base}，并完成入库与索引。` : `${base}。`;
+    "当前为报价资料库。按历史项目集中管理资料；日常对标结果在「RFQ 分析」查看";
+  return canWriteKb
+    ? `${base}。添加历史项目：上传资料 → 完善信息 → 更新检索。`
+    : `${base}。`;
+}
+
+export function knowledgePageTitle(_canWriteKb?: boolean): string {
+  return "知识库";
 }
 
 export function knowledgeDocumentsEmptyText(opts: {
@@ -46,9 +60,9 @@ export function knowledgeDocumentsEmptyText(opts: {
     return "暂无文档；资料入库由资料库管理员或 IT 完成，完成后可在此查看与检索。";
   }
   if (opts.showDemoChrome) {
-    return "暂无文档；可将项目包放入 knowledge_base/<项目名>/ 或本页「上传项目包」";
+    return "暂无文档；可点击「添加历史项目」或由 IT 将项目包放入 knowledge_base/<项目名>/";
   }
-  return "暂无文档；请通过 IT 目录入库或本页「上传项目包」添加 Engagement";
+  return "暂无文档；请点击「添加历史项目」或由 IT 目录落盘后更新检索";
 }
 
 export function knowledgeCoverageHint(canWriteKb: boolean): string {
@@ -60,7 +74,7 @@ export function knowledgeCoverageHint(canWriteKb: boolean): string {
 
 export function knowledgeSearchHint(canWriteKb: boolean): string {
   if (canWriteKb) {
-    return "RFQ 分析页中的「相似历史项目」由相同检索逻辑产生；结果按历史项目聚合，展开可查看章节路径与内容片段。";
+    return "与「RFQ 分析」相似项目使用同一检索逻辑；结果按历史项目聚合，可展开查看出处。";
   }
   return "与「RFQ 分析」相似项目使用同一检索逻辑；列表按历史项目聚合，可展开查看出处。";
 }

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessPlatformKnowledgeNav,
   getKnowledgePageVisibility,
   knowledgeCoverageHint,
   knowledgeDocumentsEmptyText,
   knowledgePageIntro,
+  knowledgePageTitle,
   knowledgeSearchHint,
 } from "./knowledgePageVisibility";
 
@@ -15,26 +17,22 @@ describe("getKnowledgePageVisibility", () => {
       isFormalDelivery: true,
     });
     expect(v.canWriteKb).toBe(false);
-    expect(v.showIngestWizard).toBe(false);
     expect(v.showUpload).toBe(false);
     expect(v.showIndexJob).toBe(false);
     expect(v.showCapacityAlert).toBe(false);
-    expect(v.showImportAudit).toBe(false);
     expect(v.showOpsMockRagAlert).toBe(false);
     expect(v.showEngagementInventory).toBe(true);
   });
 
-  it("shows full admin console for kb_admin on formal profile", () => {
+  it("shows list-centric admin console for kb_admin on formal profile", () => {
     const v = getKnowledgePageVisibility({
       authEnabled: true,
       isKbAdmin: true,
       isFormalDelivery: true,
     });
     expect(v.canWriteKb).toBe(true);
-    expect(v.showIngestWizard).toBe(true);
     expect(v.showUpload).toBe(true);
     expect(v.showIndexJob).toBe(true);
-    expect(v.showImportAudit).toBe(true);
     expect(v.showEngagementInventory).toBe(true);
     expect(v.showOpsMockRagAlert).toBe(true);
   });
@@ -46,16 +44,42 @@ describe("getKnowledgePageVisibility", () => {
       isFormalDelivery: false,
     });
     expect(v.canWriteKb).toBe(true);
-    expect(v.showIngestWizard).toBe(true);
+    expect(v.showUpload).toBe(true);
     expect(v.showEngagementInventory).toBe(false);
-    expect(v.showImportAudit).toBe(false);
+  });
+});
+
+describe("canAccessPlatformKnowledgeNav", () => {
+  it("hides knowledge nav for quote engineer when auth is on", () => {
+    expect(
+      canAccessPlatformKnowledgeNav({ authEnabled: true, isKbAdmin: false }),
+    ).toBe(false);
+  });
+
+  it("shows knowledge nav for kb_admin when auth is on", () => {
+    expect(
+      canAccessPlatformKnowledgeNav({ authEnabled: true, isKbAdmin: true }),
+    ).toBe(true);
+  });
+
+  it("shows knowledge nav when auth is disabled (local/dev)", () => {
+    expect(
+      canAccessPlatformKnowledgeNav({ authEnabled: false, isKbAdmin: false }),
+    ).toBe(true);
   });
 });
 
 describe("knowledge page copy helpers", () => {
+  it("keeps 知识库 as the primary product name", () => {
+    expect(knowledgePageTitle(true)).toBe("知识库");
+    expect(knowledgePageTitle(false)).toBe("知识库");
+  });
+
   it("keeps engineer intro free of ingest CTA", () => {
-    expect(knowledgePageIntro(false)).not.toMatch(/入库与索引/);
-    expect(knowledgePageIntro(true)).toMatch(/入库与索引/);
+    expect(knowledgePageIntro(false)).not.toMatch(/添加历史项目/);
+    expect(knowledgePageIntro(true)).toMatch(/添加历史项目/);
+    expect(knowledgePageIntro(true)).toMatch(/更新检索/);
+    expect(knowledgePageIntro(true)).toMatch(/报价资料库/);
   });
 
   it("does not tell engineers to upload packages", () => {
@@ -63,7 +87,7 @@ describe("knowledge page copy helpers", () => {
       canWriteKb: false,
       showDemoChrome: false,
     });
-    expect(empty).not.toMatch(/上传项目包/);
+    expect(empty).not.toMatch(/添加历史项目/);
     expect(empty).toMatch(/资料库管理员|IT/);
   });
 

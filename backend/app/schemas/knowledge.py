@@ -52,6 +52,8 @@ class KnowledgeDocumentItem(BaseModel):
     doc_type: str
     status: str
     file_size_bytes: int | None = None
+    # Disk mtime (ISO UTC); shown as file time in admin inventory.
+    modified_at: str | None = None
     error: str | None = None
     engagement_id: str | None = None
     customer: str | None = None
@@ -123,6 +125,7 @@ class EngagementAuditItem(BaseModel):
     engagement_id: str
     project_name: str
     customer: str | None = None
+    vehicle_model: str | None = None
     year: int | None = None
     functions: list[str] = Field(default_factory=list)
     tier: str | None = None
@@ -141,8 +144,26 @@ class EngagementMetadataUpdate(BaseModel):
 
     project_name: str = Field(..., min_length=1, max_length=256)
     customer: str = Field(..., min_length=1, max_length=256)
+    vehicle_model: str | None = Field(default=None, max_length=256)
     year: int = Field(..., ge=1990, le=2100)
     functions: list[str] = Field(..., min_length=1)
+
+
+class MasterDataCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=256)
+
+
+class MasterDataUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=256)
+    is_active: bool | None = None
+
+
+class MasterDataItem(BaseModel):
+    id: str
+    name: str
+    is_active: bool
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class KnowledgeStatsResponse(BaseModel):

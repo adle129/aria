@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     knowledge_base_path: str = "./data/knowledge_base"
     manpower_baselines_path: str = "./data/manpower_baselines.json"
     dimension_baseline_path: str = "./data/config/dimension_baseline.v1.json"
+    # R1-CHG12: product Space id (default quoting). Vector namespace stays separate
+    # for backward compatibility with existing generations (`production`).
+    aria_default_knowledge_space: str = "quoting"
     knowledge_vector_namespace: str = "production"
     template_path: str = "./data/templates"
     samples_rfq_path: str = "/app/samples/rfq"

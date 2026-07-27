@@ -120,8 +120,10 @@ def flatten_engagement_chunks(
     engagement_id = manifest.engagement_id
     base_meta = {
         "engagement_id": engagement_id,
+        "space_id": getattr(manifest, "space_id", None) or "quoting",
         "project_name": manifest.project_name,
         "customer": manifest.customer,
+        "vehicle_model": getattr(manifest, "vehicle_model", None),
         "year": manifest.year,
         "functions": list(manifest.functions or []),
     }

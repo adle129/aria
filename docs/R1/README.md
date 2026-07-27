@@ -39,6 +39,8 @@
 | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) | **客户历史项目库 bulk 导入** 工作量 · 试点 · 验收档位 A/B/C |
 | [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md) | **多人 RFQ 排队体验**：架构（不引入 Redis/Celery）· UI 文案 · **R1-PERF** 任务 |
 | [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) | **已定变更范围**：角色分流 · 九模块多源选源 · Word 入口 · 起草台分期与架构（**待确认单**） |
+| [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) | **Knowledge Space 预埋（R1-CHG12 已落地）**：默认 `quoting` · `space_id`/API · 扩展边界（**不交付多库产品**） |
+| [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md) | **文档/项目生命周期**：补传替换 · 删除引用规则 · 回收站 30 天分期（L1–L3） |
 | [customer-feedback-draft-2026-07-25.md](customer-feedback-draft-2026-07-25.md) | **对客反馈稿**（邮件完整版 + 微信短版） |
 | [change-map-vision-spike-plan.md](change-map-vision-spike-plan.md) | **红旅图/色标变更图** PPT·PDF 识别 Spike（**待排期 · R1 外变更候选**） |
 | [pdf-ppt-de-rfq-vision-eval.md](pdf-ppt-de-rfq-vision-eval.md) | **PDF/PPT + 德语 RFQ + 跨语种对标**：云 API vs 本地双路线与硬件评估 |
