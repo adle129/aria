@@ -63,6 +63,8 @@ class Settings(BaseSettings):
 
     validation_corpus_path: str = r"E:/AI文档项目/RE_ 报价AI需求沟通"
     feedback_path: str = "./data/app/feedback/debug_feedback.jsonl"
+    # R1-CHG06: append-only audit log for knowledge source downloads
+    knowledge_download_audit_path: str = "./data/app/audit/knowledge_downloads.jsonl"
 
     prompt_version: str = "v1"
     chroma_path: str = "./data/chroma_db"

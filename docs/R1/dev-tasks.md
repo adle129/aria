@@ -428,7 +428,7 @@
 | R1-CHG03 | P0 | T3 选源壳：RFQ 页九模块勾选 + 保存 `function_source_map`；`/quote` 只读确认 | 文案标明真拼装属后续；`/quote` 不改 map | CHG02 · 架构 Q5 | **已完成** |
 | R1-CHG04 | P1 | T7 管理员壳：项目文档 IA 文案/导航；概览占位 + AI 健康一条 | 不做回收站深逻辑 | CHG01 | **已完成** |
 | R1-CHG05 | P1 | T2a 车型 + 客户/车型主数据（kb_admin 维护）+ 列表筛选 | manifest/`engagements.vehicle_model`；主数据 CRUD；表单下拉；`GET engagements` 筛选 | CHG02 | **已完成** |
-| R1-CHG06 | P1 | 历史源文件授权下载（矩阵内） | 鉴权+审计；确认单勾选后做 | CHG02 · 安全 | 待开始 |
+| R1-CHG06 | P1 | 历史源文件授权下载（矩阵内） | 鉴权+审计；矩阵「下载 RFQ」；JSONL 审计 | CHG02 · 安全 | **已完成** |
 | R1-CHG07 | P0 | T3 真多源拼装 + `quote_fill_report`（M3） | scope 内多 engagement；单测+API；接真实 baselines | CHG03 · M3 · 确认单 | 待开始 |
 | R1-CHG08 | P1 | T4 模块关键字摘要缓存（矩阵后异步） | 选源读缓存；禁 3×9 现场检索 | CHG03 · 客户关键字表 | 待开始 |
 | R1-CHG09 | P2 | T7 回收站 30 天 + 文档级删除（L3） | 见 [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md)；恢复/清理/索引·baselines 联动；确认单单列 | CHG13–14 · 确认单 | **已完成**（确认单勾选后验收） |
@@ -450,6 +450,7 @@
 | P1 | R1-CHG12 | Space 代码预埋 | [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) **v0.3** | **已完成** |
 | P1 | R1-CHG14 | 无引用项目删除 | lifecycle **v0.4** L2 | **已完成** |
 | P2 | R1-CHG09 | 回收站 30 天 + 文档删除 | lifecycle **v0.5** L3 | **已完成**（建议确认单勾选后验收） |
+| P1 | R1-CHG06 | 矩阵内历史源文件下载 | api-design 下载接口 + JSONL 审计 | **已完成** |
 | 后置 | — | 多库产品 / ACL / 财务 Space | Space 规格 P1 | 不排本期 |
 
 **架构/UI 评审摘要：** 两块均**演进现网、不大拆**；Space 预埋期几乎无新 UI；生命周期操作落在历史项目展开行/项目行，L3 再加回收站 Tab。详见两规格 §0。

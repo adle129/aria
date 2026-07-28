@@ -870,6 +870,25 @@ POST   /api/v1/knowledge/trash/engagements/{engagement_id}/restore?space_id=
 
 `GET /knowledge/engagements` 每行另含：`has_hard_refs`、`ref_task_ids[]`、`document_count`、`deletable`（供 UI 灰删与 Tooltip）。
 
+**历史源文件授权下载（R1-CHG06 · 已实现）：**
+
+```
+GET /api/v1/knowledge/engagements/{engagement_id}/documents/download?doc_type=&task_id=
+```
+
+| 参数 | 说明 |
+|------|------|
+| `doc_type` | 默认 `rfq`；可选 `rfq` / `qa` / `quote_manpower` / `summary` |
+| `task_id` | 可选；写入审计；下载文件名强制带 `__task-{task_id}`（中文原名改用 `{engagement_id}_{doc_type}__task-…` 以保证 Content-Disposition 可解析） |
+
+需登录用户（`get_current_user`；`AUTH_ENABLED=false` 时放行）。成功返回文件流（`FileResponse`）。审计追加写入 `KNOWLEDGE_DOWNLOAD_AUDIT_PATH`（默认 `./data/app/audit/knowledge_downloads.jsonl`）。工程师在对比矩阵表头「下载 RFQ」调用本接口，无需进入知识库运维页。
+
+| 状态 | 条件 |
+|------|------|
+| `404` | 项目不存在 / 该类型文件缺失 |
+| `400` | 非法 `doc_type` 等 |
+| `401` | 鉴权开启且未登录 |
+
 **文档级软删 + 回收站列表（R1-CHG09 · 已实现）：**
 
 ```

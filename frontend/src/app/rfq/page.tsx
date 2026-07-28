@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiClient, clearStoredTaskId, fetchHealth, retryTask } from "@/api/client";
+import { buildKnowledgeDownloadFilename } from "@/lib/knowledgeDownloadFilename";
 import DemoModuleCapability from "@/components/DemoModuleCapability";
 import DimensionBaselineReview, { type DimensionDraft } from "@/components/DimensionBaselineReview";
 import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/ComparisonMatrix";
@@ -178,6 +179,59 @@ export default function RfqPage() {
     setBaselinesEngagementId(engagementId);
     setBaselinesDrawerOpen(true);
   }, []);
+
+  const downloadHistorySource = useCallback(
+    async (engagementId: string, docType = "rfq") => {
+      try {
+        const resp = await apiClient.get(
+          `/knowledge/engagements/${encodeURIComponent(engagementId)}/documents/download`,
+          {
+            params: {
+              doc_type: docType,
+              task_id: task?.task_id || undefined,
+            },
+            responseType: "blob",
+          },
+        );
+        const disposition = String(
+          resp.headers["content-disposition"] || "",
+        );
+        const filename = buildKnowledgeDownloadFilename({
+          disposition,
+          engagementId,
+          docType,
+          taskId: task?.task_id,
+        });
+        const url = URL.createObjectURL(resp.data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        message.success("已开始下载");
+      } catch (err: unknown) {
+        let detail = "下载失败";
+        const data = (err as { response?: { data?: unknown } })?.response?.data;
+        if (typeof Blob !== "undefined" && data instanceof Blob) {
+          try {
+            const parsed = JSON.parse(await data.text()) as { msg?: string };
+            if (parsed?.msg) detail = parsed.msg;
+          } catch {
+            /* keep default */
+          }
+        } else if (
+          data &&
+          typeof data === "object" &&
+          "msg" in data &&
+          typeof (data as { msg: unknown }).msg === "string"
+        ) {
+          detail = (data as { msg: string }).msg;
+        }
+        message.error(detail);
+      }
+    },
+    [task?.task_id],
+  );
 
   useEffect(() => {
     displayedTaskIdRef.current = task?.task_id ?? null;
@@ -1177,6 +1231,7 @@ export default function RfqPage() {
                 editable
                 onNewProjectChange={handleNewProjectChange}
                 onOpenBaselines={openBaselinesDrawer}
+                onDownloadSource={downloadHistorySource}
               />
             ) : (
               <Alert message="暂无对比矩阵数据" type="warning" />

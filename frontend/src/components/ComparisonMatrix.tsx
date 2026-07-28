@@ -37,6 +37,8 @@ interface ComparisonMatrixProps {
   onNewProjectChange?: (dimension: string, value: string) => void;
   /** Open in-page baselines drawer (R1-CHG01); do not link to /knowledge. */
   onOpenBaselines?: (engagementId: string) => void;
+  /** Download historical source file (R1-CHG06); default RFQ. */
+  onDownloadSource?: (engagementId: string, docType?: string) => void;
 }
 
 function MatchIcon({ match }: { match?: boolean | null }) {
@@ -53,6 +55,7 @@ export function ComparisonMatrix({
   editable = false,
   onNewProjectChange,
   onOpenBaselines,
+  onDownloadSource,
 }: ComparisonMatrixProps) {
   const headers: MatrixProjectHeader[] =
     projectHeaders && projectHeaders.length > 0
@@ -116,17 +119,30 @@ export function ComparisonMatrix({
               ) : null}
             </div>
           </Tooltip>
-          {engagementId && onOpenBaselines ? (
+          {engagementId && (onOpenBaselines || onDownloadSource) ? (
             <div style={{ marginTop: 2 }}>
-              <Typography.Link
-                style={{ fontSize: 11, fontWeight: 500 }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  onOpenBaselines(engagementId);
-                }}
-              >
-                人天明细
-              </Typography.Link>
+              {onOpenBaselines ? (
+                <Typography.Link
+                  style={{ fontSize: 11, fontWeight: 500, marginRight: 8 }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onOpenBaselines(engagementId);
+                  }}
+                >
+                  人天明细
+                </Typography.Link>
+              ) : null}
+              {onDownloadSource ? (
+                <Typography.Link
+                  style={{ fontSize: 11, fontWeight: 500 }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onDownloadSource(engagementId, "rfq");
+                  }}
+                >
+                  下载 RFQ
+                </Typography.Link>
+              ) : null}
             </div>
           ) : null}
         </div>

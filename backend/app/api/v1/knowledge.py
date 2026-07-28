@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_kb_admin
@@ -25,6 +25,11 @@ from app.services.engagement_document_service import (
     EngagementDocumentError,
     EngagementDocumentNotFound,
     EngagementDocumentService,
+)
+from app.services.engagement_download_service import (
+    EngagementDownloadError,
+    EngagementDownloadNotFound,
+    EngagementDownloadService,
 )
 from app.services.engagement_ingest_service import EngagementIngestError, EngagementIngestService
 from app.services.engagement_reference_service import (
@@ -681,6 +686,46 @@ def knowledge_engagement_document_soft_delete(
     except EngagementTrashError as exc:
         return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
     return {"code": 200, "data": data}
+
+
+@router.get("/engagements/{engagement_id}/documents/download")
+def knowledge_engagement_document_download(
+    engagement_id: str,
+    doc_type: str = Query(default="rfq"),
+    task_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Download one source document by doc_type (R1-CHG06). Any logged-in role."""
+    settings = get_settings()
+    service = EngagementDownloadService(settings, db)
+    try:
+        resolved = service.resolve_document(engagement_id, doc_type=doc_type)
+        download_name = service.download_filename(
+            resolved["filename"],
+            task_id=task_id,
+            engagement_id=resolved["engagement_id"],
+            doc_type=resolved["doc_type"],
+        )
+        service.append_audit(
+            engagement_id=resolved["engagement_id"],
+            doc_type=resolved["doc_type"],
+            filename=download_name,
+            user_id=getattr(user, "id", None),
+            username=getattr(user, "username", None),
+            task_id=task_id,
+            outcome="ok",
+        )
+    except EngagementDownloadNotFound as exc:
+        return JSONResponse(status_code=404, content={"code": 404, "msg": str(exc)})
+    except EngagementDownloadError as exc:
+        return JSONResponse(status_code=400, content={"code": 400, "msg": str(exc)})
+    return FileResponse(
+        path=str(resolved["path"]),
+        filename=download_name,
+        media_type=resolved["media_type"],
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.delete("/engagements/{engagement_id}")
