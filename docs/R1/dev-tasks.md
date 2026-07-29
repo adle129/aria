@@ -432,7 +432,7 @@
 | R1-CHG07 | P0 | T3 真多源拼装 + `quote_fill_report`（M3） | scope 内多 engagement；单测+API；接真实 baselines | CHG03 · M3 · 确认单 | 待开始 |
 | R1-CHG08 | P1 | T4 模块关键字摘要缓存（矩阵后异步） | 矩阵完成后写 `module_source_summaries`；选源只读；W1 静态占位 | CHG03 · 客户关键字表 | **已完成**（W1 占位；客户表到位后换真摘要） |
 | R1-CHG09 | P2 | T7 回收站 30 天 + 文档级删除（L3） | 见 [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md)；恢复/清理/索引·baselines 联动；确认单单列 | CHG13–14 · 确认单 | **已完成**（确认单勾选后验收） |
-| R1-CHG10 | P2 | T6 起草台 B1（默认不勾） | 拆页/模板 Word/入解析；独立草稿区 | 客户勾选+模板 | 待开始 |
+| R1-CHG10 | P2 | T6 起草台：W1 壳 → 真 B1（默认不勾真能力） | 壳见 [rfq-drafting-workbench-w1-shell.md](rfq-drafting-workbench-w1-shell.md)；真抽取/Word 待客户点头 | 客户确认 · 模板/样例 | **方案已定 · 壳待实现** |
 | R1-CHG11 | P2 | T6-B2 色标识别 | Spike 后另议 | 样例+出内网 | 待开始 |
 | R1-CHG12 | P1 | Knowledge Space **代码**预埋（默认 `quoting`） | 规格 [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) **v0.3**；`space_id`/chunk meta/API 默认；行为与现网一致 | 架构 | **已完成** |
 | R1-CHG13 | P0 | 文档级补传/替换（L1） | 按 doc_type 补传或替换；完整度刷新；提示更新检索；unit+API+UI | 生命周期规格 | **已完成** |

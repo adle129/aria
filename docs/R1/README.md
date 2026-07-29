@@ -39,6 +39,7 @@
 | [bulk-import-workload-assessment.md](bulk-import-workload-assessment.md) | **客户历史项目库 bulk 导入** 工作量 · 试点 · 验收档位 A/B/C |
 | [rfq-concurrency-ux-plan.md](rfq-concurrency-ux-plan.md) | **多人 RFQ 排队体验**：架构（不引入 Redis/Celery）· UI 文案 · **R1-PERF** 任务 |
 | [confirmed-change-scope-architecture.md](confirmed-change-scope-architecture.md) | **已定变更范围**：角色分流 · 九模块多源选源 · Word 入口 · 起草台分期与架构（**待确认单**） |
+| [rfq-drafting-workbench-w1-shell.md](rfq-drafting-workbench-w1-shell.md) | 起草台 W1 体验壳走查：草稿导出闭环 · 不接入解析 |
 | [knowledge-space-preembed-spec.md](knowledge-space-preembed-spec.md) | **Knowledge Space 预埋（R1-CHG12 已落地）**：默认 `quoting` · `space_id`/API · 扩展边界（**不交付多库产品**） |
 | [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md) | **文档/项目生命周期**：补传替换 · 删除引用规则 · 回收站 30 天分期（L1–L3） |
 | [customer-feedback-draft-2026-07-25.md](customer-feedback-draft-2026-07-25.md) | **对客反馈稿**（邮件完整版 + 微信短版） |
