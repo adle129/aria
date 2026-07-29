@@ -19,6 +19,7 @@ backend/data/outputs/*
 backend/data/chroma_db/*
 backend/data/validation_reports/*
 backend/data/app/feedback/*
+*.aria_text_fp
 !backend/data/**/.gitkeep
 
 *.xlsx

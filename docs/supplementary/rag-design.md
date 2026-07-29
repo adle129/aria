@@ -110,10 +110,12 @@ flowchart TB
 **RFQ 章节对齐 Layer 2（关键细比填表 · 非全文 diff）：** 在 Layer 1 候选窗内，当传入 `dimension_draft` 时：
 
 1. 按 `engagement_id`（缺则 `source_doc`）拉取该历史 RFQ 全部切片（`list_chunks_by_engagement`）
-2. 对每个已确认 `in_scope` 维度：规范化标题将 `name` 与历史 `section_path` / `chunk_chapter` 软匹配；一对多时取与 `work_content` 文本重叠最高的叶块（P0 不做额外 embedding 调用）
+2. 对每个已确认 `in_scope` 维度：用 `name` **及基线/草稿 `keywords`** 与历史 `section_path` / `chunk_chapter` 软匹配（取最高分）；一对多时取与 `work_content` 文本重叠最高的叶块（P0 不做额外 embedding 调用）
 3. 写入 `project.dimensions[dim] = { value, match, section_path, chunk_id, content_score }`；失败则 `value=未知`、`match=null`，**禁止编造**
 4. P0 **只填表不改序**（最终仍截断 Layer1 Top-3）；排序轻量回写属后续增强
-5. **同源短路（字节一致）：** 若上传 RFQ 与库内 RFQ `SHA256` 相同，则 Layer‑2 不再用软匹配阈值否决：`section_coverage=1.0`，各 in_scope 维度 `match=true`（保留已挂上的章节摘录；未挂上则写「同源 RFQ…」说明）。**不同源**仍走步骤 2–4，行为不变。
+5. **同文件短路（字节或正文指纹一致）：** 文档级判定用于置顶与 `match=true` / coverage；**矩阵单元格只展示章节对齐摘录**。无摘录时写「未匹配到对应章节」（**不**在单元格声称「文件/内容一致」——那是文档级结论，不是维度级证据）。**不同源**仍走步骤 2–4。
+   - 「未匹配到对应章节」来自 **Layer-2 规则对齐**（基线维度名 **+ 基线 `keywords`/草稿 keywords** ↔ `section_path` 标题重叠），**不是** LLM Prompt 关键字失败。关键词来自 `dimension_baseline.v1.json`（或草稿项），**无 hardcode 词表**。
+   - 单元格附带 `align_diag`：`match_via=name|keyword`；`TITLE_MISMATCH` / `NO_BODY_EVIDENCE` / `EMPTY_DOC` / `EMPTY_CHUNK_BODY`。矩阵悬停可看 `reason_zh`。
 
 **明确不做：** 无界整章/全文 diff、跨模型整章 rewrite、全库逐章节二次检索、上传中新 RFQ 入库向量。
 
@@ -125,7 +127,7 @@ flowchart TB
 | `qa` | `{ "sheet": "Sheet1", "row": 12, "area": "Chassis" }` |
 | `quote_manpower` | 不进向量主检索；baselines 中 `{ "sheet": "PM", "row": 5 }` |
 
-**拒答门控（R1）：** Top-K 为空，或 `max(vector_score, similarity_score) < 阈值`（默认 **0.55**，`RAG_SIMILARITY_THRESHOLD`）→ `insufficient_evidence: true`。**优先看向量召回分**，结构融合分不得单独否决展示。同源 RFQ（上传文件与库内 RFQ **字节一致**）短路为 1.0 并置顶，且视为充足证据。
+**拒答门控（R1）：** Top-K 为空，或 `max(vector_score, similarity_score) < 阈值`（默认 **0.55**，`RAG_SIMILARITY_THRESHOLD`）→ `insufficient_evidence: true`。**优先看向量召回分**，结构融合分不得单独否决展示。同源 RFQ（上传与库内 **字节 SHA 一致**，或 **规范化正文指纹**一致）短路为 1.0 并置顶，且视为充足证据；矩阵单元格仍只填章节摘录（见上 Layer-2）。
 
 | 字段 | Demo | Phase 2 | 说明 |
 |------|------|---------|------|

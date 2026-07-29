@@ -209,8 +209,8 @@ Service → unit test → API → API test → 前端 → 联调
 ### 9.1 客户配合（业务 · 非开发方案确认）
 
 - [ ] **≥5 套**金标准 + **内网 bulk** 提供计划（清点表 O-02d；R1 第 7–8 周内网验收；见 [bulk-import-workload-assessment.md](../R1/bulk-import-workload-assessment.md)）  
-- [ ] **工作维度基准表（~100 项）** — 见 [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md)（**R1-β 验收前**）  
-- [ ] R1 验收方式双方已知悉（检索评测表 + 3 RFQ 基准勾选流程 — 合同附件已有）  
+- [ ] **工作维度基准表（~100 项）** + **章节别名对照（O-01a）** + **矩阵单元格金标准（O-01b）** — 见 [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md) · [customer-dependencies](../R1/customer-dependencies.md)（**R1-β 验收前**）
+- [ ] R1 验收方式双方已知悉（检索评测表 + 3 RFQ 基准勾选流程 — 合同附件已有）
 - [ ] IT：M0 数据盘 / GPU / Ollama（与 R1 并行）  
 
 ### 9.2 内部（开发团队）

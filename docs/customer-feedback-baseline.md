@@ -27,7 +27,7 @@
    - 直观区分本次需求 **需要 / 不需要** 的业务模块（是否需底盘、内外饰等岗位介入）。  
 3. **人工交互校验：** 机器初次解析后提供 **勾选界面**，人工复核并补充遗漏维度；人机确认后进入下一流程（RAG Top-3 + 对比矩阵）。
 
-> **开放项：** 约 100 项 **正式基准清单** 尚待客户提供；**R1-β 验收签字** 须导入客户正式清单（见 [rfq-dimension-baseline-spec.md §5](supplementary/rfq-dimension-baseline-spec.md)）。
+> **开放项：** 约 100 项 **正式基准清单** 尚待客户提供；为保证维度对比矩阵业务准确度，另需 **章节别名对照（O-01a）** 与 **矩阵单元格金标准（O-01b）**。跟踪见 [customer-dependencies.md](R1/customer-dependencies.md)；模板见 [rfq-dimension-baseline-spec 附录 A](supplementary/rfq-dimension-baseline-spec.md)。**R1-β 验收签字** 须导入客户正式清单。
 
 ### 1.2 使用场景问卷（SURVEY · 2026-07-07）
 
@@ -150,7 +150,9 @@
 | ~~Q3 QA 编辑方式~~ | — | **已确认 2026-07-04** |
 | ~~O-06 高峰并发~~ | — | **已关闭 2026-07-07** · 3–5 人 |
 | ~~O-07 排队 SLA~~ | — | **已关闭 2026-07-07** · ≤10 min |
-| **工作维度基准清单（~100 项）** | 贵司 | **R1 第 7–8 周前**（见 [rfq-dimension-baseline-spec §6](supplementary/rfq-dimension-baseline-spec.md)） |
+| **O-01 工作维度基准清单（~100 项）** | 贵司 | **R1 第 7–8 周前**（[customer-dependencies](R1/customer-dependencies.md) · [附录 A](supplementary/rfq-dimension-baseline-spec.md)） |
+| **O-01a 维度 ↔ 历史章节别名对照** | 贵司（乙方可协助整理） | 与 O-01 同批或其后 1 周；**矩阵准确度** |
+| **O-01b 矩阵单元格金标准（2～3 份历史 RFQ）** | 贵司业务 | 第 7–8 周联合调优前；**矩阵签字** |
 | ≥5 套金标准 + 内网 bulk 落盘计划（清点表 O-02d） | 贵司 + 我方 | **R1 启动前 / 并行** |
 | Content Template 34 页签收 | 贵司 | **M5 启动前** |
 | scope↔slide 映射表 | 贵司 | **M5 启动前** |

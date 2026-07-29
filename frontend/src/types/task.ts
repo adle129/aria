@@ -102,6 +102,16 @@ export interface TaskPayload {
   comparison_table?: Record<string, unknown>;
   /** Per-Function Sheet → engagement_id | null (R1-CHG03) */
   function_source_map?: Record<string, string | null> | null;
+  /** Cached module work-scope summaries for source picking (R1-CHG08) */
+  module_source_summaries?: {
+    mode?: string;
+    note?: string;
+    in_scope?: string[];
+    by_engagement?: Record<
+      string,
+      Record<string, { bullets?: string[]; status?: string; source?: string }>
+    >;
+  } | null;
   solution_draft?: SolutionDraft;
   qa_items?: QAItem[];
   artifacts_status?: ArtifactsStatus;

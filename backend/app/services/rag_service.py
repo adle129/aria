@@ -35,6 +35,55 @@ def _sha256_file(path: Path) -> str | None:
         return None
 
 
+def normalize_rfq_text_fingerprint_source(text: str) -> str:
+    """Collapse whitespace so OLE/.doc re-saves with identical body still match."""
+    import re
+
+    return re.sub(r"\s+", "", str(text or ""))
+
+
+def _rfq_text_fingerprint(path: Path) -> str | None:
+    """SHA256 of normalized extracted RFQ text; cached beside the file.
+
+    Legacy ``.doc`` files often change bytes on open/save while body text stays
+    identical; byte SHA alone therefore misses true same-source twins.
+    """
+    path = Path(path)
+    byte_hash = _sha256_file(path)
+    if not byte_hash:
+        return None
+    cache_path = path.with_name(path.name + ".aria_text_fp")
+    try:
+        if cache_path.is_file():
+            raw = cache_path.read_text(encoding="utf-8").strip()
+            cached_byte, sep, cached_fp = raw.partition(":")
+            if sep and cached_byte == byte_hash and cached_fp:
+                return cached_fp
+    except OSError:
+        pass
+
+    try:
+        from app.services.ingest.rfq_document_loader import load_rfq_text
+
+        text, _loader = load_rfq_text(path)
+    except Exception as exc:  # noqa: BLE001 — fingerprint is best-effort
+        logger.info(
+            "rfq_text_fingerprint_failed path=%s error=%s",
+            path,
+            str(exc)[:200],
+        )
+        return None
+
+    fp = hashlib.sha256(
+        normalize_rfq_text_fingerprint_source(text).encode("utf-8")
+    ).hexdigest()
+    try:
+        cache_path.write_text(f"{byte_hash}:{fp}", encoding="utf-8")
+    except OSError:
+        pass
+    return fp
+
+
 def _same_source_by_rfq_bytes(
     kb_root: Path,
     uploaded_rfq: Path,
@@ -65,9 +114,68 @@ def _same_source_by_rfq_bytes(
                 matches[manifest.engagement_id] = {
                     "source_doc": f"knowledge_base/{rel}",
                     "project_name": manifest.project_name,
+                    "match_via": "bytes",
                 }
                 break
     return matches
+
+
+def _extend_same_source_by_text_fingerprint(
+    matches: dict[str, dict[str, str]],
+    kb_root: Path,
+    uploaded_rfq: Path,
+    *,
+    candidate_engagement_ids: list[str] | None = None,
+) -> dict[str, dict[str, str]]:
+    """Add same-source hits when normalized RFQ text matches (OLE re-save safe).
+
+    Only checks candidate engagements (search Top-N) to avoid converting every
+    historical ``.doc`` on each confirm.
+    """
+    from app.services.engagement_manifest_service import (
+        ManifestLoadError,
+        resolve_manifest,
+    )
+
+    if not kb_root.is_dir():
+        return matches
+    upload_fp = _rfq_text_fingerprint(uploaded_rfq)
+    if not upload_fp:
+        return matches
+
+    wanted: set[str] | None = None
+    if candidate_engagement_ids is not None:
+        wanted = {str(x).strip() for x in candidate_engagement_ids if str(x).strip()}
+        if not wanted:
+            return matches
+
+    out = dict(matches)
+    for folder in kb_root.iterdir():
+        if not folder.is_dir() or folder.name.startswith("."):
+            continue
+        try:
+            manifest = resolve_manifest(folder)
+        except (ManifestLoadError, ValueError, json.JSONDecodeError):
+            continue
+        eng_id = str(manifest.engagement_id or folder.name).strip()
+        if not eng_id or eng_id in out:
+            continue
+        if wanted is not None and eng_id not in wanted and folder.name not in wanted:
+            continue
+        for doc in manifest.documents:
+            if doc.doc_type != "rfq":
+                continue
+            candidate = folder / doc.path
+            if _rfq_text_fingerprint(candidate) != upload_fp:
+                continue
+            rel = f"{folder.name}/{doc.path}".replace("\\", "/")
+            out[eng_id] = {
+                "source_doc": f"knowledge_base/{rel}",
+                "project_name": manifest.project_name,
+                "match_via": "text",
+            }
+            break
+    return out
 
 
 def calculate_overall_confidence(similarity_scores: list[float]) -> str:
@@ -343,6 +451,27 @@ class RAGService:
                 draft=draft,
                 top_k=layer1_window if draft is not None else top_k,
             )
+            if (
+                source_file_path
+                and not self.settings.mock_rag
+            ):
+                # .doc OLE re-saves share body text but not bytes; detect before
+                # Layer-2 so same-source shortcircuit can fill the matrix.
+                candidate_ids: list[str] = []
+                for group in groups:
+                    eid = str(
+                        group.get("engagement_id")
+                        or (group.get("metadata") or {}).get("engagement_id")
+                        or ""
+                    ).strip()
+                    if eid:
+                        candidate_ids.append(eid)
+                same_source = _extend_same_source_by_text_fingerprint(
+                    same_source,
+                    Path(self.knowledge_base_path),
+                    Path(source_file_path),
+                    candidate_engagement_ids=candidate_ids,
+                )
             if draft is not None:
                 groups = apply_section_align_to_groups(
                     groups,
@@ -358,7 +487,11 @@ class RAGService:
 
         groups = self._apply_same_source_boost(groups, same_source, top_k=top_k)
         if draft is not None:
-            groups = apply_same_source_layer2_shortcircuit(groups, draft)
+            groups = apply_same_source_layer2_shortcircuit(
+                groups,
+                draft,
+                fetch_chunks=self._fetch_engagement_chunks,
+            )
 
         results: list[dict[str, Any]] = []
         for group in groups:

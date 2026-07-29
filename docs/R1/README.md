@@ -32,7 +32,7 @@
 | [rag-compare-spike-closure.md](rag-compare-spike-closure.md) | **RAG A/B spike 结案**（vector 12/15 · index 171） |
 | [validation-chunk-review.md](validation-chunk-review.md) | **切块方案 Review**（Demo vs R1 对比 + 样例 chunk） |
 | [kb-debug-ui-spec.md](kb-debug-ui-spec.md) | **知识库 Debug UI**（**仅 DEV** · 切块/评测内部工具） |
-| [customer-dependencies.md](customer-dependencies.md) | 客户/IT 配合项 O-01～O-05（PM 跟踪） |
+| [customer-dependencies.md](customer-dependencies.md) | 客户/IT 配合项 O-01～O-05（含 O-01a/b 矩阵准确度输入；PM 跟踪） |
 | [acceptance-checklist.md](acceptance-checklist.md) | R1 验收勾选项（对齐 prod §10.2） |
 | [feat-r1-aliyun-staging-summary.md](feat-r1-aliyun-staging-summary.md) | **阿里云 staging / 离线包 / RFQ 时长可观测** 分支变更摘要 |
 | [r1-usability-delivery-strategy.md](r1-usability-delivery-strategy.md) | **R1「签完即用」** 内部共识（金标准 ≥5 + bulk 档位） |
@@ -85,7 +85,7 @@ R1 业务主线：**先知识库（2A），再 RFQ 对标（2B）**。其前须�
 | 阶段 | 条件 | 基准库 |
 |------|------|--------|
 | **R1-α** | 可编码启动 | 内部 seed 20–30 项（I-03） |
-| **R1-β** | 客户 R1 验收签字 | 客户正式 ~100 项（O-01）+ O-02a/c/d + O-03～O-05 |
+| **R1-β** | 客户 R1 验收签字 | 客户正式 ~100 项（O-01）+ 别名/矩阵金标准（O-01a/b）+ O-02a/c/d + O-03～O-05 |
 
 详见 [pre-development-open-items.md §1](../supplementary/pre-development-open-items.md)。
 

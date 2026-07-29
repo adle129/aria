@@ -24,6 +24,7 @@ import { ComparisonMatrix, ConfidenceBadge, type MatrixRow } from "@/components/
 import RfqAnalysisProgress from "@/components/rfq/RfqAnalysisProgress";
 import RfqBaselinesDrawer from "@/components/rfq/RfqBaselinesDrawer";
 import { FunctionSourcePicker } from "@/components/rfq/FunctionSourcePicker";
+import type { ModuleSourceSummaries } from "@/lib/moduleSourceSummaries";
 import RfqBusyHoursBanner from "@/components/rfq/RfqBusyHoursBanner";
 import RfqParseSummary from "@/components/rfq/RfqParseSummary";
 import RfqTaskHeader from "@/components/rfq/RfqTaskHeader";
@@ -1275,6 +1276,10 @@ export default function RfqPage() {
             inScope={inScopeFunctions}
             candidates={sourceCandidates}
             baselineAvailability={baselineAvailability}
+            moduleSummaries={
+              (task.module_source_summaries as ModuleSourceSummaries | null | undefined) ??
+              null
+            }
             saving={savingSourceMap}
             onChange={setFunctionSourceMap}
             onSave={() => void handleSaveFunctionSourceMap()}

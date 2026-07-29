@@ -147,6 +147,8 @@ class RFQAnalysisService:
         task.dimension_draft = None
         task.similar_projects = None
         task.comparison_table = None
+        task.function_source_map = None
+        task.module_source_summaries = None
         task.solution_draft = None
         task.qa_items = None
         task.excel_path = None
@@ -161,6 +163,8 @@ class RFQAnalysisService:
         task.dimension_draft = None
         task.similar_projects = None
         task.comparison_table = None
+        task.function_source_map = None
+        task.module_source_summaries = None
         task.solution_draft = None
         task.qa_items = None
         task.excel_path = None
@@ -179,6 +183,7 @@ class RFQAnalysisService:
     def _rollback_confirm_to_review(self, repo: RFQTaskRepository, task: RFQTask) -> RFQTask:
         task.similar_projects = None
         task.comparison_table = None
+        task.module_source_summaries = None
         task.processing_status = "dimension_review"
         task.progress = "40"
         task.status_message = "矩阵生成已取消，维度勾选已保留，可重新确认"
@@ -336,6 +341,7 @@ class RFQAnalysisService:
         task.error_msg = None
         task.similar_projects = None
         task.comparison_table = None
+        task.module_source_summaries = None
         task.updated_at = now
 
         job = TaskJob(
@@ -479,6 +485,15 @@ class RFQAnalysisService:
                 draft,
             )
             task.comparison_table = comparison_table
+            from app.services.module_source_summary_service import (
+                build_module_source_summaries,
+            )
+
+            task.module_source_summaries = build_module_source_summaries(
+                rfq_modules=task.rfq_modules if isinstance(task.rfq_modules, dict) else None,
+                comparison_table=comparison_table if isinstance(comparison_table, dict) else None,
+                similar_projects=similar_docs if isinstance(similar_docs, list) else None,
+            )
             task.processing_status = "completed"
             task.progress = "100"
             task.status_message = "分析完成"
@@ -779,6 +794,7 @@ class RFQAnalysisService:
             "similar_projects": task.similar_projects,
             "comparison_table": comparison_table,
             "function_source_map": task.function_source_map,
+            "module_source_summaries": task.module_source_summaries,
             "solution_draft": task.solution_draft,
             "qa_items": task.qa_items,
             "artifacts_status": compute_artifacts_status(task),

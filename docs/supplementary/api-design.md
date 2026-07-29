@@ -370,6 +370,8 @@ PUT /api/v1/rfq/tasks/{task_id}
 
 `GET /tasks/{id}` 响应可含同名字段 `function_source_map`。未知模块键或非法 engagement → `400`。
 
+**模块工作范围摘要缓存（R1-CHG08 · W1 占位已实现）：** 矩阵生成完成时写入只读字段 `module_source_summaries`（`mode=placeholder` / `hint`）。结构：`by_engagement[engagement_id][Function].{bullets,status,source}`。选源面板只读缓存，**不**现场 3×9 检索。客户关键字表到位后替换静态占位。
+
 #### 重新解析失败任务（R1 · F1.11）
 
 ```
@@ -516,6 +518,8 @@ POST /api/v1/rfq/tasks/{task_id}/confirm-dimensions
 
 **`comparison_table.projects[].dimensions`（Layer 2）：**
 
+对齐用维度 `name` **+** 基线/草稿 `keywords`（配置驱动，无 hardcode）对照历史 `section_path`。同源项目空格填 `"未匹配到对应章节"`（不填「同源 RFQ…」口号）。
+
 ```json
 {
   "前悬架开发": {
@@ -523,19 +527,26 @@ POST /api/v1/rfq/tasks/{task_id}/confirm-dimensions
     "match": true,
     "section_path": "四、工作内容 > 4.1 底盘 > 4.1.1 前悬架",
     "chunk_id": "eng::uuid",
-    "content_score": 0.72
+    "content_score": 0.72,
+    "align_status": "matched",
+    "align_diag": {
+      "reason_code": "OK",
+      "match_via": "keyword",
+      "reason_zh": "已按基线关键词对齐到章节正文摘录"
+    }
   }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `value` | 对齐叶块正文截断；失败为 `"未知"`（禁止编造） |
+| `value` | 对齐叶块正文截断；失败为 `"未知"`；同源仍无摘录时为 `"未匹配到对应章节"`（禁止编造） |
 | `match` | `true` / `false` / `null` |
 | `section_path` / `chunk_id` | 溯源；可选 |
 | `content_score` | 0..1 文本重叠；可选 |
+| `align_status` / `align_diag` | 可选；失败原因码与 `match_via`（`name`/`keyword`），供矩阵悬停 |
 
-矩阵 `matrix_rows[].history[]` 可含上述 `section_path` / `chunk_id` / `content_score`。P0 不因 Layer2 改写项目排序。
+矩阵 `matrix_rows[].history[]` 可含上述字段。P0 不因 Layer2 改写项目排序。
 
 **400：** 非 `dimension_review` 状态；无任何 `in_scope=true` 项。
 

@@ -16,6 +16,11 @@ import {
   type SourceCandidate,
 } from "@/lib/functionSourceMap";
 import { formatProjectIdLine } from "@/lib/projectIdentity";
+import {
+  getModuleSummaryBullets,
+  getModuleSummaryStatus,
+  type ModuleSourceSummaries,
+} from "@/lib/moduleSourceSummaries";
 
 const { Text } = Typography;
 
@@ -27,6 +32,8 @@ interface FunctionSourcePickerProps {
   inScope: QuoteFunctionKey[];
   candidates: SourceCandidate[];
   baselineAvailability?: BaselineAvailability;
+  /** Cached per engagement×module work-scope bullets (R1-CHG08). */
+  moduleSummaries?: ModuleSourceSummaries | null;
   saving?: boolean;
   disabled?: boolean;
   onChange: (next: FunctionSourceMap) => void;
@@ -114,6 +121,7 @@ export function FunctionSourcePicker({
   inScope,
   candidates,
   baselineAvailability,
+  moduleSummaries,
   saving = false,
   disabled = false,
   onChange,
@@ -183,27 +191,69 @@ export function FunctionSourcePicker({
         }
         const ok = hasBaseline(baselineAvailability, c.engagementId, row.key);
         const checked = value[row.key] === c.engagementId;
+        const bullets = getModuleSummaryBullets(
+          moduleSummaries,
+          c.engagementId,
+          row.key,
+        );
+        const summaryStatus = getModuleSummaryStatus(
+          moduleSummaries,
+          c.engagementId,
+          row.key,
+        );
+        const summaryTip =
+          bullets.length > 0
+            ? bullets.map((b) => `· ${b}`).join("\n")
+            : undefined;
         return (
           <Tooltip
             title={
               !ok
                 ? "该历史项目无此模块报价基线"
-                : checked
-                  ? "取消勾选 = 本模块不引用历史"
-                  : `采用「${c.projectName}」的 ${QUOTE_FUNCTION_SHORT[row.key]}`
+                : summaryTip
+                  ? `${summaryTip}${
+                      summaryStatus === "placeholder"
+                        ? "\n（占位摘要，客户关键字表到位后替换）"
+                        : ""
+                    }`
+                  : checked
+                    ? "取消勾选 = 本模块不引用历史"
+                    : `采用「${c.projectName}」的 ${QUOTE_FUNCTION_SHORT[row.key]}`
             }
           >
-            <Checkbox
-              checked={checked}
-              disabled={disabled || !ok}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setModuleSource(row.key, c.engagementId);
-                } else if (checked) {
-                  setModuleSource(row.key, null);
-                }
-              }}
-            />
+            <div>
+              <Checkbox
+                checked={checked}
+                disabled={disabled || !ok}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setModuleSource(row.key, c.engagementId);
+                  } else if (checked) {
+                    setModuleSource(row.key, null);
+                  }
+                }}
+              />
+              {bullets.length > 0 ? (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 10,
+                    lineHeight: 1.35,
+                    color:
+                      summaryStatus === "placeholder" ? "#8c8c8c" : "#595959",
+                    textAlign: "left",
+                    maxWidth: 140,
+                    marginInline: "auto",
+                  }}
+                >
+                  {bullets.slice(0, 2).map((b) => (
+                    <div key={b} style={{ marginBottom: 2 }}>
+                      {b.length > 28 ? `${b.slice(0, 28)}…` : b}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </Tooltip>
         );
       },
@@ -238,8 +288,8 @@ export function FunctionSourcePicker({
         }}
       >
         <Text type="secondary" style={{ fontSize: 12 }}>
-          表格列与「技术维度对比矩阵」历史项目一致。每行最多勾选一个项目；不勾选表示该模块不引用。此处仅保存选源意向；按多源真正拼装 Excel
-          属后续里程碑（签约后 / M3）。
+          表格列与「技术维度对比矩阵」历史项目一致。每行最多勾选一个项目；不勾选表示该模块不引用。单元格下方为模块工作范围摘要（矩阵完成后缓存；当前为占位/摘录提示，不现场检索）。按多源真正拼装
+          Excel 属后续里程碑（签约后 / M3）。
         </Text>
         <Tag style={{ marginInlineEnd: 0 }}>
           已选用 {mapped}/{total}

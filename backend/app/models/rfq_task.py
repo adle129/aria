@@ -31,6 +31,7 @@ class RFQTask(Base):
     similar_projects = Column(JSON, nullable=True)
     comparison_table = Column(JSON, nullable=True)
     function_source_map = Column(JSON, nullable=True)
+    module_source_summaries = Column(JSON, nullable=True)
     solution_draft = Column(JSON, nullable=True)
     qa_items = Column(JSON, nullable=True)
     excel_path = Column(String, nullable=True)

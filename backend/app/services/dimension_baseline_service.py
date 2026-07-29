@@ -66,3 +66,17 @@ class DimensionBaselineService:
             for dim in module.dimensions:
                 rows.append((module, dim))
         return rows
+
+    def keyword_index(self, *, force_reload: bool = False) -> dict[str, list[str]]:
+        """Map dimension ``id`` / ``name`` → keywords for Layer-2 section align (Method A)."""
+        self.load(force_reload=force_reload)
+        index: dict[str, list[str]] = {}
+        for _module, dim in self.iter_dimensions():
+            kws = [str(k).strip() for k in (dim.keywords or []) if str(k).strip()]
+            if not kws:
+                continue
+            if dim.id:
+                index[str(dim.id).strip()] = list(kws)
+            if dim.name:
+                index[str(dim.name).strip()] = list(kws)
+        return index

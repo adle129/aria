@@ -99,6 +99,9 @@ def _ensure_rfq_task_columns() -> None:
     if "function_source_map" not in existing:
         col_type = "JSON" if dialect == "postgresql" else "JSON"
         additions.append(f"function_source_map {col_type}")
+    if "module_source_summaries" not in existing:
+        col_type = "JSON" if dialect == "postgresql" else "JSON"
+        additions.append(f"module_source_summaries {col_type}")
     if not additions:
         return
     with engine.begin() as conn:

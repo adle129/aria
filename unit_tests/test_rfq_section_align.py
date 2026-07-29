@@ -5,6 +5,7 @@ from app.services.rfq_section_align import (
     align_sections_for_engagement,
     apply_section_align_to_groups,
     content_overlap_score,
+    diagnose_align_miss,
     normalize_title,
     title_overlap_score,
 )
@@ -65,6 +66,83 @@ def test_align_dimension_unknown_on_mismatch():
     assert cell["value"] == "未知"
     assert cell["match"] is None
     assert cell["chunk_id"] is None
+    assert cell["align_status"] == "title_below_threshold"
+    assert cell["align_diag"]["reason_code"] == "NO_BODY_EVIDENCE"
+
+
+def test_align_via_baseline_keyword_when_title_differs():
+    """Method A: dimension name misses, keyword hits section title → excerpt."""
+    chunks = [
+        {
+            "chunk_id": "nvh1",
+            "content": "4.2 噪声振动分析\n整车 NVH 目标与模态校核",
+            "metadata": {
+                "section_path": "4.2 噪声振动分析",
+                "chunk_chapter": "噪声振动分析",
+            },
+        }
+    ]
+    # Name alone may not overlap 「噪声振动」; keyword 「NVH」 / 「噪声」 should.
+    cell = align_dimension_to_chunks(
+        "NVH 仿真",
+        "模态与噪声",
+        chunks,
+        keywords=["NVH", "模态", "振动", "噪声"],
+    )
+    assert cell["value"] != "未知"
+    assert "NVH" in cell["value"] or "模态" in cell["value"] or "噪声" in cell["value"]
+    assert cell["align_diag"]["match_via"] == "keyword"
+    assert cell["section_path"] == "4.2 噪声振动分析"
+
+
+def test_resolve_align_keywords_prefers_item_then_index():
+    from app.services.rfq_section_align import resolve_align_keywords
+
+    item = {"name": "NVH 仿真", "dimension_id": "cae_nvh", "keywords": ["噪声"]}
+    assert resolve_align_keywords(item, keyword_index={"cae_nvh": ["NVH"]}) == ["噪声"]
+    item2 = {"name": "NVH 仿真", "dimension_id": "cae_nvh"}
+    assert resolve_align_keywords(
+        item2, keyword_index={"cae_nvh": ["NVH", "模态"]}
+    ) == ["NVH", "模态"]
+
+
+def test_align_diag_title_mismatch_when_body_has_terms():
+    chunks = [
+        {
+            "chunk_id": "c1",
+            "content": "总则\n本项目包含前悬架开发与转向节交付",
+            "metadata": {"section_path": "1 总则", "chunk_chapter": "总则"},
+        }
+    ]
+    diag = diagnose_align_miss("前悬架开发", "前悬架 M1", chunks, title_min=0.35)
+    assert diag["reason_code"] == "TITLE_MISMATCH"
+    assert diag["body_term_hits"] >= 1
+    assert "标题" in diag["reason_zh"]
+
+
+def test_keyword_index_from_seed_baseline():
+    from pathlib import Path
+
+    from app.config import Settings
+    from app.services.dimension_baseline_service import DimensionBaselineService
+
+    seed = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "data"
+        / "config"
+        / "dimension_baseline.v1.json"
+    )
+    if not seed.is_file():
+        import pytest
+
+        pytest.skip("seed baseline missing")
+    idx = DimensionBaselineService(
+        Settings(dimension_baseline_path=str(seed))
+    ).keyword_index()
+    assert "cae_nvh" in idx or "NVH 仿真" in idx
+    kws = idx.get("cae_nvh") or idx.get("NVH 仿真") or []
+    assert any("NVH" in k or "噪声" in k for k in kws)
 
 
 def test_align_sections_for_engagement_coverage():
@@ -198,8 +276,54 @@ def test_same_source_layer2_shortcircuit_sets_full_coverage_and_match():
     assert twin["aligned_dimensions"]["副车架/悬置"]["match"] is True
     assert "底盘悬置" in twin["aligned_dimensions"]["副车架/悬置"]["value"]
     assert twin["aligned_dimensions"]["NVH 仿真"]["match"] is True
-    assert "同源" in twin["aligned_dimensions"]["NVH 仿真"]["value"]
+    # No chapter excerpt → do not claim file identity in the cell
+    assert "同源" not in twin["aligned_dimensions"]["NVH 仿真"]["value"]
+    assert "一致" not in twin["aligned_dimensions"]["NVH 仿真"]["value"]
+    assert twin["aligned_dimensions"]["NVH 仿真"]["value"] == "未匹配到对应章节"
+    nvh_diag = twin["aligned_dimensions"]["NVH 仿真"]["align_diag"]
+    assert nvh_diag["reason_code"] in {"TITLE_MISMATCH", "NO_BODY_EVIDENCE", "EMPTY_DOC"}
+    assert nvh_diag.get("reason_zh")
 
     other = out[1]
     assert other["section_coverage"] == 0.33
     assert other["aligned_dimensions"]["仪表板"]["match"] is None
+
+
+def test_same_source_soft_refill_prefers_chapter_excerpt():
+    from app.services.rfq_section_align import apply_same_source_layer2_shortcircuit
+
+    draft = {
+        "items": [
+            {"name": "白车身结构", "in_scope": True, "work_content": "白车身"},
+        ]
+    }
+    chunks = [
+        {
+            "chunk_id": "c1",
+            "content": "4.1.2.4 车身/车身附件各个系统竞品对比与结构方案",
+            "metadata": {
+                "section_path": "4.1.2.4 白车身结构",
+                "chunk_chapter": "白车身结构",
+            },
+        }
+    ]
+    groups = [
+        {
+            "engagement_id": "twin",
+            "same_source": True,
+            "aligned_dimensions": {
+                "白车身结构": {"value": "未知", "match": None},
+            },
+            "metadata": {"engagement_id": "twin", "same_source": True},
+            "hits": [],
+        }
+    ]
+    out = apply_same_source_layer2_shortcircuit(
+        groups,
+        draft,
+        fetch_chunks=lambda *_a, **_k: chunks,
+    )
+    value = out[0]["aligned_dimensions"]["白车身结构"]["value"]
+    assert "同源" not in value
+    assert "车身" in value or "白车身" in value
+    assert out[0]["aligned_dimensions"]["白车身结构"]["match"] is True

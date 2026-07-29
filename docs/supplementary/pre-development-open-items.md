@@ -67,7 +67,9 @@
 
 | ID | 项 | 责任 | 建议截止 | 阻塞 | 状态 | 来源 |
 |----|-----|------|----------|------|------|------|
-| **O-01** | **工作维度基准清单（~100 项，Excel）** | 客户 | R1 第 7–8 周前 | **R1 验收** | 待客户提供 | Q8 · [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md) |
+| **O-01** | **工作维度基准清单（~100 项，Excel）** — 正式业务尺子 | 客户 | R1 第 7–8 周前 | **R1 验收** | 待客户提供 | Q8 · [rfq-dimension-baseline-spec 附录 A](rfq-dimension-baseline-spec.md) · [customer-dependencies](../R1/customer-dependencies.md) |
+| **O-01a** | **维度 ↔ 历史章节别名对照表**（常见叫法/同义标题） | 客户 + 乙方协助 | 与 O-01 同批或其后 1 周内 | **R1-β 矩阵准确度** | 待客户提供 | customer-dependencies · 附录 A.4 |
+| **O-01b** | **矩阵单元格金标准**（2～3 份历史 RFQ × 维度：应有摘录 / 应为空 / 标题异名） | 客户业务 | 第 7–8 周联合调优前 | **R1-β 矩阵签字** | 待客户提供 | customer-dependencies · O-02a / O-04 |
 | **O-02a** | **≥5 套 Engagement 金标准三件套**（脱敏 RFQ+Q_A+填好数报价） | 客户 | 1 周内 ≥3 套；第 6 周前 ≥5 套 | **R1 验收 §4.1** · **P1** | 待客户提供 | [R1 验收说明 §4.1](../R1-知识库验收与检索评测说明（客户版）.md) |
 | **O-02b** | **10–20 套结构试点**（脱敏，**可缺件**） | 客户 | 签约前或 **第 1 周** | 档位决策 · **P1** | 待客户提供 | [bulk-import-workload-assessment.md](../R1/bulk-import-workload-assessment.md) §5 |
 | **O-02c** | **内网 bulk 首次导入**（贵司现有历史项目库；IT 目录 + 导入报告；档位 A ≥90%） | 客户 IT + 乙方 | 第 5–8 周 import；**第 7–8 周内网验收** · **P2** | **R1 验收 §4.1b** | 待客户提供 | bulk-import §4 |

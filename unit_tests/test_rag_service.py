@@ -510,6 +510,79 @@ def test_same_source_boost_pins_matching_engagement(tmp_path, monkeypatch):
     assert hits[0]["metadata"]["engagement_id"] == "twin"
 
 
+def test_same_source_text_fingerprint_detects_ole_resave(tmp_path, monkeypatch):
+    """Body-identical .doc twins with different bytes still count as same-source."""
+    from app.services import rag_service as rag_mod
+
+    kb = tmp_path / "kb"
+    eng = kb / "test"
+    eng.mkdir(parents=True)
+    kb_rfq = eng / "RFQ.doc"
+    kb_rfq.write_bytes(b"ole-bytes-version-a" + b"\x00" * 20)
+    (eng / "manifest.json").write_text(
+        json.dumps(
+            {
+                "engagement_id": "test",
+                "project_name": "Test Twin",
+                "documents": [{"path": "RFQ.doc", "doc_type": "rfq"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    upload = tmp_path / "upload.doc"
+    upload.write_bytes(b"ole-bytes-version-b" + b"\xff" * 24)
+    assert kb_rfq.read_bytes() != upload.read_bytes()
+
+    def fake_fp(path):
+        # Same normalized body regardless of which twin file.
+        p = str(path)
+        if p.endswith("RFQ.doc") or p.endswith("upload.doc"):
+            return "same-text-fingerprint"
+        return None
+
+    monkeypatch.setattr(rag_mod, "_rfq_text_fingerprint", fake_fp)
+
+    rag = RAGService(Settings(mock_rag=False, knowledge_base_path=str(kb)))
+    monkeypatch.setattr(
+        rag,
+        "search_grouped",
+        lambda *a, **k: [
+            {
+                "engagement_id": "test",
+                "project_name": "Test Twin",
+                "similarity_score": 0.55,
+                "vector_score": 0.55,
+                "metadata": {"engagement_id": "test", "project_name": "Test Twin"},
+                "hits": [
+                    {
+                        "content": "chassis",
+                        "similarity_score": 0.55,
+                        "metadata": {"engagement_id": "test"},
+                    }
+                ],
+            }
+        ],
+    )
+    draft = {
+        "items": [
+            {"name": "转向系统", "in_scope": True, "work_content": "转向"},
+            {"name": "制动系统", "in_scope": True, "work_content": "制动"},
+        ]
+    }
+    hits = rag.search_similar_projects(
+        "query",
+        top_k=3,
+        rfq_modules={"functions_in_scope": ["Chassis"]},
+        draft=draft,
+        source_file_path=str(upload),
+    )
+    assert hits[0]["metadata"]["engagement_id"] == "test"
+    assert hits[0]["metadata"]["same_source"] is True
+    dims = hits[0]["metadata"]["dimensions"]
+    assert dims["转向系统"]["value"] != "未知"
+    assert dims["制动系统"]["same_source"] is True
+
+
 def test_insufficient_evidence_uses_vector_score_not_only_fused():
     rag = RAGService(
         Settings(mock_rag=False, rag_similarity_threshold=0.55, knowledge_base_path="./data/knowledge_base")

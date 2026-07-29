@@ -76,7 +76,7 @@ flowchart TB
 | `modules[].label` | 是 | 中文展示名 |
 | `dimensions[].id` | 是 | 全局唯一 stable id |
 | `dimensions[].name` | 是 | 维度显示名 |
-| `dimensions[].keywords` | 否 | 规则匹配用 |
+| `dimensions[].keywords` | 否 | F1.10b 纳入匹配 + **Layer-2 矩阵章节对齐别名**（配置驱动，无代码 hardcode） |
 | `dimensions[].description` | 否 | 工程师说明 |
 
 ### 2.3 模块分类（客户口径 · 示例）
@@ -333,16 +333,20 @@ flowchart TB
 
 ---
 
-## 附录 A · 向客户索取「工作维度基准表」
+## 附录 A · 向客户索取「工作维度基准表」与矩阵准确度输入
+
+> 跟踪 ID：**O-01 / O-01a / O-01b** — 见 [customer-dependencies.md](../R1/customer-dependencies.md)。
 
 ### A.1 业务说明（可复制至邮件）
 
 > 尊敬的业务同事：  
-> 为完成 R1 **RFQ 全维度技术对标**（贵司反馈的核心功能），请提供贵司历史项目采用的 **全量工作维度基准表**（Excel 即可）。  
-> 该表将作为所有 RFQ 的 **统一比对基准**（约 100 项），系统将自动识别 RFQ 涉及/未涉及项，并在确认后生成与历史项目的对比矩阵。  
+> 为完成 R1 **RFQ 全维度技术对标**（贵司反馈的核心功能），请提供以下三类输入（Excel 即可），否则对比矩阵只能验证流程、难以验证业务准确度：  
+> 1. **工作维度基准表（约 100 项）** — 所有 RFQ 统一比对的「尺子」；  
+> 2. **维度 ↔ 历史章节别名对照** — 每项工作在历史 RFQ 目录中的常见叫法（减少「有内容但对不上名」）；  
+> 3. **矩阵单元格金标准（2～3 份历史 RFQ）** — 按维度标注应有摘录 / 应为空 / 标题异名，作为联合调优与验收依据。  
 > 建议在 **R1 第 7–8 周联合调优前** 提供初版；可在试用后共同修订一版作为验收基线。
 
-### A.2 Excel 模板列（建议）
+### A.2 Excel 模板列（建议）— Sheet「工作维度基准」（O-01）
 
 | 列 | 字段名 | 必填 | 示例 |
 |----|--------|------|------|
@@ -356,12 +360,36 @@ flowchart TB
 **行数：** 约 80–120 行（贵司实际为准）  
 **勿含：** 客户机密项目名、报价数字 — 仅 **维度名称与分类**
 
-### A.3 我方收到后
+### A.3 我方收到后（O-01）
 
 1. 转换为 `dimension_baseline.v1.json`  
 2. 与客户确认模块分类与条目数量  
 3. 进入 R1-β 匹配调优 + 3 份 RFQ 验收  
 
+### A.4 Sheet「章节别名对照」（O-01a · 强烈建议）
+
+| 列 | 字段名 | 必填 | 示例 |
+|----|--------|------|------|
+| A | 维度名称或维度 ID | 是 | NVH 仿真 / cae_nvh |
+| B | 历史章节常见叫法 | 是 | 噪声振动分析 |
+| C | 其它别名（可选） | 否 | 模态; NVH; 振动噪声 |
+| D | 备注（可选） | 否 | 常见于 CAE 章节 4.x |
+
+**说明：** 别名用于历史 RFQ **章节标题对齐**（维度对比矩阵填格），与「本次 RFQ 是否纳入该维度」的关键词可共用，但**建议单独成表**便于业务审核。
+
+### A.5 Sheet「矩阵单元格金标准」（O-01b · 验收必备）
+
+| 列 | 字段名 | 必填 | 示例 |
+|----|--------|------|------|
+| A | 历史项目/RFQ 标识 | 是 | 脱敏包名或 engagement 代号 |
+| B | 维度名称或维度 ID | 是 | 白车身结构 |
+| C | 期望结果 | 是 | `应有摘录` / `应为空` / `标题异名` |
+| D | 期望章节名或关键词（可选） | 条件 | 应有摘录或标题异名时填写 |
+| E | 备注 | 否 | 业务说明 |
+
+**样例数：** 2～3 份历史 RFQ × 拟纳入 R1-β 签字的维度子集（可先覆盖高频模块，再扩全量）。  
+**读法：** 「未匹配到对应章节」在有金标准后，才能判定是系统规则问题还是历史确实未写。
+
 ---
 
-**维护：** Q8 / 基准库结构变更时同步 [customer-feedback-baseline.md](../customer-feedback-baseline.md) · [formal-delivery-strategy.md](formal-delivery-strategy.md) · [prompt-spec.md](prompt-spec.md) · [api-design.md](api-design.md)
+**维护：** Q8 / 基准库结构变更时同步 [customer-feedback-baseline.md](../customer-feedback-baseline.md) · [formal-delivery-strategy.md](formal-delivery-strategy.md) · [customer-dependencies.md](../R1/customer-dependencies.md) · [prompt-spec.md](prompt-spec.md) · [api-design.md](api-design.md)

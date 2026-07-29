@@ -283,6 +283,23 @@ def test_update_function_source_map_shell(client, sample_rfq_bytes):
     assert again["function_source_map"]["PM"] == eng_a
 
 
+def test_module_source_summaries_present_after_complete(client, sample_rfq_bytes):
+    """R1-CHG08: matrix complete writes cached summaries (placeholder / hint)."""
+    task_id = _upload_and_complete(client, sample_rfq_bytes)
+    task = client.get(f"/api/v1/rfq/tasks/{task_id}").json()["data"]
+    summaries = task.get("module_source_summaries")
+    assert isinstance(summaries, dict), summaries
+    assert summaries.get("mode") == "placeholder"
+    by_eng = summaries.get("by_engagement") or {}
+    assert isinstance(by_eng, dict)
+    # Mock RAG may or may not attach engagement_id; shape must still be valid.
+    for _eng, modules in by_eng.items():
+        assert isinstance(modules, dict)
+        for _fn, cell in modules.items():
+            assert "bullets" in cell
+            assert cell.get("status") in {"placeholder", "hint", "empty"}
+
+
 def test_generate_excel_and_download(client, sample_rfq_bytes):
     task_id = _upload_and_complete(client, sample_rfq_bytes)
 

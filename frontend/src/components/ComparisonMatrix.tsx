@@ -10,6 +10,17 @@ import {
 } from "@/lib/matrixProjectHeader";
 import { formatProjectIdLine } from "@/lib/projectIdentity";
 
+export interface AlignDiag {
+  status?: string;
+  reason_code?: string;
+  reason_zh?: string;
+  title_min?: number;
+  best_title_score?: number;
+  best_section_path?: string | null;
+  body_term_hits?: number | null;
+  dim_name?: string;
+}
+
 export interface MatrixHistoryCell {
   project_name?: string;
   similarity_score?: number;
@@ -19,6 +30,9 @@ export interface MatrixHistoryCell {
   section_path?: string | null;
   chunk_id?: string | null;
   content_score?: number | null;
+  align_status?: string | null;
+  align_diag?: AlignDiag | null;
+  same_source?: boolean | null;
 }
 
 export interface MatrixRow {
@@ -154,6 +168,15 @@ export function ComparisonMatrix({
         if (!cell) return "—";
         const isSummary = record.dimension === "技术差异总结";
         const showMatch = !isSummary && !record.dimension.includes("人天") && !record.dimension.includes("偏差");
+        const tipParts: string[] = [];
+        if (cell.section_path) tipParts.push(`来源章节：${cell.section_path}`);
+        if (cell.align_diag?.reason_zh) {
+          const code = cell.align_diag.reason_code ? `[${cell.align_diag.reason_code}] ` : "";
+          tipParts.push(`${code}${cell.align_diag.reason_zh}`);
+        }
+        const tip = tipParts.join("\n");
+        const display = cell.value ?? "—";
+
         return (
           <span>
             {showMatch && (
@@ -161,12 +184,14 @@ export function ComparisonMatrix({
                 <MatchIcon match={cell.match} />{" "}
               </>
             )}
-            {cell.section_path ? (
-              <Tooltip title={`来源章节：${cell.section_path}`}>
-                <span>{cell.value ?? "—"}</span>
+            {tip ? (
+              <Tooltip title={<span style={{ whiteSpace: "pre-wrap" }}>{tip}</span>}>
+                <span style={cell.align_diag?.reason_code && cell.align_diag.reason_code !== "OK" ? { borderBottom: "1px dashed #999" } : undefined}>
+                  {display}
+                </span>
               </Tooltip>
             ) : (
-              (cell.value ?? "—")
+              display
             )}
           </span>
         );

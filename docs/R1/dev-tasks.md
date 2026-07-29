@@ -430,7 +430,7 @@
 | R1-CHG05 | P1 | T2a 车型 + 客户/车型主数据（kb_admin 维护）+ 列表筛选 | manifest/`engagements.vehicle_model`；主数据 CRUD；表单下拉；`GET engagements` 筛选 | CHG02 | **已完成** |
 | R1-CHG06 | P1 | 历史源文件授权下载（矩阵内） | 鉴权+审计；矩阵「下载 RFQ」；JSONL 审计 | CHG02 · 安全 | **已完成** |
 | R1-CHG07 | P0 | T3 真多源拼装 + `quote_fill_report`（M3） | scope 内多 engagement；单测+API；接真实 baselines | CHG03 · M3 · 确认单 | 待开始 |
-| R1-CHG08 | P1 | T4 模块关键字摘要缓存（矩阵后异步） | 选源读缓存；禁 3×9 现场检索 | CHG03 · 客户关键字表 | 待开始 |
+| R1-CHG08 | P1 | T4 模块关键字摘要缓存（矩阵后异步） | 矩阵完成后写 `module_source_summaries`；选源只读；W1 静态占位 | CHG03 · 客户关键字表 | **已完成**（W1 占位；客户表到位后换真摘要） |
 | R1-CHG09 | P2 | T7 回收站 30 天 + 文档级删除（L3） | 见 [knowledge-lifecycle-spec.md](knowledge-lifecycle-spec.md)；恢复/清理/索引·baselines 联动；确认单单列 | CHG13–14 · 确认单 | **已完成**（确认单勾选后验收） |
 | R1-CHG10 | P2 | T6 起草台 B1（默认不勾） | 拆页/模板 Word/入解析；独立草稿区 | 客户勾选+模板 | 待开始 |
 | R1-CHG11 | P2 | T6-B2 色标识别 | Spike 后另议 | 样例+出内网 | 待开始 |
@@ -451,6 +451,7 @@
 | P1 | R1-CHG14 | 无引用项目删除 | lifecycle **v0.4** L2 | **已完成** |
 | P2 | R1-CHG09 | 回收站 30 天 + 文档删除 | lifecycle **v0.5** L3 | **已完成**（建议确认单勾选后验收） |
 | P1 | R1-CHG06 | 矩阵内历史源文件下载 | api-design 下载接口 + JSONL 审计 | **已完成** |
+| P1 | R1-CHG08 | 模块关键字摘要缓存（W1 占位） | `module_source_summaries` + 选源展示 | **已完成**（客户表后换真） |
 | 后置 | — | 多库产品 / ACL / 财务 Space | Space 规格 P1 | 不排本期 |
 
 **架构/UI 评审摘要：** 两块均**演进现网、不大拆**；Space 预埋期几乎无新 UI；生命周期操作落在历史项目展开行/项目行，L3 再加回收站 Tab。详见两规格 §0。
